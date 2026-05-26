@@ -1,0 +1,4 @@
+@import 'bootstrap/dist/css/bootstrap.min.css';
+@import './fonts.css';
+@import './tailwind.css';
+@import './theme.css';
