@@ -1,7 +1,10 @@
-import { CheckCircle2, Circle, Clock, User } from "lucide-react";
+import { CheckCircle2, Circle, Clock } from "lucide-react";
+import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
+import { Input } from "../components/ui/Input";
+import { Modal } from "../components/ui/Modal";
 
 const onboardingCandidates = [
   {
@@ -55,6 +58,55 @@ const taskChecklist = [
 ];
 
 export function Onboarding() {
+  const [candidateList, setCandidateList] = useState(onboardingCandidates);
+  const [isStartModalOpen, setIsStartModalOpen] = useState(false);
+  const [showStartedMessage, setShowStartedMessage] = useState(false);
+  const [onboardingForm, setOnboardingForm] = useState({
+    name: "",
+    role: "",
+    department: "Engineering",
+    startDate: "",
+  });
+
+  const formatDisplayDate = (dateValue: string) =>
+    new Date(`${dateValue}T00:00:00`).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+
+  const resetOnboardingForm = () => {
+    setOnboardingForm({ name: "", role: "", department: "Engineering", startDate: "" });
+  };
+
+  const handleStartOnboarding = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const initials = onboardingForm.name
+      .split(" ")
+      .map((part) => part[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() || "EU";
+
+    setCandidateList((candidates) => [
+      {
+        id: Date.now(),
+        name: onboardingForm.name,
+        role: onboardingForm.role,
+        department: onboardingForm.department,
+        startDate: formatDisplayDate(onboardingForm.startDate),
+        progress: 20,
+        currentStep: 1,
+        avatar: initials,
+      },
+      ...candidates,
+    ]);
+    resetOnboardingForm();
+    setIsStartModalOpen(false);
+    setShowStartedMessage(true);
+    window.setTimeout(() => setShowStartedMessage(false), 2200);
+  };
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -63,14 +115,14 @@ export function Onboarding() {
           <h1 className="text-2xl text-foreground mb-2">Onboarding & Offboarding</h1>
           <p className="text-muted-foreground">Manage employee onboarding and offboarding processes</p>
         </div>
-        <Button variant="primary">Start New Onboarding</Button>
+        <Button variant="primary" onClick={() => setIsStartModalOpen(true)}>Start New Onboarding</Button>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card className="p-4">
           <p className="text-sm text-muted-foreground">Active Onboarding</p>
-          <p className="text-2xl text-foreground mt-1">12</p>
+          <p className="text-2xl text-foreground mt-1">{candidateList.length}</p>
         </Card>
         <Card className="p-4">
           <p className="text-sm text-muted-foreground">Completed This Month</p>
@@ -93,20 +145,20 @@ export function Onboarding() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {onboardingCandidates.map((candidate) => (
+            {candidateList.map((candidate) => (
               <div
                 key={candidate.id}
-                className="p-4 rounded-lg border border-border hover:border-primary/50 transition-colors"
+                className="p-4 rounded-lg border border-[#6B4A9A]/60 bg-[#261844]/55 hover:border-[#A77CE8]/80 hover:bg-[#2B1B4B]/75 transition-colors"
               >
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center">
+                    <div className="w-12 h-12 rounded-full bg-[#9B73D4] text-white flex items-center justify-center font-medium shadow-lg shadow-[#9B73D4]/20">
                       {candidate.avatar}
                     </div>
                     <div>
                       <h3 className="text-foreground">{candidate.name}</h3>
                       <p className="text-sm text-muted-foreground">
-                        {candidate.role} • {candidate.department}
+                        {candidate.role} - {candidate.department}
                       </p>
                     </div>
                   </div>
@@ -122,9 +174,9 @@ export function Onboarding() {
                     <span className="text-sm text-foreground">Progress</span>
                     <span className="text-sm text-muted-foreground">{candidate.progress}%</span>
                   </div>
-                  <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
+                  <div className="w-full h-2 bg-[#321E58] rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-primary transition-all duration-300"
+                      className="h-full bg-[#A77CE8] transition-all duration-300"
                       style={{ width: `${candidate.progress}%` }}
                     />
                   </div>
@@ -137,13 +189,17 @@ export function Onboarding() {
                       key={step.id}
                       className={`flex-1 p-2 rounded text-center text-xs ${
                         step.id < candidate.currentStep
-                          ? "bg-[var(--success)]/20 text-[var(--success)]"
+                          ? "bg-[#1F4752] text-[#27E18A]"
                           : step.id === candidate.currentStep
-                          ? "bg-[var(--info)]/20 text-[var(--info)]"
-                          : "bg-secondary text-muted-foreground"
+                          ? "bg-[#4C3472] text-[#C8A8FF]"
+                          : "bg-[#321E58] text-[#B69AE3]"
                       }`}
                     >
-                      {step.id < candidate.currentStep ? "✓" : step.id}
+                      {step.id < candidate.currentStep ? (
+                        <CheckCircle2 className="mx-auto h-4 w-4" />
+                      ) : (
+                        step.id
+                      )}
                     </div>
                   ))}
                 </div>
@@ -192,20 +248,26 @@ export function Onboarding() {
               {taskChecklist.map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-center justify-between p-3 rounded-lg bg-accent/30"
+                  className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                    item.status === "completed"
+                      ? "border-green-500/20 bg-green-500/10"
+                      : item.status === "in-progress"
+                      ? "border-[#A77CE8]/25 bg-[#A77CE8]/10"
+                      : "border-[#FFA45E]/20 bg-[#FFA45E]/10"
+                  }`}
                 >
                   <div className="flex items-center gap-3">
                     {item.status === "completed" ? (
                       <CheckCircle2 className="w-5 h-5 text-[var(--success)]" />
                     ) : item.status === "in-progress" ? (
-                      <Clock className="w-5 h-5 text-[var(--info)]" />
+                      <Clock className="w-5 h-5 text-[#A77CE8]" />
                     ) : (
-                      <Circle className="w-5 h-5 text-muted-foreground" />
+                      <Circle className="w-5 h-5 text-[#FFA45E]" />
                     )}
                     <span
                       className={`text-sm ${
                         item.status === "completed"
-                          ? "text-muted-foreground line-through"
+                          ? "text-green-200/80 line-through"
                           : "text-foreground"
                       }`}
                     >
@@ -213,14 +275,14 @@ export function Onboarding() {
                     </span>
                   </div>
                   <Badge
-                    variant={
+                    variant="outline"
+                    className={
                       item.status === "completed"
-                        ? "success"
+                        ? "border-green-500/40 bg-green-500/15 text-green-300"
                         : item.status === "in-progress"
-                        ? "info"
-                        : "secondary"
+                        ? "border-[#A77CE8]/45 bg-[#A77CE8]/15 text-[#D7C1FF]"
+                        : "border-[#FFA45E]/45 bg-[#FFA45E]/15 text-[#FFD0A3]"
                     }
-                    size="sm"
                   >
                     {item.status === "completed"
                       ? "Done"
@@ -234,6 +296,75 @@ export function Onboarding() {
           </CardContent>
         </Card>
       </div>
+
+      {showStartedMessage && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none">
+          <div className="relative overflow-hidden rounded-2xl bg-card border border-[#543884]/20 px-8 py-6 shadow-2xl text-center">
+            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#543884] via-[#EC4176] to-[#FFA45E]" />
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-green-500/15 text-green-500">
+              <CheckCircle2 className="h-7 w-7" />
+            </div>
+            <p className="text-lg font-semibold text-foreground">Onboarding started</p>
+            <p className="mt-1 text-sm text-muted-foreground">The employee has been added to active onboarding.</p>
+          </div>
+        </div>
+      )}
+
+      <Modal
+        isOpen={isStartModalOpen}
+        onClose={() => setIsStartModalOpen(false)}
+        title="Start New Onboarding"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setIsStartModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" form="start-onboarding-form" variant="primary">
+              Start Onboarding
+            </Button>
+          </>
+        }
+      >
+        <form id="start-onboarding-form" onSubmit={handleStartOnboarding} className="space-y-4">
+          <Input
+            label="Employee Name"
+            required
+            value={onboardingForm.name}
+            onChange={(event) => setOnboardingForm((form) => ({ ...form, name: event.target.value }))}
+            placeholder="Nadia Islam"
+          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="Role"
+              required
+              value={onboardingForm.role}
+              onChange={(event) => setOnboardingForm((form) => ({ ...form, role: event.target.value }))}
+              placeholder="Product Manager"
+            />
+            <div>
+              <label className="block text-sm mb-1.5 text-foreground">Department</label>
+              <select
+                value={onboardingForm.department}
+                onChange={(event) => setOnboardingForm((form) => ({ ...form, department: event.target.value }))}
+                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option>Engineering</option>
+                <option>Marketing</option>
+                <option>Sales</option>
+                <option>HR</option>
+                <option>Finance</option>
+              </select>
+            </div>
+          </div>
+          <Input
+            label="Start Date"
+            type="date"
+            required
+            value={onboardingForm.startDate}
+            onChange={(event) => setOnboardingForm((form) => ({ ...form, startDate: event.target.value }))}
+          />
+        </form>
+      </Modal>
     </div>
   );
 }
