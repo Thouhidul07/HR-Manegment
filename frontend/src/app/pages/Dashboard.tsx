@@ -287,6 +287,27 @@ function EmployeeDashboard({ user }: any) {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Have a productive morning!' : hour < 17 ? 'Keep up the great work!' : 'Finish strong!';
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const totalAttendanceDays = 25;
+  const absentAttendanceDays = new Set([13, 25]);
+  const presentAttendanceDays = totalAttendanceDays - absentAttendanceDays.size;
+  const attendancePercent = Math.round((presentAttendanceDays / totalAttendanceDays) * 100);
+  const recentPayslips = [
+    { month: 'March 2026', amount: '$3,450' },
+    { month: 'February 2026', amount: '$3,450' },
+    { month: 'January 2026', amount: '$3,380' }
+  ];
+  const downloadPayslip = (month: string, amount: string) => {
+    const file = new Blob(
+      [`HR Space Payslip\nMonth: ${month}\nNet Pay: ${amount}\nStatus: Processed\n`],
+      { type: 'text/plain' }
+    );
+    const url = URL.createObjectURL(file);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${month.replace(/\s+/g, '-').toLowerCase()}-payslip.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <motion.div
@@ -297,24 +318,24 @@ function EmployeeDashboard({ user }: any) {
       className="space-y-6"
     >
       <DashboardHeader
-        title={`Welcome back, ${user.name} ðŸ‘‹`}
-        subtitle={`${today} Â· ${greeting}`}
+        title={`Welcome back, ${user.name}`}
+        subtitle={`${today} - ${greeting}`}
         actions={
           <>
-            <button className="rounded-xl px-4 py-2 text-sm text-white flex items-center gap-2 shadow-sm" style={{ background: 'linear-gradient(135deg, #543884, #A13670, #EC4176)' }}>
+            <Link to="/dashboard/leave" state={{ openRequestLeave: true }} className="rounded-xl px-4 py-2 text-sm text-white flex items-center gap-2 shadow-sm" style={{ background: 'linear-gradient(135deg, #543884, #A13670, #EC4176)' }}>
               <CalendarPlus className="w-4 h-4" />
               Apply for Leave
-            </button>
-            <button className="border border-[#543884]/20 text-[#543884] rounded-xl px-4 py-2 text-sm flex items-center gap-2 hover:bg-[#543884]/5">
+            </Link>
+            <Link to="/dashboard/attendance" state={{ openLogAttendance: true }} className="border border-[#543884]/20 text-[#543884] rounded-xl px-4 py-2 text-sm flex items-center gap-2 hover:bg-[#543884]/5">
               <Clock className="w-4 h-4" />
               Log Attendance
-            </button>
+            </Link>
           </>
         }
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard label="My Attendance" value="23 / 25" change="92% this month" trend="up" icon={Clock} iconBg="#5438841A" iconColor="#543884" index={0} subtitle="days" />
+        <StatCard label="My Attendance" value={`${presentAttendanceDays} / ${totalAttendanceDays}`} change={`${attendancePercent}% this month`} trend="up" icon={Clock} iconBg="#5438841A" iconColor="#543884" index={0} subtitle="days" />
         <StatCard label="Leave Balance" value="12 days" change="6 used this year" trend="neutral" icon={Palmtree} iconBg="#9A77CF1A" iconColor="#9A77CF" index={1} />
         <StatCard label="Tasks Due" value="3" change="1 overdue" trend="down" icon={CheckSquare} iconBg="#EC41761A" iconColor="#EC4176" index={2} />
         <StatCard label="Training Progress" value="2 / 5" change="40% complete" trend="neutral" icon={BookOpen} iconBg="#FFA45E1A" iconColor="#FFA45E" index={3} />
@@ -323,8 +344,9 @@ function EmployeeDashboard({ user }: any) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <SectionCard title="My Attendance This Month">
           <div className="grid grid-cols-7 gap-2">
-            {Array.from({ length: 25 }, (_, i) => {
-              const isPresent = i % 6 !== 0;
+            {Array.from({ length: totalAttendanceDays }, (_, i) => {
+              const day = i + 1;
+              const isPresent = !absentAttendanceDays.has(day);
               const isToday = i === 23;
               return (
                 <div
@@ -333,7 +355,7 @@ function EmployeeDashboard({ user }: any) {
                     isToday ? 'ring-2 ring-[#FFA45E]' : ''
                   } ${isPresent ? 'bg-[#543884] text-white' : 'bg-[#EC4176]/20 text-[#EC4176]'}`}
                 >
-                  {i + 1}
+                  {day}
                 </div>
               );
             })}
@@ -373,7 +395,7 @@ function EmployeeDashboard({ user }: any) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <SectionCard title="My Tasks" action={<a href="#" className="text-[#9A77CF] text-sm hover:text-[#EC4176]">View All â†’</a>}>
+        <SectionCard title="My Tasks" action={<Link to="/dashboard/tasks" className="inline-flex items-center gap-1 text-[#9A77CF] text-sm hover:text-[#EC4176]">View Tasks <ArrowRight className="w-3 h-3" /></Link>}>
           <div className="space-y-0">
             {[
               { task: 'Complete Q1 self-review', done: true, due: '' },
@@ -395,7 +417,7 @@ function EmployeeDashboard({ user }: any) {
           </div>
         </SectionCard>
 
-        <SectionCard title="My Training" action={<a href="#" className="text-[#9A77CF] text-sm hover:text-[#EC4176]">Browse Courses â†’</a>}>
+        <SectionCard title="My Training" action={<Link to="/dashboard/training" className="inline-flex items-center gap-1 text-[#9A77CF] text-sm hover:text-[#EC4176]">Browse Training <ArrowRight className="w-3 h-3" /></Link>}>
           <div className="space-y-3">
             {[
               { name: 'Leadership Essentials', progress: 78, provider: 'LinkedIn Learning', color: '#543884' },
@@ -440,13 +462,9 @@ function EmployeeDashboard({ user }: any) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <SectionCard title="Recent Payslips" action={<a href="#" className="text-[#9A77CF] text-sm hover:text-[#EC4176]">View All â†’</a>}>
+        <SectionCard title="Recent Payslips" action={<Link to="/dashboard/payslips" className="inline-flex items-center gap-1 text-[#9A77CF] text-sm hover:text-[#EC4176]">View Payslips <ArrowRight className="w-3 h-3" /></Link>}>
           <div className="space-y-0">
-            {[
-              { month: 'March 2026', amount: '$3,450' },
-              { month: 'February 2026', amount: '$3,450' },
-              { month: 'January 2026', amount: '$3,380' }
-            ].map((slip, i) => (
+            {recentPayslips.map((slip, i) => (
               <div key={i} className="flex items-center justify-between py-3 border-b border-[#543884]/8 last:border-0">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-[#543884]/10 flex items-center justify-center">
@@ -459,7 +477,7 @@ function EmployeeDashboard({ user }: any) {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-sm font-semibold text-[#262254] dark:text-white">{slip.amount}</span>
-                  <button className="text-[#9A77CF] hover:text-[#EC4176]">
+                  <button type="button" aria-label={`Download ${slip.month} payslip`} onClick={() => downloadPayslip(slip.month, slip.amount)} className="text-[#9A77CF] hover:text-[#EC4176]">
                     <Download className="w-4 h-4" />
                   </button>
                 </div>
@@ -471,22 +489,23 @@ function EmployeeDashboard({ user }: any) {
         <SectionCard title="Quick Actions">
           <div className="grid grid-cols-2 gap-3">
             {[
-              { icon: CalendarPlus, label: 'Apply Leave', colors: ['#543884', '#EC4176'] },
-              { icon: Clock, label: 'Log Attendance', colors: ['#9A77CF', '#543884'] },
-              { icon: Receipt, label: 'Submit Expense', colors: ['#EC4176', '#A13670'] },
-              { icon: FileText, label: 'Download Payslip', colors: ['#FFA45E', '#A13670'] },
-              { icon: MessageSquare, label: 'Go to Forum', colors: ['#9A77CF', '#EC4176'] },
-              { icon: User, label: 'Update Profile', colors: ['#543884', '#9A77CF'] }
+              { icon: CalendarPlus, label: 'Apply Leave', to: '/dashboard/leave', colors: ['#543884', '#EC4176'] },
+              { icon: Clock, label: 'Log Attendance', to: '/dashboard/attendance', colors: ['#9A77CF', '#543884'] },
+              { icon: Receipt, label: 'Submit Expense', to: '/dashboard/expense', colors: ['#EC4176', '#A13670'] },
+              { icon: FileText, label: 'Download Payslip', to: '/dashboard/payslips', colors: ['#FFA45E', '#A13670'] },
+              { icon: MessageSquare, label: 'Go to Forum', to: '/dashboard/forum', colors: ['#9A77CF', '#EC4176'] },
+              { icon: User, label: 'Update Profile', to: '/dashboard/profile', colors: ['#543884', '#9A77CF'] }
             ].map((action, i) => (
-              <button
+              <Link
                 key={i}
+                to={action.to}
                 className="rounded-xl border border-[#543884]/10 p-4 flex flex-col items-center gap-2 hover:bg-[#543884]/5 hover:border-[#543884]/30 cursor-pointer transition-all"
               >
                 <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${action.colors[0]}, ${action.colors[1]})` }}>
                   <action.icon className="w-5 h-5 text-white" />
                 </div>
                 <span className="text-xs text-center font-medium text-[#262254] dark:text-white">{action.label}</span>
-              </button>
+              </Link>
             ))}
           </div>
         </SectionCard>
@@ -494,4 +513,3 @@ function EmployeeDashboard({ user }: any) {
     </motion.div>
   );
 }
-

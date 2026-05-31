@@ -1,9 +1,11 @@
 import { Target, TrendingUp, Award, Star } from "lucide-react";
+import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "../components/ui/Table";
-import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer } from "recharts";
+import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, Tooltip } from "recharts";
+import { useAuth } from "../contexts/AuthContext";
 
 const performanceData = [
   { id: 1, employee: "John Doe", avatar: "JD", department: "Engineering", role: "Senior Developer", overall: 4.5, technical: 4.8, communication: 4.2, leadership: 4.6, status: "Excellent" },
@@ -36,15 +38,29 @@ const reviewCycle = [
 ];
 
 export function Performance() {
+  const { user } = useAuth();
+  const [showCurrent, setShowCurrent] = useState(true);
+  const [showTarget, setShowTarget] = useState(true);
+  const isEmployee = user?.role === "employee";
+  const initials = user?.name
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() || "EU";
+  const visiblePerformance = isEmployee
+    ? [{ ...performanceData[0], employee: user?.name || "Employee User", avatar: initials, role: "Software Engineer" }]
+    : performanceData;
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl text-foreground mb-2">Performance Management</h1>
-          <p className="text-muted-foreground">Track and manage employee performance reviews</p>
+          <h1 className="text-2xl text-foreground mb-2">{isEmployee ? "My Performance" : "Performance Management"}</h1>
+          <p className="text-muted-foreground">{isEmployee ? "Track your goals, skills, and review progress" : "Track and manage employee performance reviews"}</p>
         </div>
-        <Button variant="primary">Start Review</Button>
+        {!isEmployee && <Button variant="primary">Start Review</Button>}
       </div>
 
       {/* Stats */}
@@ -76,10 +92,10 @@ export function Performance() {
             <div className="p-2 rounded-lg bg-[var(--chart-3)]/20">
               <Award className="w-5 h-5 text-[var(--chart-3)]" />
             </div>
-            <p className="text-sm text-muted-foreground">Top Performers</p>
+            <p className="text-sm text-muted-foreground">{isEmployee ? "Strongest Skill" : "Top Performers"}</p>
           </div>
-          <p className="text-2xl text-foreground">124</p>
-          <p className="text-xs text-muted-foreground mt-1">4.5+ rating</p>
+          <p className="text-2xl text-foreground">{isEmployee ? "Teamwork" : "124"}</p>
+          <p className="text-xs text-muted-foreground mt-1">{isEmployee ? "90% current score" : "4.5+ rating"}</p>
         </Card>
 
         <Card className="p-4">
@@ -87,9 +103,9 @@ export function Performance() {
             <div className="p-2 rounded-lg bg-[var(--chart-4)]/20">
               <Star className="w-5 h-5 text-[var(--chart-4)]" />
             </div>
-            <p className="text-sm text-muted-foreground">Reviews Pending</p>
+            <p className="text-sm text-muted-foreground">{isEmployee ? "Review Status" : "Reviews Pending"}</p>
           </div>
-          <p className="text-2xl text-foreground">32</p>
+          <p className="text-2xl text-foreground">{isEmployee ? "In Progress" : "32"}</p>
         </Card>
       </div>
 
@@ -106,19 +122,37 @@ export function Performance() {
                 <PolarGrid stroke="var(--border)" />
                 <PolarAngleAxis dataKey="skill" stroke="var(--muted-foreground)" />
                 <PolarRadiusAxis angle={90} domain={[0, 100]} stroke="var(--muted-foreground)" />
-                <Radar name="Current" dataKey="current" stroke="var(--chart-1)" fill="var(--chart-1)" fillOpacity={0.3} />
-                <Radar name="Target" dataKey="target" stroke="var(--chart-2)" fill="var(--chart-2)" fillOpacity={0.2} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "var(--popover)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "8px",
+                    color: "var(--foreground)",
+                  }}
+                  formatter={(value, name) => [`${value}%`, name === "current" ? "Current" : "Target"]}
+                  labelStyle={{ color: "var(--foreground)" }}
+                />
+                {showCurrent && <Radar name="Current" dataKey="current" stroke="var(--chart-1)" fill="var(--chart-1)" fillOpacity={0.3} />}
+                {showTarget && <Radar name="Target" dataKey="target" stroke="var(--chart-2)" fill="var(--chart-2)" fillOpacity={0.2} />}
               </RadarChart>
             </ResponsiveContainer>
             <div className="flex gap-4 justify-center mt-4">
-              <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowCurrent((visible) => !visible)}
+                className={`flex items-center gap-2 rounded-md px-2 py-1 transition-colors ${showCurrent ? "text-foreground" : "text-muted-foreground opacity-60"}`}
+              >
                 <div className="w-3 h-3 rounded-full bg-[var(--chart-1)]"></div>
                 <span className="text-xs text-muted-foreground">Current</span>
-              </div>
-              <div className="flex items-center gap-2">
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowTarget((visible) => !visible)}
+                className={`flex items-center gap-2 rounded-md px-2 py-1 transition-colors ${showTarget ? "text-foreground" : "text-muted-foreground opacity-60"}`}
+              >
                 <div className="w-3 h-3 rounded-full bg-[var(--chart-2)]"></div>
                 <span className="text-xs text-muted-foreground">Target</span>
-              </div>
+              </button>
             </div>
           </CardContent>
         </Card>
@@ -235,7 +269,7 @@ export function Performance() {
       {/* Performance Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Team Performance Overview</CardTitle>
+          <CardTitle>{isEmployee ? "My Performance Review" : "Team Performance Overview"}</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
@@ -252,7 +286,7 @@ export function Performance() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {performanceData.map((record) => (
+              {visiblePerformance.map((record) => (
                 <TableRow key={record.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">

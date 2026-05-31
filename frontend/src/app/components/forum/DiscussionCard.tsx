@@ -1,5 +1,6 @@
 import { ThumbsUp, MessageCircle, Eye, Heart, Lightbulb, Flag, TrendingUp, AlertTriangle } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useState } from "react";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 
@@ -36,18 +37,50 @@ const sentimentStyles = {
   concerned: "bg-[var(--warning)]/10 text-[var(--warning)] border-[var(--warning)]/20"
 };
 
+const identityLogos: Record<string, string> = {
+  Panda: "🐼",
+  Koala: "🐨",
+  Fox: "🦊",
+  Owl: "🦉",
+  Dolphin: "🐬",
+  Bear: "🐻",
+  Tiger: "🐯",
+  Rabbit: "🐰",
+};
+
 export function DiscussionCard({ discussion }: DiscussionCardProps) {
+  const identityName = discussion.author.name.replace("Anonymous ", "");
+  const identityLogo = identityLogos[identityName] ?? "💬";
+  const [activeReaction, setActiveReaction] = useState<"like" | "heart" | "helpful" | null>(null);
+  const [isSentimentMarked, setIsSentimentMarked] = useState(false);
+  const [isReported, setIsReported] = useState(false);
+
+  const toggleReaction = (reaction: "like" | "heart" | "helpful") => {
+    setActiveReaction((current) => (current === reaction ? null : reaction));
+  };
+
+  const sentimentClass = sentimentStyles[discussion.sentiment as keyof typeof sentimentStyles];
+
   return (
     <Link to={`/dashboard/forum/thread/${discussion.id}`}>
-      <div className="group p-6 rounded-xl border border-border bg-gradient-to-br from-white to-[var(--accent)]/30 hover:border-[var(--primary)]/50 transition-all hover:shadow-lg cursor-pointer">
+      <div
+        className="group p-6 rounded-xl border border-border bg-card hover:border-[var(--primary)]/50 transition-all hover:shadow-lg cursor-pointer"
+        style={{
+          background: `linear-gradient(135deg, ${discussion.author.color}14 0%, var(--card) 32%, var(--accent) 100%)`,
+        }}
+      >
         {/* Header */}
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-center gap-3">
             <div
-              className="w-10 h-10 rounded-full flex items-center justify-center shadow-md text-white text-sm"
-              style={{ backgroundColor: discussion.author.color }}
+              className="w-11 h-11 rounded-full flex items-center justify-center shadow-md text-2xl ring-2 ring-white/10"
+              style={{
+                backgroundColor: `${discussion.author.color}26`,
+                border: `1px solid ${discussion.author.color}`,
+              }}
+              aria-hidden="true"
             >
-              {discussion.author.name.split(' ')[1]?.charAt(0) || 'A'}
+              {identityLogo}
             </div>
             <div>
               <p className="text-sm text-foreground">{discussion.author.name}</p>
@@ -116,18 +149,45 @@ export function DiscussionCard({ discussion }: DiscussionCardProps) {
         {/* Footer */}
         <div className="flex items-center justify-between pt-4 border-t border-border">
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1.5 text-muted-foreground hover:text-[var(--primary)] transition-colors">
+            <button
+              type="button"
+              onClick={(event) => {
+                event.preventDefault();
+                toggleReaction("like");
+              }}
+              className={`flex items-center gap-1.5 transition-colors ${
+                activeReaction === "like" ? "text-blue-500" : "text-muted-foreground hover:text-blue-500"
+              }`}
+            >
               <ThumbsUp className="w-4 h-4" />
-              <span className="text-sm">{discussion.reactions.likes}</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-muted-foreground hover:text-[var(--chart-3)] transition-colors">
+              <span className="text-sm">{discussion.reactions.likes + (activeReaction === "like" ? 1 : 0)}</span>
+            </button>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.preventDefault();
+                toggleReaction("heart");
+              }}
+              className={`flex items-center gap-1.5 transition-colors ${
+                activeReaction === "heart" ? "text-red-500" : "text-muted-foreground hover:text-red-500"
+              }`}
+            >
               <Heart className="w-4 h-4" />
-              <span className="text-sm">{discussion.reactions.hearts}</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-muted-foreground hover:text-[var(--warning)] transition-colors">
+              <span className="text-sm">{discussion.reactions.hearts + (activeReaction === "heart" ? 1 : 0)}</span>
+            </button>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.preventDefault();
+                toggleReaction("helpful");
+              }}
+              className={`flex items-center gap-1.5 transition-colors ${
+                activeReaction === "helpful" ? "text-amber-500" : "text-muted-foreground hover:text-amber-500"
+              }`}
+            >
               <Lightbulb className="w-4 h-4" />
-              <span className="text-sm">{discussion.reactions.helpful}</span>
-            </div>
+              <span className="text-sm">{discussion.reactions.helpful + (activeReaction === "helpful" ? 1 : 0)}</span>
+            </button>
             <div className="flex items-center gap-1.5 text-muted-foreground">
               <MessageCircle className="w-4 h-4" />
               <span className="text-sm">{discussion.replies} replies</span>
@@ -138,19 +198,27 @@ export function DiscussionCard({ discussion }: DiscussionCardProps) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Badge
-              variant="secondary"
-              className={`text-xs ${sentimentStyles[discussion.sentiment as keyof typeof sentimentStyles]}`}
+            <button
+              type="button"
+              onClick={(event) => {
+                event.preventDefault();
+                setIsSentimentMarked((current) => !current);
+              }}
+              className={`inline-flex items-center justify-center rounded-md border px-2 py-0.5 text-xs font-medium transition-colors ${
+                isSentimentMarked
+                  ? sentimentClass
+                  : "border-border text-muted-foreground hover:border-[var(--primary)]/30 hover:text-foreground"
+              }`}
             >
               {discussion.sentiment}
-            </Badge>
+            </button>
             <Button
               variant="ghost"
               size="sm"
-              className="text-muted-foreground hover:text-destructive"
+              className={isReported ? "text-red-500" : "text-muted-foreground hover:text-red-500"}
               onClick={(e) => {
                 e.preventDefault();
-                console.log("Report");
+                setIsReported((current) => !current);
               }}
             >
               <Flag className="w-4 h-4" />

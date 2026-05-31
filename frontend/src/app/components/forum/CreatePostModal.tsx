@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, MessageSquare, Hash, BarChart2, HelpCircle } from "lucide-react";
+import { X, MessageSquare, Hash, BarChart2, HelpCircle, CheckCircle2 } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
 
@@ -18,14 +18,14 @@ const categories = [
 ];
 
 const anonymousAvatars = [
-  { name: "Panda", color: "#9A77CF" },
-  { name: "Koala", color: "#EC4176" },
-  { name: "Fox", color: "#FFA45E" },
-  { name: "Owl", color: "#7C5FB5" },
-  { name: "Dolphin", color: "#543884" },
-  { name: "Bear", color: "#9A77CF" },
-  { name: "Tiger", color: "#EC4176" },
-  { name: "Rabbit", color: "#7C5FB5" }
+  { name: "Panda", color: "#9A77CF", logo: "🐼" },
+  { name: "Koala", color: "#EC4176", logo: "🐨" },
+  { name: "Fox", color: "#FFA45E", logo: "🦊" },
+  { name: "Owl", color: "#7C5FB5", logo: "🦉" },
+  { name: "Dolphin", color: "#543884", logo: "🐬" },
+  { name: "Bear", color: "#9A77CF", logo: "🐻" },
+  { name: "Tiger", color: "#EC4176", logo: "🐯" },
+  { name: "Rabbit", color: "#7C5FB5", logo: "🐰" }
 ];
 
 export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
@@ -37,6 +37,7 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
   const [currentTag, setCurrentTag] = useState("");
   const [selectedAvatar, setSelectedAvatar] = useState(anonymousAvatars[0]);
   const [pollOptions, setPollOptions] = useState(["", ""]);
+  const [successMessage, setSuccessMessage] = useState("");
 
   if (!isOpen) return null;
 
@@ -62,6 +63,8 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
   };
 
   const handleSubmit = () => {
+    const cleanedPollOptions = pollOptions.map((option) => option.trim()).filter(Boolean);
+
     console.log("Creating post:", {
       type: postType,
       category: selectedCategory,
@@ -69,10 +72,29 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
       content,
       tags,
       avatar: selectedAvatar,
-      pollOptions: postType === 'poll' ? pollOptions : undefined
+      pollOptions: postType === 'poll' ? cleanedPollOptions : undefined
     });
-    onClose();
+
+    setSuccessMessage(postType === 'poll' ? "Poll created" : "Discussion posted");
+    window.setTimeout(() => {
+      setSuccessMessage("");
+      setPostType('discussion');
+      setSelectedCategory("");
+      setTitle("");
+      setContent("");
+      setTags([]);
+      setCurrentTag("");
+      setSelectedAvatar(anonymousAvatars[0]);
+      setPollOptions(["", ""]);
+      onClose();
+    }, 1800);
   };
+
+  const canSubmit =
+    Boolean(selectedCategory && title) &&
+    (postType === 'discussion'
+      ? Boolean(content)
+      : pollOptions.map((option) => option.trim()).filter(Boolean).length >= 2);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -106,6 +128,7 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
               <label className="block text-sm text-foreground mb-3">Post Type</label>
               <div className="flex gap-3">
                 <button
+                  type="button"
                   onClick={() => setPostType('discussion')}
                   className={`flex-1 p-4 rounded-lg border-2 transition-all ${
                     postType === 'discussion'
@@ -119,6 +142,7 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
                   <p className="text-sm text-foreground">Discussion</p>
                 </button>
                 <button
+                  type="button"
                   onClick={() => setPostType('poll')}
                   className={`flex-1 p-4 rounded-lg border-2 transition-all ${
                     postType === 'poll'
@@ -149,10 +173,11 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
                     }`}
                   >
                     <div
-                      className="w-10 h-10 rounded-full mx-auto mb-2 flex items-center justify-center text-white text-sm shadow-md"
-                      style={{ backgroundColor: avatar.color }}
+                      className="w-12 h-12 rounded-full mx-auto mb-2 flex items-center justify-center text-2xl shadow-md ring-2 ring-white/10"
+                      style={{ backgroundColor: `${avatar.color}26`, border: `1px solid ${avatar.color}` }}
+                      aria-hidden="true"
                     >
-                      {avatar.name.charAt(0)}
+                      {avatar.logo}
                     </div>
                     <p className="text-xs text-center text-foreground">{avatar.name}</p>
                   </button>
@@ -292,13 +317,26 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
           <Button
             variant="primary"
             onClick={handleSubmit}
-            disabled={!selectedCategory || !title || (postType === 'discussion' && !content)}
+            disabled={!canSubmit}
             className="bg-[var(--action)] hover:bg-[var(--action)]/90"
           >
-            Post Anonymously
+            {postType === 'poll' ? 'Create Poll' : 'Post Discussion'}
           </Button>
         </div>
       </div>
+
+      {successMessage && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none">
+          <div className="relative overflow-hidden rounded-2xl bg-card border border-[#543884]/20 px-8 py-6 shadow-2xl text-center">
+            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#543884] via-[#EC4176] to-[#FFA45E]" />
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-green-500/15 text-green-500">
+              <CheckCircle2 className="h-7 w-7" />
+            </div>
+            <p className="text-lg font-semibold text-foreground">{successMessage}</p>
+            <p className="mt-1 text-sm text-muted-foreground">Your anonymous post is ready for the forum.</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
+import { motion } from "motion/react";
 import {
   ArrowLeft, ThumbsUp, Heart, Lightbulb, MessageCircle, Flag,
   Eye, Share2, Bookmark, MoreHorizontal, Send
@@ -83,20 +84,69 @@ const threadData = {
   ]
 };
 
+type ThreadReply = (typeof threadData.replies)[number];
+
+const identityLogos: Record<string, string> = {
+  Panda: "🐼",
+  Koala: "🐨",
+  Fox: "🦊",
+  Owl: "🦉",
+  Dolphin: "🐬",
+  Bear: "🐻",
+  Tiger: "🐯",
+  Rabbit: "🐰",
+};
+
 export function ForumThread() {
   const { threadId } = useParams();
   const [replyContent, setReplyContent] = useState("");
-  const [userReactions, setUserReactions] = useState<Record<string, boolean>>({});
+  const [replyList, setReplyList] = useState<ThreadReply[]>(threadData.replies);
+  const [activeReaction, setActiveReaction] = useState<"like" | "heart" | "helpful" | null>(null);
+  const [isShared, setIsShared] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+  const [isReported, setIsReported] = useState(false);
+  const identityName = threadData.author.name.replace("Anonymous ", "");
+  const identityLogo = identityLogos[identityName] ?? "💬";
 
-  const toggleReaction = (type: string) => {
-    setUserReactions(prev => ({
-      ...prev,
-      [type]: !prev[type]
-    }));
+  const toggleReaction = (type: "like" | "heart" | "helpful") => {
+    setActiveReaction((current) => (current === type ? null : type));
+  };
+
+  const handleShare = async () => {
+    const shareUrl = window.location.href;
+    if (navigator.share) {
+      await navigator.share({ title: threadData.title, text: threadData.content, url: shareUrl });
+    } else {
+      await navigator.clipboard.writeText(shareUrl);
+    }
+    setIsShared(true);
+    window.setTimeout(() => setIsShared(false), 1800);
+  };
+
+  const handlePostReply = () => {
+    if (!replyContent.trim()) return;
+
+    setReplyList((currentReplies) => [
+      {
+        id: Date.now(),
+        author: { name: "Anonymous Rabbit", color: "#7C5FB5" },
+        content: replyContent.trim(),
+        timestamp: "Just now",
+        reactions: { likes: 0, hearts: 0, helpful: 0 },
+        replies: [],
+      },
+      ...currentReplies,
+    ]);
+    setReplyContent("");
   };
 
   return (
-    <div className="space-y-6">
+    <motion.div
+      className="space-y-6"
+      initial={{ opacity: 0, y: 18 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.48, ease: "easeOut" }}
+    >
       {/* Back Button */}
       <div>
         <Link to="/dashboard/forum">
@@ -108,16 +158,25 @@ export function ForumThread() {
       </div>
 
       {/* Main Thread Card */}
-      <Card className="overflow-hidden">
+      <Card
+        className="overflow-hidden"
+        style={{
+          background: `linear-gradient(135deg, ${threadData.author.color}14 0%, var(--card) 34%, var(--accent) 100%)`,
+        }}
+      >
         <div className="p-6 space-y-6">
           {/* Header */}
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
               <div
-                className="w-12 h-12 rounded-full flex items-center justify-center shadow-md text-white"
-                style={{ backgroundColor: threadData.author.color }}
+                className="w-12 h-12 rounded-full flex items-center justify-center shadow-md text-2xl ring-2 ring-white/10"
+                style={{
+                  backgroundColor: `${threadData.author.color}26`,
+                  border: `1px solid ${threadData.author.color}`,
+                }}
+                aria-hidden="true"
               >
-                {threadData.author.name.split(' ')[1]?.charAt(0) || 'A'}
+                {identityLogo}
               </div>
               <div>
                 <p className="text-foreground">{threadData.author.name}</p>
@@ -164,7 +223,7 @@ export function ForumThread() {
             </div>
             <div className="flex items-center gap-1.5">
               <MessageCircle className="w-4 h-4" />
-              <span>{threadData.replies.length} replies</span>
+              <span>{replyList.length} replies</span>
             </div>
           </div>
 
@@ -172,45 +231,60 @@ export function ForumThread() {
           <div className="flex items-center justify-between pt-4 border-t border-border">
             <div className="flex items-center gap-2">
               <Button
-                variant={userReactions.like ? "primary" : "outline"}
+                variant="ghost"
                 size="sm"
-                className="gap-2"
+                className={`gap-2 ${activeReaction === "like" ? "text-blue-500" : "text-muted-foreground hover:text-blue-500"}`}
                 onClick={() => toggleReaction('like')}
               >
                 <ThumbsUp className="w-4 h-4" />
-                <span>{threadData.reactions.likes + (userReactions.like ? 1 : 0)}</span>
+                <span>{threadData.reactions.likes + (activeReaction === "like" ? 1 : 0)}</span>
               </Button>
               <Button
-                variant={userReactions.heart ? "primary" : "outline"}
+                variant="ghost"
                 size="sm"
-                className="gap-2"
+                className={`gap-2 ${activeReaction === "heart" ? "text-red-500" : "text-muted-foreground hover:text-red-500"}`}
                 onClick={() => toggleReaction('heart')}
               >
                 <Heart className="w-4 h-4" />
-                <span>{threadData.reactions.hearts + (userReactions.heart ? 1 : 0)}</span>
+                <span>{threadData.reactions.hearts + (activeReaction === "heart" ? 1 : 0)}</span>
               </Button>
               <Button
-                variant={userReactions.helpful ? "primary" : "outline"}
+                variant="ghost"
                 size="sm"
-                className="gap-2"
+                className={`gap-2 ${activeReaction === "helpful" ? "text-amber-500" : "text-muted-foreground hover:text-amber-500"}`}
                 onClick={() => toggleReaction('helpful')}
               >
                 <Lightbulb className="w-4 h-4" />
-                <span>{threadData.reactions.helpful + (userReactions.helpful ? 1 : 0)}</span>
+                <span>{threadData.reactions.helpful + (activeReaction === "helpful" ? 1 : 0)}</span>
               </Button>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" className="gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`gap-2 ${isShared ? "text-blue-500" : "text-muted-foreground hover:text-blue-500"}`}
+                onClick={handleShare}
+              >
                 <Share2 className="w-4 h-4" />
-                Share
+                {isShared ? "Shared" : "Share"}
               </Button>
-              <Button variant="ghost" size="sm" className="gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`gap-2 ${isSaved ? "text-amber-500" : "text-muted-foreground hover:text-amber-500"}`}
+                onClick={() => setIsSaved((current) => !current)}
+              >
                 <Bookmark className="w-4 h-4" />
-                Save
+                {isSaved ? "Saved" : "Save"}
               </Button>
-              <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-destructive">
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`gap-2 ${isReported ? "text-red-500" : "text-muted-foreground hover:text-red-500"}`}
+                onClick={() => setIsReported((current) => !current)}
+              >
                 <Flag className="w-4 h-4" />
-                Report
+                {isReported ? "Reported" : "Report"}
               </Button>
             </div>
           </div>
@@ -221,11 +295,11 @@ export function ForumThread() {
       <Card>
         <div className="p-6">
           <h3 className="text-foreground mb-6">
-            {threadData.replies.length} {threadData.replies.length === 1 ? 'Reply' : 'Replies'}
+            {replyList.length} {replyList.length === 1 ? 'Reply' : 'Replies'}
           </h3>
 
           {/* Reply Input */}
-          <div className="mb-6 p-4 rounded-xl border border-border bg-gradient-to-br from-white to-[var(--accent)]/30">
+          <div className="mb-6 p-4 rounded-xl border border-border bg-card">
             <div className="flex gap-3 mb-3">
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--info)] text-white flex items-center justify-center shadow-md">
                 A
@@ -246,6 +320,7 @@ export function ForumThread() {
                 size="sm"
                 className="gap-2 bg-[var(--action)] hover:bg-[var(--action)]/90"
                 disabled={!replyContent.trim()}
+                onClick={handlePostReply}
               >
                 <Send className="w-4 h-4" />
                 Post Reply
@@ -255,12 +330,12 @@ export function ForumThread() {
 
           {/* Replies Thread */}
           <div className="space-y-4">
-            {threadData.replies.map((reply) => (
+            {replyList.map((reply) => (
               <ReplyThread key={reply.id} reply={reply} level={0} />
             ))}
           </div>
         </div>
       </Card>
-    </div>
+    </motion.div>
   );
 }

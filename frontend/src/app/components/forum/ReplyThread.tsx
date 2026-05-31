@@ -16,32 +16,62 @@ interface ReplyThreadProps {
   level: number;
 }
 
+const identityLogos: Record<string, string> = {
+  Panda: "🐼",
+  Koala: "🐨",
+  Fox: "🦊",
+  Owl: "🦉",
+  Dolphin: "🐬",
+  Bear: "🐻",
+  Tiger: "🐯",
+  Rabbit: "🐰",
+};
+
 export function ReplyThread({ reply, level }: ReplyThreadProps) {
   const [showReplyForm, setShowReplyForm] = useState(false);
   const [replyContent, setReplyContent] = useState("");
-  const [userReactions, setUserReactions] = useState<Record<string, boolean>>({});
+  const [activeReaction, setActiveReaction] = useState<"like" | "heart" | "helpful" | null>(null);
+  const [isReported, setIsReported] = useState(false);
+  const [replySubmitted, setReplySubmitted] = useState(false);
+  const identityName = reply.author.name.replace("Anonymous ", "");
+  const identityLogo = identityLogos[identityName] ?? "💬";
 
-  const toggleReaction = (type: string) => {
-    setUserReactions(prev => ({
-      ...prev,
-      [type]: !prev[type]
-    }));
+  const toggleReaction = (type: "like" | "heart" | "helpful") => {
+    setActiveReaction((current) => (current === type ? null : type));
   };
 
   const maxNestingLevel = 3;
   const canNest = level < maxNestingLevel;
+  const handleSubmitReply = () => {
+    if (!replyContent.trim()) return;
+    setReplySubmitted(true);
+    setReplyContent("");
+    window.setTimeout(() => {
+      setReplySubmitted(false);
+      setShowReplyForm(false);
+    }, 1400);
+  };
 
   return (
     <div className={level > 0 ? "ml-12 mt-4" : ""}>
-      <div className="p-4 rounded-xl border border-border bg-gradient-to-br from-white to-[var(--accent)]/20 hover:border-[var(--primary)]/30 transition-all">
+      <div
+        className="p-4 rounded-xl border border-border bg-card hover:border-[var(--primary)]/30 transition-all"
+        style={{
+          background: `linear-gradient(135deg, ${reply.author.color}14 0%, var(--card) 36%, var(--accent) 100%)`,
+        }}
+      >
         {/* Reply Header */}
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-3">
             <div
-              className="w-9 h-9 rounded-full flex items-center justify-center shadow-md text-white text-sm"
-              style={{ backgroundColor: reply.author.color }}
+              className="w-10 h-10 rounded-full flex items-center justify-center shadow-md text-xl ring-2 ring-white/10"
+              style={{
+                backgroundColor: `${reply.author.color}26`,
+                border: `1px solid ${reply.author.color}`,
+              }}
+              aria-hidden="true"
             >
-              {reply.author.name.split(' ')[1]?.charAt(0) || 'A'}
+              {identityLogo}
             </div>
             <div>
               <p className="text-sm text-foreground">{reply.author.name}</p>
@@ -64,29 +94,29 @@ export function ReplyThread({ reply, level }: ReplyThreadProps) {
             <Button
               variant="ghost"
               size="sm"
-              className={`gap-1.5 ${userReactions.like ? 'text-[var(--primary)]' : 'text-muted-foreground'}`}
+              className={`gap-1.5 ${activeReaction === "like" ? 'text-blue-500' : 'text-muted-foreground hover:text-blue-500'}`}
               onClick={() => toggleReaction('like')}
             >
               <ThumbsUp className="w-3.5 h-3.5" />
-              <span className="text-xs">{reply.reactions.likes + (userReactions.like ? 1 : 0)}</span>
+              <span className="text-xs">{reply.reactions.likes + (activeReaction === "like" ? 1 : 0)}</span>
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              className={`gap-1.5 ${userReactions.heart ? 'text-[var(--chart-3)]' : 'text-muted-foreground'}`}
+              className={`gap-1.5 ${activeReaction === "heart" ? 'text-red-500' : 'text-muted-foreground hover:text-red-500'}`}
               onClick={() => toggleReaction('heart')}
             >
               <Heart className="w-3.5 h-3.5" />
-              <span className="text-xs">{reply.reactions.hearts + (userReactions.heart ? 1 : 0)}</span>
+              <span className="text-xs">{reply.reactions.hearts + (activeReaction === "heart" ? 1 : 0)}</span>
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              className={`gap-1.5 ${userReactions.helpful ? 'text-[var(--warning)]' : 'text-muted-foreground'}`}
+              className={`gap-1.5 ${activeReaction === "helpful" ? 'text-amber-500' : 'text-muted-foreground hover:text-amber-500'}`}
               onClick={() => toggleReaction('helpful')}
             >
               <Lightbulb className="w-3.5 h-3.5" />
-              <span className="text-xs">{reply.reactions.helpful + (userReactions.helpful ? 1 : 0)}</span>
+              <span className="text-xs">{reply.reactions.helpful + (activeReaction === "helpful" ? 1 : 0)}</span>
             </Button>
           </div>
           <div className="flex items-center gap-2">
@@ -104,9 +134,11 @@ export function ReplyThread({ reply, level }: ReplyThreadProps) {
             <Button
               variant="ghost"
               size="sm"
-              className="gap-1.5 text-muted-foreground hover:text-destructive"
+              className={`gap-1.5 ${isReported ? "text-red-500" : "text-muted-foreground hover:text-red-500"}`}
+              onClick={() => setIsReported((current) => !current)}
             >
               <Flag className="w-3.5 h-3.5" />
+              <span className="text-xs">{isReported ? "Reported" : "Report"}</span>
             </Button>
           </div>
         </div>
@@ -134,8 +166,9 @@ export function ReplyThread({ reply, level }: ReplyThreadProps) {
                 size="sm"
                 disabled={!replyContent.trim()}
                 className="bg-[var(--action)] hover:bg-[var(--action)]/90"
+                onClick={handleSubmitReply}
               >
-                Reply
+                {replySubmitted ? "Reply posted" : "Reply"}
               </Button>
             </div>
           </div>

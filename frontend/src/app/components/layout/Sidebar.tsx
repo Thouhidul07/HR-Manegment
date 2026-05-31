@@ -11,6 +11,7 @@ import {
   Target,
   Shield,
   MessageSquare,
+  ListChecks,
 } from "lucide-react";
 import { FaRegUserCircle } from "react-icons/fa";
 import { useAuth } from "../../contexts/AuthContext";
@@ -48,8 +49,10 @@ const navConfig = {
     { path: '/dashboard',              label: 'Dashboard',           icon: LayoutDashboard },
     { path: '/dashboard/attendance',   label: 'My Attendance',       icon: Clock },
     { path: '/dashboard/leave',        label: 'My Leave',            icon: Calendar },
+    { path: '/dashboard/tasks',        label: 'My Tasks',            icon: ListChecks },
     { path: '/dashboard/training',     label: 'My Training',         icon: GraduationCap },
     { path: '/dashboard/expense',      label: 'My Expenses',         icon: Receipt },
+    { path: '/dashboard/payslips',     label: 'My Payslips',         icon: DollarSign },
     { path: '/dashboard/performance',  label: 'My Performance',      icon: Target },
     { path: '/dashboard/forum',        label: 'Forum',               icon: MessageSquare },
   ],

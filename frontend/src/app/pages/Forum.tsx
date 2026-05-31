@@ -131,10 +131,32 @@ export function Forum() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("recent");
+  const [showFilters, setShowFilters] = useState(false);
+  const [sentimentFilter, setSentimentFilter] = useState("all");
+  const [visibleCount, setVisibleCount] = useState(4);
 
-  const filteredDiscussions = discussions.filter(d =>
-    selectedCategory === "all" || d.category === categories.find(c => c.id === selectedCategory)?.name
-  );
+  const filteredDiscussions = discussions
+    .filter((discussion) => selectedCategory === "all" || discussion.category === categories.find(c => c.id === selectedCategory)?.name)
+    .filter((discussion) => sentimentFilter === "all" || discussion.sentiment === sentimentFilter)
+    .filter((discussion) => {
+      const query = searchQuery.trim().toLowerCase();
+      if (!query) return true;
+      return [
+        discussion.title,
+        discussion.content,
+        discussion.category,
+        discussion.author.name,
+        ...discussion.tags,
+      ].some((value) => value.toLowerCase().includes(query));
+    })
+    .sort((a, b) => {
+      if (sortBy === "popular") return b.reactions.likes + b.reactions.hearts + b.reactions.helpful - (a.reactions.likes + a.reactions.hearts + a.reactions.helpful);
+      if (sortBy === "discussed") return b.replies - a.replies;
+      if (sortBy === "unanswered") return a.replies - b.replies;
+      return a.id - b.id;
+    });
+  const visibleDiscussions = filteredDiscussions.slice(0, visibleCount);
+  const hasMoreDiscussions = visibleCount < filteredDiscussions.length;
 
   return (
     <div className="space-y-6">
@@ -221,13 +243,19 @@ export function Forum() {
                   type="text"
                   placeholder="Search discussions..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setVisibleCount(4);
+                  }}
                   className="w-full pl-9 pr-4 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                 />
               </div>
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
+                onChange={(e) => {
+                  setSortBy(e.target.value);
+                  setVisibleCount(4);
+                }}
                 className="px-4 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
               >
                 <option value="recent">Most Recent</option>
@@ -235,11 +263,34 @@ export function Forum() {
                 <option value="discussed">Most Discussed</option>
                 <option value="unanswered">Unanswered</option>
               </select>
-              <Button variant="outline" size="sm" className="gap-2">
+              <Button
+                variant={showFilters ? "primary" : "outline"}
+                size="sm"
+                className="gap-2"
+                onClick={() => setShowFilters((current) => !current)}
+              >
                 <Filter className="w-4 h-4" />
                 Filters
               </Button>
             </div>
+            {showFilters && (
+              <div className="mt-4 pt-4 border-t border-border flex flex-wrap gap-2">
+                {["all", "positive", "neutral", "concerned", "negative"].map((sentiment) => (
+                  <Button
+                    key={sentiment}
+                    variant={sentimentFilter === sentiment ? "primary" : "ghost"}
+                    size="sm"
+                    onClick={() => {
+                      setSentimentFilter(sentiment);
+                      setVisibleCount(4);
+                    }}
+                    className="capitalize"
+                  >
+                    {sentiment === "all" ? "All Sentiment" : sentiment}
+                  </Button>
+                ))}
+              </div>
+            )}
           </Card>
 
           {/* Category Filters */}
@@ -249,7 +300,10 @@ export function Forum() {
               return (
                 <button
                   key={cat.id}
-                  onClick={() => setSelectedCategory(cat.id)}
+                  onClick={() => {
+                    setSelectedCategory(cat.id);
+                    setVisibleCount(4);
+                  }}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all whitespace-nowrap ${
                     selectedCategory === cat.id
                       ? 'bg-[var(--primary)] text-white border-[var(--primary)] shadow-md'
@@ -271,15 +325,25 @@ export function Forum() {
 
           {/* Discussion Feed */}
           <div className="space-y-4">
-            {filteredDiscussions.map((discussion) => (
+            {visibleDiscussions.map((discussion) => (
               <DiscussionCard key={discussion.id} discussion={discussion} />
             ))}
+            {visibleDiscussions.length === 0 && (
+              <Card className="p-8 text-center">
+                <p className="text-sm text-muted-foreground">No discussions found for your current filters.</p>
+              </Card>
+            )}
           </div>
 
           {/* Load More */}
           <div className="text-center">
-            <Button variant="outline" className="gap-2">
-              Load More Discussions
+            <Button
+              variant="outline"
+              className="gap-2"
+              disabled={!hasMoreDiscussions}
+              onClick={() => setVisibleCount((count) => count + 3)}
+            >
+              {hasMoreDiscussions ? "Load More Discussions" : "All Discussions Loaded"}
             </Button>
           </div>
         </div>
