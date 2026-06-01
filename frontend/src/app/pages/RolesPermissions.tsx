@@ -267,7 +267,7 @@ export function RolesPermissions() {
                 {roles.map((role) => (
                   <div
                     key={role.id}
-                    className="group p-6 rounded-xl border border-border hover:border-[var(--primary)]/50 transition-all hover:shadow-lg cursor-pointer bg-gradient-to-br from-white to-[var(--accent)]/30"
+                    className="group p-6 rounded-xl border border-border hover:border-[var(--primary)]/50 transition-all hover:shadow-lg cursor-pointer bg-card hover:bg-accent/20"
                   >
                     <div className="flex items-start justify-between mb-4">
                       <div className="p-3 rounded-lg bg-gradient-to-br from-[var(--primary)] to-[var(--primary)]/80 shadow-md">

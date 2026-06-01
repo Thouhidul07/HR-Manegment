@@ -1,9 +1,28 @@
-import { Calendar as CalendarIcon, Clock, Users, TrendingUp } from "lucide-react";
+import { Calendar as CalendarIcon, CheckCircle2, Clock, Users } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
+import { Button } from "../components/ui/Button";
+import { Input } from "../components/ui/Input";
+import { Modal } from "../components/ui/Modal";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "../components/ui/Table";
+import { useAuth } from "../contexts/AuthContext";
+import api from "../services/api";
 
-const attendanceData = [
+type AttendanceRecord = {
+  id: number | string;
+  name?: string;
+  avatar?: string;
+  date?: string;
+  checkIn: string;
+  checkOut: string;
+  hours: string;
+  status: string;
+  break: string;
+};
+
+const attendanceData: AttendanceRecord[] = [
   { id: 1, name: "John Doe", avatar: "JD", checkIn: "09:05 AM", checkOut: "06:15 PM", hours: "9h 10m", status: "Present", break: "45m" },
   { id: 2, name: "Sarah Smith", avatar: "SS", checkIn: "08:55 AM", checkOut: "05:50 PM", hours: "8h 55m", status: "Present", break: "40m" },
   { id: 3, name: "Mike Johnson", avatar: "MJ", checkIn: "09:25 AM", checkOut: "06:30 PM", hours: "9h 5m", status: "Late", break: "50m" },
@@ -22,18 +41,161 @@ const weeklyAttendance = [
   { day: "Fri", present: 1142, late: 52, absent: 18, leave: 22 },
 ];
 
+const myAttendanceData: AttendanceRecord[] = [
+  { id: 1, date: "Today", checkIn: "09:08 AM", checkOut: "06:05 PM", hours: "8h 57m", status: "Present", break: "42m" },
+  { id: 2, date: "Yesterday", checkIn: "09:18 AM", checkOut: "06:12 PM", hours: "8h 54m", status: "Late", break: "45m" },
+  { id: 3, date: "May 28, 2026", checkIn: "09:00 AM", checkOut: "06:02 PM", hours: "9h 2m", status: "Present", break: "40m" },
+  { id: 4, date: "May 27, 2026", checkIn: "-", checkOut: "-", hours: "-", status: "On Leave", break: "-" },
+  { id: 5, date: "May 26, 2026", checkIn: "08:55 AM", checkOut: "05:58 PM", hours: "9h 3m", status: "Present", break: "38m" },
+];
+
+const statusVariant = (status: string) => {
+  if (status === "Present") return "success";
+  if (status === "Late") return "warning";
+  if (status === "On Leave") return "info";
+  return "error";
+};
+
+const formatTime = (timeValue: string) =>
+  new Date(`2026-01-01T${timeValue}`).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+const getWorkHours = (checkIn: string, checkOut: string, breakMinutes: string) => {
+  const start = new Date(`2026-01-01T${checkIn}`).getTime();
+  const end = new Date(`2026-01-01T${checkOut}`).getTime();
+  const minutes = Math.max(0, Math.round((end - start) / 60000) - Number(breakMinutes || 0));
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return `${hours}h ${remainingMinutes}m`;
+};
+
+const getDisplayDate = (dateValue: string) => {
+  const today = new Date().toISOString().slice(0, 10);
+  const normalizedDate = String(dateValue).slice(0, 10);
+
+  if (normalizedDate === today) {
+    return "Today";
+  }
+
+  return new Date(`${normalizedDate}T00:00:00`).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
 export function Attendance() {
+  const { user } = useAuth();
+  const location = useLocation();
+  const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+  const [showLoggedMessage, setShowLoggedMessage] = useState(false);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [attendanceForm, setAttendanceForm] = useState({
+    workDate: new Date().toISOString().slice(0, 10),
+    checkIn: "09:00",
+    checkOut: "18:00",
+    breakMinutes: "45",
+    status: "present",
+  });
+  const isEmployee = user?.role === "employee";
+  const currentUserInitials = user?.name
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() || "EU";
+
+  const mapApiAttendanceRecord = (record: any): AttendanceRecord => {
+    const checkInDate = record.checkIn ? new Date(record.checkIn) : null;
+    const checkOutDate = record.checkOut ? new Date(record.checkOut) : null;
+    const checkInValue = checkInDate ? checkInDate.toTimeString().slice(0, 5) : "09:00";
+    const checkOutValue = checkOutDate ? checkOutDate.toTimeString().slice(0, 5) : "18:00";
+
+    return {
+      id: record.id,
+      name: record.name,
+      avatar: record.avatar,
+      date: getDisplayDate(record.date),
+      checkIn: checkInDate ? checkInDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "-",
+      checkOut: checkOutDate ? checkOutDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "-",
+      hours: checkInDate && checkOutDate ? getWorkHours(checkInValue, checkOutValue, "0") : "-",
+      status: record.status,
+      break: "0m",
+    };
+  };
+
+  useEffect(() => {
+    if (location.state?.openLogAttendance) {
+      setIsLogModalOpen(true);
+    }
+  }, [location.state]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    api.get("/attendance")
+      .then((response) => {
+        if (isMounted && response.data.records?.length) {
+          setAttendanceRecords(response.data.records.map(mapApiAttendanceRecord));
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setAttendanceRecords([]);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const visibleRecords = attendanceRecords.length
+    ? attendanceRecords
+    : isEmployee
+      ? myAttendanceData
+      : attendanceData;
+  const presentCount = visibleRecords.filter((record) => record.status === "Present").length;
+  const lateCount = visibleRecords.filter((record) => record.status === "Late").length;
+  const absentCount = visibleRecords.filter((record) => record.status === "Absent").length;
+  const leaveCount = visibleRecords.filter((record) => record.status === "On Leave").length;
+
+  const handleLogAttendance = async () => {
+    const response = await api.post("/attendance/log", {
+      workDate: attendanceForm.workDate,
+      clockIn: attendanceForm.checkIn,
+      clockOut: attendanceForm.checkOut,
+      status: attendanceForm.status,
+    });
+    const mappedRecord = mapApiAttendanceRecord(response.data.record);
+
+    setAttendanceRecords((records) => [
+      { ...mappedRecord, name: user?.name, avatar: currentUserInitials, break: `${attendanceForm.breakMinutes}m` },
+      ...records.filter((record) => record.date !== mappedRecord.date),
+    ]);
+    setIsLogModalOpen(false);
+    setShowLoggedMessage(true);
+    window.setTimeout(() => setShowLoggedMessage(false), 2500);
+  };
+
   return (
     <div className="space-y-6">
-      {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl text-foreground mb-2">Attendance & Time Tracking</h1>
           <p className="text-muted-foreground">Track employee attendance and working hours</p>
         </div>
         <div className="flex gap-3">
+          {isEmployee && (
+            <Button variant="primary" className="gap-2" onClick={() => setIsLogModalOpen(true)}>
+              <Clock className="w-4 h-4" />
+              Log Attendance
+            </Button>
+          )}
           <select className="px-4 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
-            <option>Today - Apr 3, 2026</option>
+            <option>Today - Jun 1, 2026</option>
             <option>Yesterday</option>
             <option>This Week</option>
             <option>This Month</option>
@@ -41,7 +203,13 @@ export function Attendance() {
         </div>
       </div>
 
-      {/* Stats */}
+      {showLoggedMessage && (
+        <div className="flex items-center gap-2 rounded-lg border border-[var(--success)]/30 bg-[var(--success)]/10 px-4 py-3 text-sm text-[var(--success)]">
+          <CheckCircle2 className="w-4 h-4" />
+          Attendance logged successfully.
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card className="p-4">
           <div className="flex items-center gap-3 mb-2">
@@ -50,8 +218,8 @@ export function Attendance() {
             </div>
             <p className="text-sm text-muted-foreground">Present</p>
           </div>
-          <p className="text-2xl text-foreground">1,156</p>
-          <p className="text-xs text-muted-foreground mt-1">93.7% of total</p>
+          <p className="text-2xl text-foreground">{isEmployee ? presentCount : "1,156"}</p>
+          <p className="text-xs text-muted-foreground mt-1">{isEmployee ? "Your records" : "93.7% of total"}</p>
         </Card>
 
         <Card className="p-4">
@@ -61,8 +229,8 @@ export function Attendance() {
             </div>
             <p className="text-sm text-muted-foreground">Late Arrivals</p>
           </div>
-          <p className="text-2xl text-foreground">32</p>
-          <p className="text-xs text-muted-foreground mt-1">2.6% of total</p>
+          <p className="text-2xl text-foreground">{isEmployee ? lateCount : "32"}</p>
+          <p className="text-xs text-muted-foreground mt-1">{isEmployee ? "Your records" : "2.6% of total"}</p>
         </Card>
 
         <Card className="p-4">
@@ -72,8 +240,8 @@ export function Attendance() {
             </div>
             <p className="text-sm text-muted-foreground">Absent</p>
           </div>
-          <p className="text-2xl text-foreground">8</p>
-          <p className="text-xs text-muted-foreground mt-1">0.6% of total</p>
+          <p className="text-2xl text-foreground">{isEmployee ? absentCount : "8"}</p>
+          <p className="text-xs text-muted-foreground mt-1">{isEmployee ? "Your records" : "0.6% of total"}</p>
         </Card>
 
         <Card className="p-4">
@@ -83,12 +251,11 @@ export function Attendance() {
             </div>
             <p className="text-sm text-muted-foreground">On Leave</p>
           </div>
-          <p className="text-2xl text-foreground">38</p>
-          <p className="text-xs text-muted-foreground mt-1">3.1% of total</p>
+          <p className="text-2xl text-foreground">{isEmployee ? leaveCount : "38"}</p>
+          <p className="text-xs text-muted-foreground mt-1">{isEmployee ? "Your records" : "3.1% of total"}</p>
         </Card>
       </div>
 
-      {/* Weekly Overview */}
       <Card>
         <CardHeader>
           <CardTitle>Weekly Overview</CardTitle>
@@ -100,32 +267,16 @@ export function Attendance() {
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-foreground w-12">{day.day}</span>
                   <div className="flex-1 flex gap-1 h-8">
-                    <div
-                      className="bg-[var(--success)] rounded flex items-center justify-center text-xs text-white"
-                      style={{ width: `${(day.present / 1234) * 100}%` }}
-                      title={`Present: ${day.present}`}
-                    >
+                    <div className="bg-[var(--success)] rounded flex items-center justify-center text-xs text-white" style={{ width: `${(day.present / 1234) * 100}%` }} title={`Present: ${day.present}`}>
                       {day.present}
                     </div>
-                    <div
-                      className="bg-[var(--warning)] rounded flex items-center justify-center text-xs text-white"
-                      style={{ width: `${(day.late / 1234) * 100}%` }}
-                      title={`Late: ${day.late}`}
-                    >
+                    <div className="bg-[var(--warning)] rounded flex items-center justify-center text-xs text-white" style={{ width: `${(day.late / 1234) * 100}%` }} title={`Late: ${day.late}`}>
                       {day.late}
                     </div>
-                    <div
-                      className="bg-destructive rounded flex items-center justify-center text-xs text-white"
-                      style={{ width: `${(day.absent / 1234) * 100}%` }}
-                      title={`Absent: ${day.absent}`}
-                    >
+                    <div className="bg-destructive rounded flex items-center justify-center text-xs text-white" style={{ width: `${(day.absent / 1234) * 100}%` }} title={`Absent: ${day.absent}`}>
                       {day.absent}
                     </div>
-                    <div
-                      className="bg-[var(--info)] rounded flex items-center justify-center text-xs text-white"
-                      style={{ width: `${(day.leave / 1234) * 100}%` }}
-                      title={`Leave: ${day.leave}`}
-                    >
+                    <div className="bg-[var(--info)] rounded flex items-center justify-center text-xs text-white" style={{ width: `${(day.leave / 1234) * 100}%` }} title={`Leave: ${day.leave}`}>
                       {day.leave}
                     </div>
                   </div>
@@ -154,16 +305,15 @@ export function Attendance() {
         </CardContent>
       </Card>
 
-      {/* Today's Attendance */}
       <Card>
         <CardHeader>
-          <CardTitle>Today's Attendance</CardTitle>
+          <CardTitle>{isEmployee ? "My Attendance" : "Today's Attendance"}</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Employee</TableHead>
+                <TableHead>{isEmployee ? "Date" : "Employee"}</TableHead>
                 <TableHead>Check In</TableHead>
                 <TableHead>Check Out</TableHead>
                 <TableHead>Work Hours</TableHead>
@@ -172,34 +322,26 @@ export function Attendance() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {attendanceData.map((record) => (
+              {visibleRecords.map((record) => (
                 <TableRow key={record.id}>
                   <TableCell>
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0">
-                        {record.avatar}
+                    {isEmployee ? (
+                      <span className="text-sm text-foreground">{record.date}</span>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center flex-shrink-0">
+                          {record.avatar}
+                        </div>
+                        <span className="text-sm text-foreground">{record.name}</span>
                       </div>
-                      <span className="text-sm text-foreground">{record.name}</span>
-                    </div>
+                    )}
                   </TableCell>
                   <TableCell className="text-sm">{record.checkIn}</TableCell>
                   <TableCell className="text-sm">{record.checkOut}</TableCell>
                   <TableCell className="text-sm">{record.hours}</TableCell>
                   <TableCell className="text-sm">{record.break}</TableCell>
                   <TableCell>
-                    <Badge
-                      variant={
-                        record.status === "Present"
-                          ? "success"
-                          : record.status === "Late"
-                          ? "warning"
-                          : record.status === "On Leave"
-                          ? "info"
-                          : "error"
-                      }
-                    >
-                      {record.status}
-                    </Badge>
+                    <Badge variant={statusVariant(record.status)}>{record.status}</Badge>
                   </TableCell>
                 </TableRow>
               ))}
@@ -207,6 +349,64 @@ export function Attendance() {
           </Table>
         </CardContent>
       </Card>
+
+      <Modal
+        isOpen={isLogModalOpen}
+        onClose={() => setIsLogModalOpen(false)}
+        title="Log Attendance"
+        footer={(
+          <>
+            <Button variant="outline" onClick={() => setIsLogModalOpen(false)}>Cancel</Button>
+            <Button variant="primary" onClick={handleLogAttendance}>Save Attendance</Button>
+          </>
+        )}
+      >
+        <div className="space-y-4">
+          <Input
+            label="Work Date"
+            type="date"
+            value={attendanceForm.workDate}
+            onChange={(event) => setAttendanceForm((form) => ({ ...form, workDate: event.target.value }))}
+          />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="Check In"
+              type="time"
+              value={attendanceForm.checkIn}
+              onChange={(event) => setAttendanceForm((form) => ({ ...form, checkIn: event.target.value }))}
+            />
+            <Input
+              label="Check Out"
+              type="time"
+              value={attendanceForm.checkOut}
+              onChange={(event) => setAttendanceForm((form) => ({ ...form, checkOut: event.target.value }))}
+            />
+          </div>
+          <Input
+            label="Break Minutes"
+            type="number"
+            min="0"
+            value={attendanceForm.breakMinutes}
+            onChange={(event) => setAttendanceForm((form) => ({ ...form, breakMinutes: event.target.value }))}
+          />
+          <div>
+            <label className="block text-sm mb-1.5 text-foreground">Status</label>
+            <select
+              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+              value={attendanceForm.status}
+              onChange={(event) => setAttendanceForm((form) => ({ ...form, status: event.target.value }))}
+            >
+              <option value="present">Present</option>
+              <option value="late">Late</option>
+              <option value="absent">Absent</option>
+              <option value="leave">On Leave</option>
+            </select>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Preview: {formatTime(attendanceForm.checkIn)} to {formatTime(attendanceForm.checkOut)}, {getWorkHours(attendanceForm.checkIn, attendanceForm.checkOut, attendanceForm.breakMinutes)}
+          </p>
+        </div>
+      </Modal>
     </div>
   );
 }

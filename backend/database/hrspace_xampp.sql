@@ -7,6 +7,8 @@ USE hrspace;
 SET FOREIGN_KEY_CHECKS = 0;
 
 DROP VIEW IF EXISTS user_permissions;
+DROP TABLE IF EXISTS forum_reports;
+DROP TABLE IF EXISTS forum_reactions;
 DROP TABLE IF EXISTS forum_replies;
 DROP TABLE IF EXISTS forum_posts;
 DROP TABLE IF EXISTS expense_payments;
@@ -212,7 +214,15 @@ CREATE TABLE forum_posts (
   body TEXT NOT NULL,
   category VARCHAR(80) DEFAULT 'General',
   is_anonymous BOOLEAN NOT NULL DEFAULT FALSE,
+  anonymous_alias VARCHAR(40),
+  anonymous_color VARCHAR(20),
+  tags JSON,
+  sentiment VARCHAR(40) NOT NULL DEFAULT 'neutral',
+  is_poll BOOLEAN NOT NULL DEFAULT FALSE,
+  poll_data JSON,
+  views INT NOT NULL DEFAULT 0,
   status ENUM('published', 'hidden', 'flagged') NOT NULL DEFAULT 'published',
+  moderation_note VARCHAR(120),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
@@ -221,12 +231,44 @@ CREATE TABLE forum_posts (
 CREATE TABLE forum_replies (
   id INT AUTO_INCREMENT PRIMARY KEY,
   post_id INT NOT NULL,
+  parent_reply_id INT,
   user_id INT,
   body TEXT NOT NULL,
   is_anonymous BOOLEAN NOT NULL DEFAULT FALSE,
+  anonymous_alias VARCHAR(40),
+  anonymous_color VARCHAR(20),
+  status ENUM('published', 'hidden', 'flagged') NOT NULL DEFAULT 'published',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (post_id) REFERENCES forum_posts(id) ON DELETE CASCADE,
+  FOREIGN KEY (parent_reply_id) REFERENCES forum_replies(id) ON DELETE CASCADE,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE forum_reactions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  target_type ENUM('post', 'reply') NOT NULL,
+  target_id INT NOT NULL,
+  user_id INT NOT NULL,
+  reaction ENUM('like', 'heart', 'helpful') NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_forum_reaction (target_type, target_id, user_id, reaction),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE forum_reports (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  target_type ENUM('post', 'reply') NOT NULL,
+  target_id INT NOT NULL,
+  reporter_id INT,
+  reason VARCHAR(180) NOT NULL,
+  notes TEXT,
+  status ENUM('pending', 'reviewed', 'dismissed') NOT NULL DEFAULT 'pending',
+  action_taken VARCHAR(80),
+  reviewed_by INT,
+  reviewed_at DATETIME,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (reporter_id) REFERENCES users(id) ON DELETE SET NULL,
+  FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
 INSERT INTO users
@@ -433,12 +475,20 @@ VALUES
   (3, 1200.00, CURDATE(), 'Bank Transfer', 'PAY-EXP-0003', 2);
 
 INSERT INTO forum_posts
-  (user_id, title, body, category, is_anonymous)
+  (user_id, title, body, category, is_anonymous, anonymous_alias, anonymous_color, tags, sentiment, views)
 VALUES
-  (2, 'Welcome to HRSpace', 'Use this forum for HR questions, announcements, and team discussions.', 'Announcement', FALSE),
-  (3, 'Remote work equipment request', 'What is the process for requesting an extra monitor?', 'General', FALSE);
+  (2, 'Welcome to HRSpace', 'Use this forum for HR questions, announcements, and team discussions.', 'Announcement', FALSE, 'Owl', '#7C5FB5', JSON_ARRAY('announcement', 'hr'), 'positive', 124),
+  (3, 'Remote work equipment request', 'What is the process for requesting an extra monitor?', 'General', TRUE, 'Panda', '#9A77CF', JSON_ARRAY('equipment', 'remote-work'), 'neutral', 57);
 
 INSERT INTO forum_replies
-  (post_id, user_id, body, is_anonymous)
+  (post_id, user_id, body, is_anonymous, anonymous_alias, anonymous_color)
 VALUES
-  (2, 2, 'Please submit an expense request with the quotation attached.', FALSE);
+  (2, 2, 'Please submit an expense request with the quotation attached.', FALSE, 'Owl', '#7C5FB5');
+
+INSERT INTO forum_reactions
+  (target_type, target_id, user_id, reaction)
+VALUES
+  ('post', 1, 3, 'like'),
+  ('post', 1, 4, 'heart'),
+  ('post', 2, 2, 'helpful'),
+  ('reply', 1, 3, 'like');

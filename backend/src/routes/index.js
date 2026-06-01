@@ -5,6 +5,11 @@ router.use("/employees", require("../main/employees/employees.routes"));
 router.use("/attendance", require("../main/attendance/attendance.routes"));
 router.use("/leave", require("../main/leave/leave.routes"));
 router.use("/payroll", require("../main/payroll/payroll.routes"));
+router.use("/expenses", require("../main/expenses/expenses.routes"));
+router.use("/training", require("../main/training/training.routes"));
+router.use("/performance", require("../main/performance/performance.routes"));
+router.use("/projects", require("../main/projects/projects.routes"));
+router.use("/forum", require("../main/forum/forum.routes"));
 
 router.use("/admin", require("../roles/admin/admin.routes"));
 router.use("/hr-manager", require("../roles/hrManager/hrManager.routes"));

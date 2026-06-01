@@ -9,3 +9,14 @@ ON DUPLICATE KEY UPDATE name = VALUES(name);
 
 INSERT INTO training_sessions (title, description, starts_at)
 VALUES ('Workplace Safety', 'Quarterly safety training', DATE_ADD(NOW(), INTERVAL 7 DAY));
+
+INSERT INTO forum_posts
+  (user_id, title, body, category, is_anonymous, anonymous_alias, anonymous_color, tags, sentiment, views)
+VALUES
+  (2, 'Welcome to HRSpace', 'Use this forum for HR questions, announcements, and team discussions.', 'Announcement', FALSE, 'Owl', '#7C5FB5', JSON_ARRAY('announcement', 'hr'), 'positive', 124),
+  (3, 'Remote work equipment request', 'What is the process for requesting an extra monitor?', 'General', TRUE, 'Panda', '#9A77CF', JSON_ARRAY('equipment', 'remote-work'), 'neutral', 57);
+
+INSERT INTO forum_replies
+  (post_id, user_id, body, is_anonymous, anonymous_alias, anonymous_color)
+VALUES
+  (2, 2, 'Please submit an expense request with the quotation attached.', FALSE, 'Owl', '#7C5FB5');

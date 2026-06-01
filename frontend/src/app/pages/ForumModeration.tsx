@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Shield, AlertTriangle, CheckCircle, XCircle, Eye, Trash2,
@@ -8,6 +8,7 @@ import {
 import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
+import api from "../services/api";
 
 const reportedContent = [
   {
@@ -99,6 +100,47 @@ const activityLog = [
 export function ForumModeration() {
   const [activeTab, setActiveTab] = useState<'pending' | 'reviewed' | 'activity'>('pending');
   const [selectedReport, setSelectedReport] = useState<number | null>(null);
+  const [reports, setReports] = useState(reportedContent);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    api.get("/forum/reports")
+      .then((response) => {
+        if (!isMounted || !response.data.reports?.length) return;
+
+        setReports(response.data.reports.map((report: any) => ({
+          id: report.id,
+          type: report.target_type,
+          title: `${report.target_type} #${report.target_id}`,
+          reportReason: report.reason,
+          reporter: report.reporter_name || "Anonymous User Report",
+          timestamp: new Date(report.created_at).toLocaleString(),
+          status: report.status === "pending" ? "pending" : "reviewed",
+          action: report.action_taken,
+          toxicityScore: 0.25,
+          sentimentScore: -0.25,
+          content: report.notes || "Reported forum content awaiting review.",
+          flags: [report.reason],
+        })));
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleModerationAction = async (reportId: number, action: "approve" | "remove" | "dismiss") => {
+    await api.patch(`/forum/reports/${reportId}`, { action });
+    setReports((currentReports) =>
+      currentReports.map((report) =>
+        report.id === reportId
+          ? { ...report, status: "reviewed", action }
+          : report
+      )
+    );
+  };
 
   const getToxicityColor = (score: number) => {
     if (score < 0.3) return "text-[var(--success)]";
@@ -212,7 +254,7 @@ export function ForumModeration() {
           {/* Pending/Reviewed Content */}
           {(activeTab === 'pending' || activeTab === 'reviewed') && (
             <div className="space-y-4">
-              {reportedContent
+              {reports
                 .filter(item => activeTab === 'pending' ? item.status === 'pending' : item.status === 'reviewed')
                 .map((item) => (
                   <Card key={item.id} className="overflow-hidden">
@@ -313,7 +355,7 @@ export function ForumModeration() {
                             <Eye className="w-4 h-4" />
                             View Full Context
                           </Button>
-                          <Button variant="outline" className="gap-2 text-[var(--success)] hover:bg-[var(--success)]/10">
+                          <Button variant="outline" className="gap-2 text-[var(--success)] hover:bg-[var(--success)]/10" onClick={() => handleModerationAction(item.id, "approve")}>
                             <CheckCircle className="w-4 h-4" />
                             Approve
                           </Button>
@@ -321,7 +363,7 @@ export function ForumModeration() {
                             <Shield className="w-4 h-4" />
                             Edit
                           </Button>
-                          <Button variant="outline" className="gap-2 text-destructive hover:bg-destructive/10">
+                          <Button variant="outline" className="gap-2 text-destructive hover:bg-destructive/10" onClick={() => handleModerationAction(item.id, "remove")}>
                             <Trash2 className="w-4 h-4" />
                             Remove
                           </Button>

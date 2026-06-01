@@ -22,6 +22,7 @@ import {
   Kanban,
   FolderGit2,
   Network,
+  ListChecks,
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 
@@ -61,8 +62,10 @@ const navConfig = {
     { path: '/dashboard',                label: 'Dashboard',           icon: LayoutDashboard },
     { path: '/dashboard/attendance',     label: 'My Attendance',       icon: Clock },
     { path: '/dashboard/leave',          label: 'My Leave',            icon: Calendar },
+    { path: '/dashboard/tasks',          label: 'My Tasks',            icon: ListChecks },
     { path: '/dashboard/training',       label: 'My Training',         icon: GraduationCap },
     { path: '/dashboard/expense',        label: 'My Expenses',         icon: Receipt },
+    { path: '/dashboard/payslips',       label: 'My Payslips',         icon: DollarSign },
     { path: '/dashboard/performance',    label: 'My Performance',      icon: Target },
     { path: '/dashboard/my-peer-review', label: 'Peer Reviews',        icon: Star },
     { path: '/dashboard/circular-apply', label: 'Circular & Apply',    icon: Briefcase },

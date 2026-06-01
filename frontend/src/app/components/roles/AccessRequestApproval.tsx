@@ -91,7 +91,7 @@ export function AccessRequestApproval() {
             {accessRequests.map((request) => (
               <div
                 key={request.id}
-                className="p-5 rounded-xl border border-border hover:border-[var(--primary)]/50 transition-all hover:shadow-md bg-gradient-to-br from-white to-[var(--accent)]/30"
+                className="p-5 rounded-xl border border-border hover:border-[var(--primary)]/50 transition-all hover:shadow-md bg-card hover:bg-accent/20"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-start gap-4 flex-1">

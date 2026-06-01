@@ -23,7 +23,9 @@ CREATE TABLE IF NOT EXISTS attendance (
   clock_in DATETIME,
   clock_out DATETIME,
   status ENUM('present', 'absent', 'late', 'leave') NOT NULL DEFAULT 'present',
+  notes VARCHAR(255),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_user_work_date (user_id, work_date),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
@@ -35,9 +37,12 @@ CREATE TABLE IF NOT EXISTS leave_requests (
   end_date DATE NOT NULL,
   reason TEXT,
   status ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
+  reviewed_by INT,
+  reviewed_at DATETIME,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS payroll (
@@ -58,4 +63,68 @@ CREATE TABLE IF NOT EXISTS training_sessions (
   description TEXT,
   starts_at DATETIME NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS forum_posts (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT,
+  title VARCHAR(180) NOT NULL,
+  body TEXT NOT NULL,
+  category VARCHAR(80) DEFAULT 'General',
+  is_anonymous BOOLEAN NOT NULL DEFAULT FALSE,
+  anonymous_alias VARCHAR(40),
+  anonymous_color VARCHAR(20),
+  tags JSON,
+  sentiment VARCHAR(40) NOT NULL DEFAULT 'neutral',
+  is_poll BOOLEAN NOT NULL DEFAULT FALSE,
+  poll_data JSON,
+  views INT NOT NULL DEFAULT 0,
+  status ENUM('published', 'hidden', 'flagged') NOT NULL DEFAULT 'published',
+  moderation_note VARCHAR(120),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS forum_replies (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  post_id INT NOT NULL,
+  parent_reply_id INT,
+  user_id INT,
+  body TEXT NOT NULL,
+  is_anonymous BOOLEAN NOT NULL DEFAULT FALSE,
+  anonymous_alias VARCHAR(40),
+  anonymous_color VARCHAR(20),
+  status ENUM('published', 'hidden', 'flagged') NOT NULL DEFAULT 'published',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (post_id) REFERENCES forum_posts(id) ON DELETE CASCADE,
+  FOREIGN KEY (parent_reply_id) REFERENCES forum_replies(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS forum_reactions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  target_type ENUM('post', 'reply') NOT NULL,
+  target_id INT NOT NULL,
+  user_id INT NOT NULL,
+  reaction ENUM('like', 'heart', 'helpful') NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_forum_reaction (target_type, target_id, user_id, reaction),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS forum_reports (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  target_type ENUM('post', 'reply') NOT NULL,
+  target_id INT NOT NULL,
+  reporter_id INT,
+  reason VARCHAR(180) NOT NULL,
+  notes TEXT,
+  status ENUM('pending', 'reviewed', 'dismissed') NOT NULL DEFAULT 'pending',
+  action_taken VARCHAR(80),
+  reviewed_by INT,
+  reviewed_at DATETIME,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (reporter_id) REFERENCES users(id) ON DELETE SET NULL,
+  FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
 );

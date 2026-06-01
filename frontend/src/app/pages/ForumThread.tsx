@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
   ArrowLeft, ThumbsUp, Heart, Lightbulb, MessageCircle, Flag,
@@ -8,6 +8,8 @@ import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { ReplyThread } from "../components/forum/ReplyThread";
+import { getAnonymousAvatarEmoji } from "../components/forum/anonymousAvatars";
+import api from "../services/api";
 
 const threadData = {
   id: 1,
@@ -85,14 +87,45 @@ const threadData = {
 
 export function ForumThread() {
   const { threadId } = useParams();
+  const [thread, setThread] = useState(threadData);
   const [replyContent, setReplyContent] = useState("");
   const [userReactions, setUserReactions] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (!threadId) return;
+
+    let isMounted = true;
+    api.get(`/forum/posts/${threadId}`)
+      .then((response) => {
+        if (isMounted && response.data.post) {
+          setThread(response.data.post);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, [threadId]);
 
   const toggleReaction = (type: string) => {
     setUserReactions(prev => ({
       ...prev,
       [type]: !prev[type]
     }));
+  };
+
+  const handlePostReply = async () => {
+    if (!replyContent.trim()) return;
+    const response = await api.post(`/forum/posts/${thread.id}/replies`, {
+      content: replyContent,
+      isAnonymous: true,
+    });
+    setThread((currentThread) => ({
+      ...currentThread,
+      replies: [...currentThread.replies, response.data.reply],
+    }));
+    setReplyContent("");
   };
 
   return (
@@ -114,19 +147,19 @@ export function ForumThread() {
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
               <div
-                className="w-12 h-12 rounded-full flex items-center justify-center shadow-md text-white"
-                style={{ backgroundColor: threadData.author.color }}
+                className="w-12 h-12 rounded-full flex items-center justify-center shadow-md text-2xl"
+                style={{ backgroundColor: thread.author.color }}
               >
-                {threadData.author.name.split(' ')[1]?.charAt(0) || 'A'}
+                {getAnonymousAvatarEmoji(thread.author.name)}
               </div>
               <div>
-                <p className="text-foreground">{threadData.author.name}</p>
-                <p className="text-sm text-muted-foreground">{threadData.timestamp}</p>
+                <p className="text-foreground">{thread.author.name}</p>
+                <p className="text-sm text-muted-foreground">{thread.timestamp}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <Badge variant="secondary" className="bg-[var(--primary)]/10 text-[var(--primary)] border-[var(--primary)]/20">
-                {threadData.category}
+                {thread.category}
               </Badge>
               <Button variant="ghost" size="sm">
                 <MoreHorizontal className="w-4 h-4" />
@@ -136,17 +169,17 @@ export function ForumThread() {
 
           {/* Title */}
           <div>
-            <h1 className="text-foreground mb-4">{threadData.title}</h1>
+            <h1 className="text-foreground mb-4">{thread.title}</h1>
             <div className="prose prose-sm max-w-none">
               <p className="text-muted-foreground whitespace-pre-line">
-                {threadData.content}
+                {thread.content}
               </p>
             </div>
           </div>
 
           {/* Tags */}
           <div className="flex flex-wrap gap-2">
-            {threadData.tags.map((tag) => (
+            {thread.tags.map((tag) => (
               <span
                 key={tag}
                 className="px-3 py-1 rounded-full bg-[var(--accent)] text-sm text-muted-foreground hover:bg-[var(--primary)]/10 hover:text-[var(--primary)] transition-colors cursor-pointer"
@@ -160,11 +193,11 @@ export function ForumThread() {
           <div className="flex items-center gap-4 text-sm text-muted-foreground pt-4 border-t border-border">
             <div className="flex items-center gap-1.5">
               <Eye className="w-4 h-4" />
-              <span>{threadData.views} views</span>
+              <span>{thread.views} views</span>
             </div>
             <div className="flex items-center gap-1.5">
               <MessageCircle className="w-4 h-4" />
-              <span>{threadData.replies.length} replies</span>
+              <span>{thread.replies.length} replies</span>
             </div>
           </div>
 
@@ -178,7 +211,7 @@ export function ForumThread() {
                 onClick={() => toggleReaction('like')}
               >
                 <ThumbsUp className="w-4 h-4" />
-                <span>{threadData.reactions.likes + (userReactions.like ? 1 : 0)}</span>
+                <span>{thread.reactions.likes + (userReactions.like ? 1 : 0)}</span>
               </Button>
               <Button
                 variant={userReactions.heart ? "primary" : "outline"}
@@ -187,7 +220,7 @@ export function ForumThread() {
                 onClick={() => toggleReaction('heart')}
               >
                 <Heart className="w-4 h-4" />
-                <span>{threadData.reactions.hearts + (userReactions.heart ? 1 : 0)}</span>
+                <span>{thread.reactions.hearts + (userReactions.heart ? 1 : 0)}</span>
               </Button>
               <Button
                 variant={userReactions.helpful ? "primary" : "outline"}
@@ -196,7 +229,7 @@ export function ForumThread() {
                 onClick={() => toggleReaction('helpful')}
               >
                 <Lightbulb className="w-4 h-4" />
-                <span>{threadData.reactions.helpful + (userReactions.helpful ? 1 : 0)}</span>
+                <span>{thread.reactions.helpful + (userReactions.helpful ? 1 : 0)}</span>
               </Button>
             </div>
             <div className="flex items-center gap-2">
@@ -221,14 +254,14 @@ export function ForumThread() {
       <Card>
         <div className="p-6">
           <h3 className="text-foreground mb-6">
-            {threadData.replies.length} {threadData.replies.length === 1 ? 'Reply' : 'Replies'}
+            {thread.replies.length} {thread.replies.length === 1 ? 'Reply' : 'Replies'}
           </h3>
 
           {/* Reply Input */}
-          <div className="mb-6 p-4 rounded-xl border border-border bg-gradient-to-br from-white to-[var(--accent)]/30">
+          <div className="mb-6 p-4 rounded-xl border border-border bg-card">
             <div className="flex gap-3 mb-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--info)] text-white flex items-center justify-center shadow-md">
-                A
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--info)] flex items-center justify-center shadow-md text-xl">
+                🙂
               </div>
               <div className="flex-1">
                 <textarea
@@ -246,6 +279,7 @@ export function ForumThread() {
                 size="sm"
                 className="gap-2 bg-[var(--action)] hover:bg-[var(--action)]/90"
                 disabled={!replyContent.trim()}
+                onClick={handlePostReply}
               >
                 <Send className="w-4 h-4" />
                 Post Reply
@@ -255,7 +289,7 @@ export function ForumThread() {
 
           {/* Replies Thread */}
           <div className="space-y-4">
-            {threadData.replies.map((reply) => (
+            {thread.replies.map((reply) => (
               <ReplyThread key={reply.id} reply={reply} level={0} />
             ))}
           </div>

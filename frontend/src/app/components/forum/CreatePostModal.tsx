@@ -2,10 +2,25 @@ import { useState } from "react";
 import { X, MessageSquare, Hash, BarChart2, HelpCircle } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
+import { getAnonymousAvatarEmoji } from "./anonymousAvatars";
 
 interface CreatePostModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onCreate?: (post: {
+    title: string;
+    content: string;
+    category: string;
+    tags: string[];
+    isAnonymous: boolean;
+    avatarAlias: string;
+    avatarColor: string;
+    pollData?: {
+      question: string;
+      votes: number;
+      options: { text: string; votes: number; percentage: number }[];
+    };
+  }) => Promise<void> | void;
 }
 
 const categories = [
@@ -28,7 +43,7 @@ const anonymousAvatars = [
   { name: "Rabbit", color: "#7C5FB5" }
 ];
 
-export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
+export function CreatePostModal({ isOpen, onClose, onCreate }: CreatePostModalProps) {
   const [postType, setPostType] = useState<'discussion' | 'poll'>('discussion');
   const [selectedCategory, setSelectedCategory] = useState("");
   const [title, setTitle] = useState("");
@@ -61,15 +76,22 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
     setPollOptions(newOptions);
   };
 
-  const handleSubmit = () => {
-    console.log("Creating post:", {
-      type: postType,
+  const handleSubmit = async () => {
+    await onCreate?.({
       category: selectedCategory,
       title,
-      content,
+      content: postType === 'discussion' ? content : title,
       tags,
-      avatar: selectedAvatar,
-      pollOptions: postType === 'poll' ? pollOptions : undefined
+      isAnonymous: true,
+      avatarAlias: selectedAvatar.name,
+      avatarColor: selectedAvatar.color,
+      pollData: postType === 'poll' ? {
+        question: title,
+        votes: 0,
+        options: pollOptions
+          .filter(Boolean)
+          .map((option) => ({ text: option, votes: 0, percentage: 0 })),
+      } : undefined
     });
     onClose();
   };
@@ -149,10 +171,10 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
                     }`}
                   >
                     <div
-                      className="w-10 h-10 rounded-full mx-auto mb-2 flex items-center justify-center text-white text-sm shadow-md"
+                      className="w-10 h-10 rounded-full mx-auto mb-2 flex items-center justify-center text-xl shadow-md"
                       style={{ backgroundColor: avatar.color }}
                     >
-                      {avatar.name.charAt(0)}
+                      {getAnonymousAvatarEmoji(avatar.name)}
                     </div>
                     <p className="text-xs text-center text-foreground">{avatar.name}</p>
                   </button>

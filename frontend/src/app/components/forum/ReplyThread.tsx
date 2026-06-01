@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ThumbsUp, Heart, Lightbulb, MessageCircle, Flag, MoreHorizontal } from "lucide-react";
 import { Button } from "../ui/Button";
+import { getAnonymousAvatarEmoji } from "./anonymousAvatars";
 
 interface Reply {
   id: number;
@@ -33,15 +34,15 @@ export function ReplyThread({ reply, level }: ReplyThreadProps) {
 
   return (
     <div className={level > 0 ? "ml-12 mt-4" : ""}>
-      <div className="p-4 rounded-xl border border-border bg-gradient-to-br from-white to-[var(--accent)]/20 hover:border-[var(--primary)]/30 transition-all">
+      <div className="p-4 rounded-xl border border-border bg-card hover:bg-accent/20 hover:border-[var(--primary)]/30 transition-all">
         {/* Reply Header */}
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-3">
             <div
-              className="w-9 h-9 rounded-full flex items-center justify-center shadow-md text-white text-sm"
+              className="w-9 h-9 rounded-full flex items-center justify-center shadow-md text-lg"
               style={{ backgroundColor: reply.author.color }}
             >
-              {reply.author.name.split(' ')[1]?.charAt(0) || 'A'}
+              {getAnonymousAvatarEmoji(reply.author.name)}
             </div>
             <div>
               <p className="text-sm text-foreground">{reply.author.name}</p>

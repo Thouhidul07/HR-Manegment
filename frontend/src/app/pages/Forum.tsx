@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   MessageSquare, TrendingUp, Plus, Filter, Search, Users,
   ThumbsUp, MessageCircle, Eye, BarChart3, AlertTriangle,
@@ -12,6 +12,7 @@ import { TrendingTopics } from "../components/forum/TrendingTopics";
 import { CreatePostModal } from "../components/forum/CreatePostModal";
 import { DiscussionCard } from "../components/forum/DiscussionCard";
 import { SentimentWidget } from "../components/forum/SentimentWidget";
+import api from "../services/api";
 
 const categories = [
   { id: "all", name: "All Topics", icon: MessageSquare, count: 342, color: "text-[var(--primary)]" },
@@ -127,14 +128,43 @@ const discussions = [
 ];
 
 export function Forum() {
+  const [discussionList, setDiscussionList] = useState(discussions);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("recent");
 
-  const filteredDiscussions = discussions.filter(d =>
-    selectedCategory === "all" || d.category === categories.find(c => c.id === selectedCategory)?.name
+  useEffect(() => {
+    let isMounted = true;
+
+    api.get("/forum/posts", {
+      params: {
+        category: categories.find((category) => category.id === selectedCategory)?.name,
+        search: searchQuery || undefined,
+        sort: sortBy,
+      },
+    })
+      .then((response) => {
+        if (isMounted && response.data.posts?.length) {
+          setDiscussionList(response.data.posts);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedCategory, searchQuery, sortBy]);
+
+  const filteredDiscussions = discussionList.filter(d =>
+    (selectedCategory === "all" || d.category === categories.find(c => c.id === selectedCategory)?.name)
+    && (!searchQuery || `${d.title} ${d.content}`.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+
+  const handleCreatePost = async (post: any) => {
+    const response = await api.post("/forum/posts", post);
+    setDiscussionList((currentDiscussions) => [response.data.post, ...currentDiscussions]);
+  };
 
   return (
     <div className="space-y-6">
@@ -362,6 +392,7 @@ export function Forum() {
       <CreatePostModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
+        onCreate={handleCreatePost}
       />
     </div>
   );
