@@ -79,8 +79,8 @@ export function AdminDashboard({ userName }: { userName: string }) {
               <XAxis dataKey="month" {...chartStyle.axis} />
               <YAxis {...chartStyle.axis} />
               <Tooltip {...chartStyle.tooltip} />
-              <Area type="monotone" dataKey="present" stroke={C.primary} fill="url(#gPresent)" strokeWidth={2} name="Present" />
-              <Area type="monotone" dataKey="absent"  stroke={C.action}  fill="url(#gAbsent)"  strokeWidth={2} name="Absent" />
+              <Area key="present-area" type="monotone" dataKey="present" stroke={C.primary} fill="url(#gPresent)" strokeWidth={2} name="Present" />
+              <Area key="absent-area" type="monotone" dataKey="absent"  stroke={C.action}  fill="url(#gAbsent)"  strokeWidth={2} name="Absent" />
             </AreaChart>
           </ResponsiveContainer>
           <div className="flex gap-5 mt-3">
@@ -96,9 +96,9 @@ export function AdminDashboard({ userName }: { userName: string }) {
         <SectionCard title="Department Breakdown">
           <ResponsiveContainer width="100%" height={180}>
             <PieChart>
-              <Pie data={depts} cx="50%" cy="50%" innerRadius={50} outerRadius={75}
+              <Pie key="department-pie" data={depts} cx="50%" cy="50%" innerRadius={50} outerRadius={75}
                 paddingAngle={3} dataKey="value">
-                {depts.map((d, i) => <Cell key={i} fill={d.color} />)}
+                {depts.map((d, i) => <Cell key={`cell-${i}`} fill={d.color} />)}
               </Pie>
               <Tooltip {...chartStyle.tooltip} />
             </PieChart>
@@ -136,7 +136,7 @@ export function AdminDashboard({ userName }: { userName: string }) {
             <p className="text-xs text-muted-foreground mb-2">Monthly trend</p>
             <ResponsiveContainer width="100%" height={56}>
               <BarChart data={payroll.trend.map((v, i) => ({ m: i, v }))} barSize={8}>
-                <Bar dataKey="v" fill={C.primary} radius={[2, 2, 0, 0]} />
+                <Bar key="payroll-trend-bar" dataKey="v" fill={C.primary} radius={[2, 2, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

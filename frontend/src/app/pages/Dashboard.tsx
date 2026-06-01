@@ -1,11 +1,9 @@
-﻿import { motion } from "motion/react";
-import { Link } from "react-router-dom";
-import { useState } from "react";
+import { motion } from "motion/react";
 import {
   Users, UserCheck, UserX, Briefcase, TrendingUp, TrendingDown, FileText,
-  UserPlus, CheckCircle, Check, X, ArrowRight, Clock, Calendar, GraduationCap, Receipt, Target,
+  UserPlus, CheckCircle, Clock, Calendar, GraduationCap, Receipt, Target,
   Shield, MessageSquare, BookOpen, CheckSquare, Palmtree, BarChart2, CalendarPlus,
-  Download, User
+  Download, User, Check
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import {
@@ -13,11 +11,13 @@ import {
   CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from "recharts";
 import { AdminDashboard } from "../components/dashboard/AdminDashboard";
+import { useNavigate } from "react-router-dom";
 
 export function Dashboard() {
   const { user } = useAuth();
-  if (user?.role === 'admin')      return <AdminDashboard userName={user.name} />;
-  if (user?.role === 'hr_manager') return <HRManagerDashboard user={user} />;
+  if (user?.role === 'admin')           return <AdminDashboard userName={user.name} />;
+  if (user?.role === 'hr_manager')      return <HRManagerDashboard user={user} />;
+  if (user?.role === 'project_manager') return <ProjectManagerDashboard user={user} />;
   return <EmployeeDashboard user={user} />;
 }
 
@@ -108,19 +108,6 @@ const chartTheme = {
 function HRManagerDashboard({ user }: any) {
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-  const [leaveRequests, setLeaveRequests] = useState([
-    { name: 'Rafi Ahmed', days: 3, type: 'Annual Leave', initial: 'RA', status: 'pending' },
-    { name: 'Priya Sen', days: 1, type: 'Sick Leave', initial: 'PS', status: 'pending' },
-    { name: 'Karim Hassan', days: 5, type: 'Annual Leave', initial: 'KH', status: 'pending' },
-  ]);
-
-  const updateLeaveStatus = (name: string, status: 'approved' | 'rejected') => {
-    setLeaveRequests((requests) =>
-      requests.map((request) =>
-        request.name === name ? { ...request, status } : request
-      )
-    );
-  };
 
   const weekData = [
     { day: 'Mon', present: 238, leave: 9 },
@@ -171,8 +158,8 @@ function HRManagerDashboard({ user }: any) {
                 <XAxis dataKey="day" {...chartTheme.axis} />
                 <YAxis {...chartTheme.axis} />
                 <Tooltip {...chartTheme.tooltip} />
-                <Bar dataKey="present" fill="#543884" radius={[8, 8, 0, 0]} />
-                <Bar dataKey="leave" fill="#EC4176" radius={[8, 8, 0, 0]} />
+                <Bar key="present-bar" dataKey="present" fill="#543884" radius={[8, 8, 0, 0]} />
+                <Bar key="leave-bar" dataKey="leave" fill="#EC4176" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
             <div className="flex items-center justify-center gap-6 mt-4">
@@ -189,9 +176,13 @@ function HRManagerDashboard({ user }: any) {
         </div>
 
         <div className="lg:col-span-2">
-          <SectionCard title="Leave Requests" action={<Link to="/dashboard/leave" className="inline-flex items-center gap-1 text-[#9A77CF] text-sm hover:text-[#EC4176]">View All <ArrowRight className="w-3 h-3" /></Link>}>
+          <SectionCard title="Leave Requests" action={<a href="#" className="text-[#9A77CF] text-sm hover:text-[#EC4176]">View All →</a>}>
             <div className="space-y-3">
-              {leaveRequests.map((req, i) => (
+              {[
+                { name: 'Rafi Ahmed', days: 3, type: 'Annual Leave', initial: 'RA' },
+                { name: 'Priya Sen', days: 1, type: 'Sick Leave', initial: 'PS' },
+                { name: 'Karim Hassan', days: 5, type: 'Annual Leave', initial: 'KH' }
+              ].map((req, i) => (
                 <div key={i} className="flex items-center gap-3 py-2 border-b border-[#543884]/8 last:border-0">
                   <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-medium" style={{ background: `linear-gradient(135deg, ${chartTheme.colors[i % 5]}, ${chartTheme.colors[(i + 1) % 5]})` }}>
                     {req.initial}
@@ -200,14 +191,10 @@ function HRManagerDashboard({ user }: any) {
                     <p className="text-sm font-medium text-[#262254] dark:text-white">{req.name}</p>
                     <p className="text-xs text-muted-foreground">{req.days} days · {req.type}</p>
                   </div>
-                  {req.status === 'pending' ? (
-                    <div className="flex gap-1">
-                      <button type="button" aria-label={`Approve ${req.name}`} onClick={() => updateLeaveStatus(req.name, 'approved')} className="h-8 w-8 inline-flex items-center justify-center rounded-lg bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400 dark:hover:bg-green-900/50 transition-colors"><Check className="w-4 h-4" /></button>
-                      <button type="button" aria-label={`Reject ${req.name}`} onClick={() => updateLeaveStatus(req.name, 'rejected')} className="h-8 w-8 inline-flex items-center justify-center rounded-lg bg-[#EC4176]/10 text-[#EC4176] hover:bg-[#EC4176]/20 transition-colors"><X className="w-4 h-4" /></button>
-                    </div>
-                  ) : (
-                    <span className={`rounded-full px-2 py-1 text-xs font-medium ${req.status === 'approved' ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-[#EC4176]/10 text-[#EC4176]'}`}>{req.status === 'approved' ? 'Approved' : 'Rejected'}</span>
-                  )}
+                  <div className="flex gap-1">
+                    <button className="bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg px-2 py-1 text-xs">✓</button>
+                    <button className="bg-[#EC4176]/10 text-[#EC4176] rounded-lg px-2 py-1 text-xs">✗</button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -216,7 +203,7 @@ function HRManagerDashboard({ user }: any) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <SectionCard title="Onboarding Pipeline" action={<a href="#" className="text-[#9A77CF] text-sm hover:text-[#EC4176]">Manage â†’</a>}>
+        <SectionCard title="Onboarding Pipeline" action={<a href="#" className="text-[#9A77CF] text-sm hover:text-[#EC4176]">Manage →</a>}>
           <div className="space-y-4">
             {[
               { name: 'Sofia Rahman', progress: 92 },
@@ -282,6 +269,236 @@ function HRManagerDashboard({ user }: any) {
   );
 }
 
+// Project Manager Dashboard
+function ProjectManagerDashboard({ user }: any) {
+  const navigate = useNavigate();
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
+  const projectData = [
+    { project: 'Website Redesign', completed: 6, inProgress: 3, todo: 2 },
+    { project: 'User Portal', completed: 4, inProgress: 5, todo: 3 }
+  ];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      key={user.role}
+      className="space-y-6"
+    >
+      <DashboardHeader
+        title={`${greeting}, ${user.name}`}
+        subtitle="Track project progress and manage team assignments."
+        actions={
+          <>
+            <button
+              onClick={() => navigate('/dashboard/new-task')}
+              className="rounded-xl px-4 py-2 text-sm text-white flex items-center gap-2 shadow-sm"
+              style={{ background: 'linear-gradient(135deg, #543884, #A13670, #EC4176)' }}
+            >
+              <CheckSquare className="w-4 h-4" />
+              New Task
+            </button>
+            <button
+              onClick={() => navigate('/dashboard/project-reports')}
+              className="border border-[#543884]/20 text-[#543884] rounded-xl px-4 py-2 text-sm flex items-center gap-2 hover:bg-[#543884]/5"
+            >
+              <BarChart2 className="w-4 h-4" />
+              View Reports
+            </button>
+          </>
+        }
+      />
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard label="Active Projects" value="2" change="On track" trend="neutral" icon={Briefcase} iconBg="#5438841A" iconColor="#543884" index={0} />
+        <StatCard label="Total Tasks" value="23" change="8 completed this week" trend="up" icon={CheckSquare} iconBg="#9A77CF1A" iconColor="#9A77CF" index={1} />
+        <StatCard label="Team Members" value="5" change="All active" trend="neutral" icon={Users} iconBg="#FFA45E1A" iconColor="#FFA45E" index={2} />
+        <StatCard label="Overdue Tasks" value="1" change="1 needs attention" trend="down" icon={Clock} iconBg="#EC41761A" iconColor="#EC4176" index={3} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <SectionCard title="Project Progress">
+            <div className="space-y-6">
+              {projectData.map((project, i) => (
+                <div key={i}>
+                  <div className="flex justify-between mb-3">
+                    <h4 className="text-sm font-semibold text-[#262254] dark:text-white">{project.project}</h4>
+                    <span className="text-xs text-muted-foreground">
+                      {project.completed + project.inProgress + project.todo} tasks total
+                    </span>
+                  </div>
+                  <div className="flex h-3 rounded-full overflow-hidden mb-2">
+                    <div
+                      className="bg-green-500"
+                      style={{ width: `${(project.completed / (project.completed + project.inProgress + project.todo)) * 100}%` }}
+                    />
+                    <div
+                      className="bg-blue-500"
+                      style={{ width: `${(project.inProgress / (project.completed + project.inProgress + project.todo)) * 100}%` }}
+                    />
+                    <div
+                      className="bg-gray-400"
+                      style={{ width: `${(project.todo / (project.completed + project.inProgress + project.todo)) * 100}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <div className="w-2 h-2 rounded-full bg-green-500" />
+                      {project.completed} Completed
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-2 h-2 rounded-full bg-blue-500" />
+                      {project.inProgress} In Progress
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-2 h-2 rounded-full bg-gray-400" />
+                      {project.todo} To Do
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+        </div>
+
+        <SectionCard title="Team Performance" action={<a href="#" className="text-[#9A77CF] text-sm hover:text-[#EC4176]">View All →</a>}>
+          <div className="space-y-3">
+            {[
+              { name: 'Sarah Johnson', tasks: 5, completed: 4, avatar: 'SJ' },
+              { name: 'Michael Chen', tasks: 6, completed: 5, avatar: 'MC' },
+              { name: 'Emily Rodriguez', tasks: 4, completed: 3, avatar: 'ER' },
+              { name: 'David Kim', tasks: 3, completed: 2, avatar: 'DK' }
+            ].map((member, i) => (
+              <div key={i} className="flex items-center gap-3 py-2 border-b border-[#543884]/8 last:border-0">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#543884] to-[#9A77CF] flex items-center justify-center text-white text-xs font-semibold">
+                  {member.avatar}
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-[#262254] dark:text-white">{member.name}</p>
+                  <p className="text-xs text-muted-foreground">{member.completed}/{member.tasks} tasks completed</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-sm font-semibold text-[#543884]">{Math.round((member.completed / member.tasks) * 100)}%</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <SectionCard title="Upcoming Deadlines" action={<a href="#" className="text-[#9A77CF] text-sm hover:text-[#EC4176]">View All →</a>}>
+          <div className="space-y-3">
+            {[
+              { task: 'Database Schema Migration', date: 'Jun 2', overdue: true },
+              { task: 'Design Homepage Mockup', date: 'Jun 5', overdue: false },
+              { task: 'Mobile Responsive Design', date: 'Jun 7', overdue: false }
+            ].map((item, i) => (
+              <div key={i} className="flex items-start gap-3">
+                <div className={`w-2 h-2 rounded-full mt-1.5 ${item.overdue ? 'bg-red-500' : 'bg-[#9A77CF]'}`} />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-[#262254] dark:text-white">{item.task}</p>
+                  <p className={`text-xs ${item.overdue ? 'text-red-500' : 'text-muted-foreground'}`}>
+                    {item.overdue ? 'Overdue' : `Due ${item.date}`}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Task Distribution">
+          <div className="space-y-4">
+            {[
+              { status: 'To Do', count: 5, color: '#9A77CF' },
+              { status: 'In Progress', count: 8, color: '#543884' },
+              { status: 'In Review', count: 3, color: '#FFA45E' },
+              { status: 'Completed', count: 10, color: '#00C853' }
+            ].map((stat, i) => (
+              <div key={i}>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-muted-foreground">{stat.status}</span>
+                  <span className="font-semibold text-[#262254] dark:text-white">{stat.count}</span>
+                </div>
+                <div className="h-2 bg-[#543884]/10 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full"
+                    style={{ width: `${(stat.count / 26) * 100}%`, backgroundColor: stat.color }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Recent Activity">
+          <div className="space-y-3">
+            {[
+              { action: 'Task assigned to Sarah', time: '10 min ago', color: '#543884' },
+              { action: 'David completed a task', time: '1 hour ago', color: '#00C853' },
+              { action: 'Emily updated design', time: '2 hours ago', color: '#9A77CF' },
+              { action: 'New task created', time: '3 hours ago', color: '#FFA45E' }
+            ].map((activity, i) => (
+              <div key={i} className="flex items-start gap-3">
+                <div className="w-2 h-2 rounded-full mt-1.5" style={{ backgroundColor: activity.color }} />
+                <div className="flex-1">
+                  <p className="text-sm text-[#262254] dark:text-white">{activity.action}</p>
+                  <p className="text-xs text-muted-foreground">{activity.time}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      </div>
+
+      <SectionCard title="Quick Actions">
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => navigate('/dashboard/new-task')}
+            className="rounded-xl border border-[#543884]/10 p-4 flex flex-col items-center gap-2 hover:bg-[#543884]/5 hover:border-[#543884]/30 cursor-pointer transition-all"
+          >
+            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #543884, #EC4176)' }}>
+              <CheckSquare className="w-5 h-5 text-white" />
+            </div>
+            <span className="text-xs text-center font-medium text-[#262254] dark:text-white">Create Task</span>
+          </button>
+          <button
+            onClick={() => navigate('/dashboard/project-reports')}
+            className="rounded-xl border border-[#543884]/10 p-4 flex flex-col items-center gap-2 hover:bg-[#543884]/5 hover:border-[#543884]/30 cursor-pointer transition-all"
+          >
+            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #EC4176, #A13670)' }}>
+              <BarChart2 className="w-5 h-5 text-white" />
+            </div>
+            <span className="text-xs text-center font-medium text-[#262254] dark:text-white">View Reports</span>
+          </button>
+          <button
+            onClick={() => navigate('/dashboard/project-management')}
+            className="rounded-xl border border-[#543884]/10 p-4 flex flex-col items-center gap-2 hover:bg-[#543884]/5 hover:border-[#543884]/30 cursor-pointer transition-all"
+          >
+            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #9A77CF, #EC4176)' }}>
+              <Target className="w-5 h-5 text-white" />
+            </div>
+            <span className="text-xs text-center font-medium text-[#262254] dark:text-white">Track Progress</span>
+          </button>
+          <button
+            onClick={() => navigate('/dashboard/forum')}
+            className="rounded-xl border border-[#543884]/10 p-4 flex flex-col items-center gap-2 hover:bg-[#543884]/5 hover:border-[#543884]/30 cursor-pointer transition-all"
+          >
+            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #543884, #9A77CF)' }}>
+              <MessageSquare className="w-5 h-5 text-white" />
+            </div>
+            <span className="text-xs text-center font-medium text-[#262254] dark:text-white">Team Chat</span>
+          </button>
+        </div>
+      </SectionCard>
+    </motion.div>
+  );
+}
+
 // Employee Dashboard
 function EmployeeDashboard({ user }: any) {
   const hour = new Date().getHours();
@@ -297,8 +514,8 @@ function EmployeeDashboard({ user }: any) {
       className="space-y-6"
     >
       <DashboardHeader
-        title={`Welcome back, ${user.name} ðŸ‘‹`}
-        subtitle={`${today} Â· ${greeting}`}
+        title={`Welcome back, ${user.name} 👋`}
+        subtitle={`${today} · ${greeting}`}
         actions={
           <>
             <button className="rounded-xl px-4 py-2 text-sm text-white flex items-center gap-2 shadow-sm" style={{ background: 'linear-gradient(135deg, #543884, #A13670, #EC4176)' }}>
@@ -373,7 +590,7 @@ function EmployeeDashboard({ user }: any) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <SectionCard title="My Tasks" action={<a href="#" className="text-[#9A77CF] text-sm hover:text-[#EC4176]">View All â†’</a>}>
+        <SectionCard title="My Tasks" action={<a href="#" className="text-[#9A77CF] text-sm hover:text-[#EC4176]">View All →</a>}>
           <div className="space-y-0">
             {[
               { task: 'Complete Q1 self-review', done: true, due: '' },
@@ -395,7 +612,7 @@ function EmployeeDashboard({ user }: any) {
           </div>
         </SectionCard>
 
-        <SectionCard title="My Training" action={<a href="#" className="text-[#9A77CF] text-sm hover:text-[#EC4176]">Browse Courses â†’</a>}>
+        <SectionCard title="My Training" action={<a href="#" className="text-[#9A77CF] text-sm hover:text-[#EC4176]">Browse Courses →</a>}>
           <div className="space-y-3">
             {[
               { name: 'Leadership Essentials', progress: 78, provider: 'LinkedIn Learning', color: '#543884' },
@@ -440,7 +657,7 @@ function EmployeeDashboard({ user }: any) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <SectionCard title="Recent Payslips" action={<a href="#" className="text-[#9A77CF] text-sm hover:text-[#EC4176]">View All â†’</a>}>
+        <SectionCard title="Recent Payslips" action={<a href="#" className="text-[#9A77CF] text-sm hover:text-[#EC4176]">View All →</a>}>
           <div className="space-y-0">
             {[
               { month: 'March 2026', amount: '$3,450' },
@@ -494,4 +711,3 @@ function EmployeeDashboard({ user }: any) {
     </motion.div>
   );
 }
-

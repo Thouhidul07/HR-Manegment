@@ -23,7 +23,6 @@ interface Task {
   comments: number;
   attachments: number;
   project: string;
-  estimatedHours?: string;
 }
 
 interface Employee {
@@ -39,7 +38,7 @@ export function ProjectManagement() {
   const [filterProject, setFilterProject] = useState<string>('all');
   const [isSavingTask, setIsSavingTask] = useState(false);
 
-  const employees: Employee[] = [
+  const fallbackEmployees: Employee[] = [
     { id: 1, name: "Sarah Johnson", role: "Frontend Developer", avatar: "SJ" },
     { id: 2, name: "Michael Chen", role: "Backend Developer", avatar: "MC" },
     { id: 3, name: "Emily Rodriguez", role: "UI/UX Designer", avatar: "ER" },
@@ -47,6 +46,7 @@ export function ProjectManagement() {
     { id: 5, name: "Jessica Martinez", role: "QA Engineer", avatar: "JM" }
   ];
 
+  const [employees, setEmployees] = useState<Employee[]>(fallbackEmployees);
   const [tasks, setTasks] = useState<Task[]>([
     {
       id: 1,
@@ -179,17 +179,32 @@ export function ProjectManagement() {
           setTasks(response.data.tasks);
         }
       })
-      .catch(() => {
-        // Keep bundled demo tasks available when the API/database is not ready.
-      });
+      .catch(() => {});
+
+    api.get("/employees")
+      .then((response) => {
+        if (!isMounted || !response.data.employees?.length) return;
+
+        setEmployees(response.data.employees.map((employee: any) => ({
+          id: employee.id,
+          name: employee.name,
+          role: employee.position || employee.department || "Team Member",
+          avatar: employee.name
+            .split(" ")
+            .map((part: string) => part[0])
+            .join("")
+            .slice(0, 2)
+            .toUpperCase(),
+        })));
+      })
+      .catch(() => {});
 
     return () => {
       isMounted = false;
     };
   }, []);
 
-  const projects = ['all', 'Website Redesign', 'User Portal', 'Mobile App', 'API Integration'];
-  const taskProjects = projects.filter(project => project !== 'all');
+  const projects = ['all', 'Website Redesign', 'User Portal'];
 
   const filteredTasks = filterProject === 'all'
     ? tasks
@@ -242,6 +257,23 @@ export function ProjectManagement() {
       );
     } catch {
       setTasks(previousTasks);
+    }
+  };
+
+  const handleSaveTask = async (taskData: Omit<Task, 'id' | 'createdDate' | 'comments' | 'attachments'>) => {
+    setIsSavingTask(true);
+    try {
+      if (selectedTask) {
+        const response = await api.patch(`/projects/tasks/${selectedTask.id}`, taskData);
+        setTasks(tasks.map(t => t.id === selectedTask.id ? response.data.task : t));
+      } else {
+        const response = await api.post("/projects/tasks", taskData);
+        setTasks([...tasks, response.data.task]);
+      }
+      setShowTaskModal(false);
+      setSelectedTask(null);
+    } finally {
+      setIsSavingTask(false);
     }
   };
 
@@ -426,39 +458,11 @@ export function ProjectManagement() {
         <TaskModal
           task={selectedTask}
           employees={employees}
-          projects={taskProjects}
-          isSaving={isSavingTask}
           onClose={() => {
             setShowTaskModal(false);
             setSelectedTask(null);
           }}
-          onSave={async (taskData) => {
-            setIsSavingTask(true);
-            try {
-              if (selectedTask) {
-                const response = await api.patch(`/projects/tasks/${selectedTask.id}`, taskData);
-                setTasks(tasks.map(t => t.id === selectedTask.id ? response.data.task : t));
-              } else {
-                const response = await api.post("/projects/tasks", taskData);
-                setTasks([response.data.task, ...tasks]);
-              }
-              setShowTaskModal(false);
-              setSelectedTask(null);
-            } finally {
-              setIsSavingTask(false);
-            }
-          }}
-          onDelete={selectedTask ? async () => {
-            setIsSavingTask(true);
-            try {
-              await api.delete(`/projects/tasks/${selectedTask.id}`);
-              setTasks(tasks.filter(t => t.id !== selectedTask.id));
-              setShowTaskModal(false);
-              setSelectedTask(null);
-            } finally {
-              setIsSavingTask(false);
-            }
-          } : undefined}
+          onSave={handleSaveTask}
         />
       )}
     </div>
@@ -619,7 +623,7 @@ function TaskCard({ task, onClick, onMove, getPriorityColor }: any) {
 }
 
 // Task Modal Component
-function TaskModal({ task, employees, projects, isSaving, onClose, onSave, onDelete }: any) {
+function TaskModal({ task, employees, onClose, onSave }: any) {
   const [formData, setFormData] = useState({
     title: task?.title || '',
     description: task?.description || '',
@@ -629,27 +633,8 @@ function TaskModal({ task, employees, projects, isSaving, onClose, onSave, onDel
     assigneeAvatar: task?.assigneeAvatar || '',
     deadline: task?.deadline || '',
     project: task?.project || 'Website Redesign',
-    tags: task?.tags || [],
-    estimatedHours: task?.estimatedHours || ''
+    tags: task?.tags || []
   });
-  const [tagInput, setTagInput] = useState('');
-
-  const handleAddTag = () => {
-    const nextTag = tagInput.trim();
-    if (!nextTag || formData.tags.includes(nextTag)) {
-      return;
-    }
-
-    setFormData({ ...formData, tags: [...formData.tags, nextTag] });
-    setTagInput('');
-  };
-
-  const handleRemoveTag = (tagToRemove: string) => {
-    setFormData({
-      ...formData,
-      tags: formData.tags.filter((tag: string) => tag !== tagToRemove),
-    });
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -762,87 +747,18 @@ function TaskModal({ task, employees, projects, isSaving, onClose, onSave, onDel
           </div>
 
           <div>
-            <label className="text-sm font-semibold text-foreground mb-2 block">Estimated Hours</label>
-            <input
-              type="number"
-              value={formData.estimatedHours}
-              onChange={(e) => setFormData({ ...formData, estimatedHours: e.target.value })}
-              min="1"
-              placeholder="e.g., 8"
-              className="w-full px-3 py-2 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </div>
-
-          <div>
             <label className="text-sm font-semibold text-foreground mb-2 block">Project</label>
             <select
               value={formData.project}
               onChange={(e) => setFormData({ ...formData, project: e.target.value })}
               className="w-full px-3 py-2 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             >
-              {projects.map((project: string) => (
-                <option key={project} value={project}>{project}</option>
-              ))}
+              <option value="Website Redesign">Website Redesign</option>
+              <option value="User Portal">User Portal</option>
             </select>
           </div>
 
-          <div>
-            <label className="text-sm font-semibold text-foreground mb-2 block">Tags</label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddTag();
-                  }
-                }}
-                placeholder="Add a tag and press Enter"
-                className="flex-1 px-3 py-2 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-              <button
-                type="button"
-                onClick={handleAddTag}
-                className="px-4 py-2 bg-[#543884] text-white rounded-lg hover:brightness-110 transition-all text-sm font-semibold"
-              >
-                Add
-              </button>
-            </div>
-            {formData.tags.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-3">
-                {formData.tags.map((tag: string) => (
-                  <span
-                    key={tag}
-                    className="px-3 py-1 bg-[#543884]/10 text-[#543884] dark:text-[#9A77CF] rounded-full text-sm flex items-center gap-2"
-                  >
-                    {tag}
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveTag(tag)}
-                      className="hover:text-red-500 transition-colors"
-                      aria-label={`Remove ${tag}`}
-                    >
-                      x
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-
           <div className="flex gap-3 pt-4">
-            {task && (
-              <button
-                type="button"
-                onClick={onDelete}
-                disabled={isSaving}
-                className="px-4 py-2 border border-destructive text-destructive rounded-lg hover:bg-destructive/10 transition-all text-sm font-semibold"
-              >
-                Delete
-              </button>
-            )}
             <button
               type="button"
               onClick={onClose}
@@ -852,10 +768,9 @@ function TaskModal({ task, employees, projects, isSaving, onClose, onSave, onDel
             </button>
             <button
               type="submit"
-              disabled={isSaving}
               className="flex-1 px-4 py-2 bg-gradient-to-r from-[#543884] to-[#9A77CF] text-white rounded-lg hover:brightness-110 transition-all text-sm font-semibold"
             >
-              {isSaving ? 'Saving...' : task ? 'Save Changes' : 'Create Task'}
+              {task ? 'Save Changes' : 'Create Task'}
             </button>
           </div>
         </form>

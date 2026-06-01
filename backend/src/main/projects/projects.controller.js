@@ -23,6 +23,71 @@ async function ensureProjectTasksTable() {
   `);
 }
 
+async function ensureProjectManagementTables() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS projects (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(120) NOT NULL UNIQUE,
+      description TEXT,
+      owner_id INT,
+      status ENUM('planning', 'active', 'on-hold', 'completed') NOT NULL DEFAULT 'active',
+      start_date DATE,
+      end_date DATE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL
+    )
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS project_members (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      project_id INT NOT NULL,
+      user_id INT NOT NULL,
+      role VARCHAR(80) NOT NULL DEFAULT 'Member',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY unique_project_member (project_id, user_id),
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS project_milestones (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      project_id INT NOT NULL,
+      title VARCHAR(160) NOT NULL,
+      due_date DATE NOT NULL,
+      status ENUM('pending', 'in-progress', 'completed') NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+    )
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS project_comments (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      task_id INT NOT NULL,
+      user_id INT,
+      body TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (task_id) REFERENCES project_tasks(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    )
+  `);
+}
+
+async function seedProjectsFromTasks() {
+  await ensureProjectManagementTables();
+  const [projectNames] = await query("SELECT DISTINCT project FROM project_tasks");
+
+  for (const row of projectNames) {
+    await query(
+      `INSERT INTO projects (name, description, owner_id, status)
+       VALUES (?, ?, ?, 'active')
+       ON DUPLICATE KEY UPDATE name = name`,
+      [row.project, `${row.project} delivery workspace`, null]
+    );
+  }
+}
+
 async function seedProjectTasksIfEmpty() {
   const [[countRow]] = await query("SELECT COUNT(*) AS total FROM project_tasks");
 
@@ -78,6 +143,72 @@ function mapTask(row) {
     estimatedHours: row.estimated_hours ? String(row.estimated_hours) : "",
   };
 }
+
+function mapProject(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description || "",
+    owner: row.owner_name || null,
+    status: row.status,
+    startDate: row.start_date,
+    endDate: row.end_date,
+    members: Number(row.members || 0),
+    milestones: Number(row.milestones || 0),
+    tasks: Number(row.tasks || 0),
+    completedTasks: Number(row.completed_tasks || 0),
+  };
+}
+
+const listProjects = asyncHandler(async (req, res) => {
+  await ensureProjectTasksTable();
+  await seedProjectTasksIfEmpty();
+  await seedProjectsFromTasks();
+
+  const [projects] = await query(
+    `SELECT p.*, owner.name AS owner_name,
+      COUNT(DISTINCT pm.id) AS members,
+      COUNT(DISTINCT ms.id) AS milestones,
+      COUNT(DISTINCT pt.id) AS tasks,
+      COUNT(DISTINCT CASE WHEN pt.status = 'completed' THEN pt.id END) AS completed_tasks
+     FROM projects p
+     LEFT JOIN users owner ON owner.id = p.owner_id
+     LEFT JOIN project_members pm ON pm.project_id = p.id
+     LEFT JOIN project_milestones ms ON ms.project_id = p.id
+     LEFT JOIN project_tasks pt ON pt.project = p.name
+     GROUP BY p.id
+     ORDER BY p.created_at DESC`
+  );
+
+  res.json({ projects: projects.map(mapProject) });
+});
+
+const createProject = asyncHandler(async (req, res) => {
+  await ensureProjectTasksTable();
+  await ensureProjectManagementTables();
+  const [result] = await query(
+    `INSERT INTO projects (name, description, owner_id, status, start_date, end_date)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [
+      req.body.name,
+      req.body.description || null,
+      req.body.ownerId || req.user.id,
+      req.body.status || "active",
+      req.body.startDate || null,
+      req.body.endDate || null,
+    ]
+  );
+
+  const [rows] = await query(
+    `SELECT p.*, owner.name AS owner_name, 0 AS members, 0 AS milestones, 0 AS tasks, 0 AS completed_tasks
+     FROM projects p
+     LEFT JOIN users owner ON owner.id = p.owner_id
+     WHERE p.id = ?`,
+    [result.insertId]
+  );
+
+  res.status(201).json({ project: mapProject(rows[0]) });
+});
 
 const listTasks = asyncHandler(async (req, res) => {
   await ensureProjectTasksTable();
@@ -196,4 +327,4 @@ const deleteTask = asyncHandler(async (req, res) => {
   res.json({ message: "Task deleted" });
 });
 
-module.exports = { listTasks, getProjectStats, createTask, updateTask, deleteTask };
+module.exports = { listProjects, createProject, listTasks, getProjectStats, createTask, updateTask, deleteTask };

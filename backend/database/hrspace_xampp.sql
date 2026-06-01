@@ -9,8 +9,10 @@ SET FOREIGN_KEY_CHECKS = 0;
 DROP VIEW IF EXISTS user_permissions;
 DROP TABLE IF EXISTS forum_replies;
 DROP TABLE IF EXISTS forum_posts;
+DROP TABLE IF EXISTS expense_payments;
 DROP TABLE IF EXISTS expenses;
 DROP TABLE IF EXISTS performance_reviews;
+DROP TABLE IF EXISTS training_certificates;
 DROP TABLE IF EXISTS training_enrollments;
 DROP TABLE IF EXISTS training_sessions;
 DROP TABLE IF EXISTS payroll;
@@ -147,6 +149,17 @@ CREATE TABLE training_enrollments (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE training_certificates (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  enrollment_id INT NOT NULL,
+  certificate_code VARCHAR(80) NOT NULL UNIQUE,
+  issued_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  issued_by INT,
+  UNIQUE KEY unique_enrollment_certificate (enrollment_id),
+  FOREIGN KEY (enrollment_id) REFERENCES training_enrollments(id) ON DELETE CASCADE,
+  FOREIGN KEY (issued_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
 CREATE TABLE performance_reviews (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
@@ -176,6 +189,20 @@ CREATE TABLE expenses (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE expense_payments (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  expense_id INT NOT NULL,
+  amount DECIMAL(12, 2) NOT NULL,
+  payment_date DATE NOT NULL,
+  method VARCHAR(80) NOT NULL DEFAULT 'Bank Transfer',
+  reference VARCHAR(120),
+  paid_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_expense_payment (expense_id),
+  FOREIGN KEY (expense_id) REFERENCES expenses(id) ON DELETE CASCADE,
+  FOREIGN KEY (paid_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE TABLE forum_posts (
@@ -382,6 +409,11 @@ VALUES
   (1, 4, 'completed', 100),
   (2, 5, 'enrolled', 10);
 
+INSERT INTO training_certificates
+  (enrollment_id, certificate_code, issued_by)
+VALUES
+  (2, 'CERT-DEMO-0002', 2);
+
 INSERT INTO performance_reviews
   (user_id, reviewer_id, review_period, score, goals, feedback, status)
 VALUES
@@ -394,6 +426,11 @@ VALUES
   (3, 'Travel', 2500.00, DATE_SUB(CURDATE(), INTERVAL 5 DAY), 'Client visit transport', 'pending', NULL),
   (4, 'Office Supplies', 1800.00, DATE_SUB(CURDATE(), INTERVAL 3 DAY), 'Stationery purchase', 'approved', 2),
   (5, 'Internet', 1200.00, DATE_SUB(CURDATE(), INTERVAL 8 DAY), 'Remote work internet allowance', 'paid', 2);
+
+INSERT INTO expense_payments
+  (expense_id, amount, payment_date, method, reference, paid_by)
+VALUES
+  (3, 1200.00, CURDATE(), 'Bank Transfer', 'PAY-EXP-0003', 2);
 
 INSERT INTO forum_posts
   (user_id, title, body, category, is_anonymous)

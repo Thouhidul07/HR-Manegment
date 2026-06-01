@@ -12,7 +12,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
   const navigate = useNavigate();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const { resolvedTheme, toggleTheme } = useTheme();
+  const { theme, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
 
   const notifications = [
@@ -22,14 +22,16 @@ export function Header({ onToggleSidebar }: HeaderProps) {
   ];
 
   return (
-    <header className="h-16 bg-card/95 border-b border-border flex items-center justify-between px-6 flex-shrink-0 shadow-sm">
+    <header className="h-16 bg-card border-b border-border flex items-center justify-between px-6 flex-shrink-0">
       {/* Left section */}
       <div className="flex items-center gap-4 flex-1">
         <button
           onClick={onToggleSidebar}
-          className="p-2 hover:bg-accent rounded-lg transition-colors"
+          className="p-2 hover:bg-accent rounded-lg transition-colors group"
+          title="Toggle sidebar"
+          aria-label="Toggle sidebar"
         >
-          <Menu className="w-5 h-5" />
+          <Menu className="w-5 h-5 transition-transform group-hover:scale-110" />
         </button>
 
         {/* Search */}
@@ -49,9 +51,9 @@ export function Header({ onToggleSidebar }: HeaderProps) {
         <button
           onClick={toggleTheme}
           className="p-2 hover:bg-accent rounded-lg transition-colors"
-          title={`Switch to ${resolvedTheme === 'light' ? 'dark' : 'light'} mode`}
+          title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
         >
-          {resolvedTheme === "light" ? (
+          {theme === "light" ? (
             <Moon className="w-5 h-5" />
           ) : (
             <Sun className="w-5 h-5" />

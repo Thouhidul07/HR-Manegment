@@ -1,6 +1,24 @@
 const { query } = require("../../config/database");
 const asyncHandler = require("../../utils/asyncHandler");
 
+async function ensureExpensePaymentsTable() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS expense_payments (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      expense_id INT NOT NULL,
+      amount DECIMAL(12, 2) NOT NULL,
+      payment_date DATE NOT NULL,
+      method VARCHAR(80) NOT NULL DEFAULT 'Bank Transfer',
+      reference VARCHAR(120),
+      paid_by INT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY unique_expense_payment (expense_id),
+      FOREIGN KEY (expense_id) REFERENCES expenses(id) ON DELETE CASCADE,
+      FOREIGN KEY (paid_by) REFERENCES users(id) ON DELETE SET NULL
+    )
+  `);
+}
+
 function mapExpense(row) {
   return {
     id: row.id,
@@ -18,17 +36,33 @@ function mapExpense(row) {
     description: row.description || "",
     receiptUrl: row.receipt_path ? `/uploads/${row.receipt_path}` : null,
     reviewedBy: row.reviewer_name || null,
+    payment: row.payment_id
+      ? {
+          id: row.payment_id,
+          amount: Number(row.payment_amount),
+          paymentDate: row.payment_date,
+          method: row.payment_method,
+          reference: row.payment_reference || "",
+          paidBy: row.paid_by_name || null,
+        }
+      : null,
   };
 }
 
 const listExpenses = asyncHandler(async (req, res) => {
+  await ensureExpensePaymentsTable();
   const where = req.user.role === "employee" ? "WHERE e.user_id = ?" : "";
   const params = req.user.role === "employee" ? [req.user.id] : [];
   const [rows] = await query(
-    `SELECT e.*, u.name AS employee_name, reviewer.name AS reviewer_name
+    `SELECT e.*, u.name AS employee_name, reviewer.name AS reviewer_name,
+       ep.id AS payment_id, ep.amount AS payment_amount, ep.payment_date,
+       ep.method AS payment_method, ep.reference AS payment_reference,
+       paid_by.name AS paid_by_name
      FROM expenses e
      JOIN users u ON u.id = e.user_id
      LEFT JOIN users reviewer ON reviewer.id = e.reviewed_by
+     LEFT JOIN expense_payments ep ON ep.expense_id = e.id
+     LEFT JOIN users paid_by ON paid_by.id = ep.paid_by
      ${where}
      ORDER BY e.created_at DESC`,
     params
@@ -47,7 +81,9 @@ const createExpense = asyncHandler(async (req, res) => {
   );
 
   const [rows] = await query(
-    `SELECT e.*, u.name AS employee_name, reviewer.name AS reviewer_name
+    `SELECT e.*, u.name AS employee_name, reviewer.name AS reviewer_name,
+       NULL AS payment_id, NULL AS payment_amount, NULL AS payment_date,
+       NULL AS payment_method, NULL AS payment_reference, NULL AS paid_by_name
      FROM expenses e
      JOIN users u ON u.id = e.user_id
      LEFT JOIN users reviewer ON reviewer.id = e.reviewed_by
@@ -59,6 +95,7 @@ const createExpense = asyncHandler(async (req, res) => {
 });
 
 const updateExpense = asyncHandler(async (req, res) => {
+  await ensureExpensePaymentsTable();
   const [existingRows] = await query("SELECT * FROM expenses WHERE id = ?", [req.params.id]);
 
   if (!existingRows.length) {
@@ -106,10 +143,15 @@ const updateExpense = asyncHandler(async (req, res) => {
   await query(`UPDATE expenses SET ${fields.join(", ")} WHERE id = ?`, params);
 
   const [rows] = await query(
-    `SELECT e.*, u.name AS employee_name, reviewer.name AS reviewer_name
+    `SELECT e.*, u.name AS employee_name, reviewer.name AS reviewer_name,
+       ep.id AS payment_id, ep.amount AS payment_amount, ep.payment_date,
+       ep.method AS payment_method, ep.reference AS payment_reference,
+       paid_by.name AS paid_by_name
      FROM expenses e
      JOIN users u ON u.id = e.user_id
      LEFT JOIN users reviewer ON reviewer.id = e.reviewed_by
+     LEFT JOIN expense_payments ep ON ep.expense_id = e.id
+     LEFT JOIN users paid_by ON paid_by.id = ep.paid_by
      WHERE e.id = ?`,
     [req.params.id]
   );
@@ -118,7 +160,16 @@ const updateExpense = asyncHandler(async (req, res) => {
 });
 
 const updateExpenseStatus = asyncHandler(async (req, res) => {
-  const { status } = req.body;
+  const { status, paymentDate, paymentMethod, paymentReference } = req.body;
+  await ensureExpensePaymentsTable();
+
+  const [expenseRows] = await query("SELECT * FROM expenses WHERE id = ?", [req.params.id]);
+
+  if (!expenseRows.length) {
+    return res.status(404).json({ message: "Expense not found" });
+  }
+
+  const expense = expenseRows[0];
   const [result] = await query(
     "UPDATE expenses SET status = ?, reviewed_by = ? WHERE id = ?",
     [status, req.user.id, req.params.id]
@@ -128,11 +179,37 @@ const updateExpenseStatus = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: "Expense not found" });
   }
 
+  if (status === "paid") {
+    await query(
+      `INSERT INTO expense_payments (expense_id, amount, payment_date, method, reference, paid_by)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         amount = VALUES(amount),
+         payment_date = VALUES(payment_date),
+         method = VALUES(method),
+         reference = VALUES(reference),
+         paid_by = VALUES(paid_by)`,
+      [
+        req.params.id,
+        expense.amount,
+        paymentDate || new Date().toISOString().slice(0, 10),
+        paymentMethod || "Bank Transfer",
+        paymentReference || null,
+        req.user.id,
+      ]
+    );
+  }
+
   const [rows] = await query(
-    `SELECT e.*, u.name AS employee_name, reviewer.name AS reviewer_name
+    `SELECT e.*, u.name AS employee_name, reviewer.name AS reviewer_name,
+       ep.id AS payment_id, ep.amount AS payment_amount, ep.payment_date,
+       ep.method AS payment_method, ep.reference AS payment_reference,
+       paid_by.name AS paid_by_name
      FROM expenses e
      JOIN users u ON u.id = e.user_id
      LEFT JOIN users reviewer ON reviewer.id = e.reviewed_by
+     LEFT JOIN expense_payments ep ON ep.expense_id = e.id
+     LEFT JOIN users paid_by ON paid_by.id = ep.paid_by
      WHERE e.id = ?`,
     [req.params.id]
   );

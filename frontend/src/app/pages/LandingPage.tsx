@@ -11,7 +11,7 @@ import { useTheme } from "../contexts/ThemeContext";
 export function LandingPage() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { resolvedTheme, toggleTheme } = useTheme();
+  const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 60);
@@ -21,11 +21,12 @@ export function LandingPage() {
 
   return (
     <div className="bg-background text-foreground overflow-x-hidden">
-      <Navbar isScrolled={isScrolled} isMobileMenuOpen={isMobileMenuOpen} setIsMobileMenuOpen={setIsMobileMenuOpen} theme={resolvedTheme} toggleTheme={toggleTheme} />
+      <Navbar isScrolled={isScrolled} isMobileMenuOpen={isMobileMenuOpen} setIsMobileMenuOpen={setIsMobileMenuOpen} theme={theme} toggleTheme={toggleTheme} />
       <HeroSection />
       <StatsBar />
       <FeaturesSection />
       <HowItWorksSection />
+      <PricingSection />
       <CTABanner />
       <Footer />
     </div>
@@ -49,9 +50,9 @@ const Navbar = ({ isScrolled, isMobileMenuOpen, setIsMobileMenuOpen, theme, togg
         </Link>
 
         <div className="hidden md:flex items-center gap-8">
-          <a href="#features" className="text-sm text-foreground hover:text-[#9A77CF] transition-colors">Features</a>
-          <a href="#modules" className="text-sm text-foreground hover:text-[#9A77CF] transition-colors">Modules</a>
+          <a href="#features" className="text-sm text-foreground hover:text-[#9A77CF] transition-colors">Modules & Features</a>
           <a href="#how-it-works" className="text-sm text-foreground hover:text-[#9A77CF] transition-colors">How It Works</a>
+          <a href="#pricing" className="text-sm text-foreground hover:text-[#9A77CF] transition-colors">Pricing</a>
           <a href="#contact" className="text-sm text-foreground hover:text-[#9A77CF] transition-colors">Contact</a>
         </div>
 
@@ -82,9 +83,9 @@ const Navbar = ({ isScrolled, isMobileMenuOpen, setIsMobileMenuOpen, theme, togg
       {isMobileMenuOpen && (
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="md:hidden mt-4 py-4 border-t border-border">
           <div className="flex flex-col gap-4">
-            <a href="#features" className="text-sm hover:text-[#9A77CF]">Features</a>
-            <a href="#modules" className="text-sm hover:text-[#9A77CF]">Modules</a>
+            <a href="#features" className="text-sm hover:text-[#9A77CF]">Modules & Features</a>
             <a href="#how-it-works" className="text-sm hover:text-[#9A77CF]">How It Works</a>
+            <a href="#pricing" className="text-sm hover:text-[#9A77CF]">Pricing</a>
             <a href="#contact" className="text-sm hover:text-[#9A77CF]">Contact</a>
             <div className="flex gap-3 pt-4 border-t border-border">
               <Link to="/login" className="flex-1">
@@ -194,11 +195,18 @@ const HeroSection = () => (
           <div className="absolute w-32 h-32 rounded-full blur-2xl bottom-4 right-20 pointer-events-none" style={{ background: 'rgba(236, 65, 118, 0.15)' }}></div>
           <div className="absolute w-20 h-20 rounded-full blur-xl top-16 right-0 pointer-events-none" style={{ background: 'rgba(255, 164, 94, 0.1)' }}></div>
 
-          <div className="relative z-10 bg-white dark:bg-[#251942] rounded-2xl shadow-2xl p-5 w-[320px]" style={{ border: '1px solid rgba(84, 56, 132, 0.1)' }}>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-2 h-2 rounded-full bg-[#9A77CF]"></div>
+          {/* Main Workforce Overview Card */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.5, duration: 0.6 }}
+            className="relative z-10 bg-white dark:bg-[#251942] rounded-2xl shadow-2xl p-6 w-[340px]"
+            style={{ border: '1px solid rgba(84, 56, 132, 0.1)' }}
+          >
+            <div className="flex items-center gap-2 mb-5">
+              <div className="w-2.5 h-2.5 rounded-full bg-[#9A77CF] animate-pulse"></div>
               <span className="text-sm font-bold text-[#262254] dark:text-white">Workforce Overview</span>
-              <span className="ml-auto px-2 py-0.5 text-xs rounded-full" style={{ background: 'rgba(236, 65, 118, 0.1)', color: '#EC4176' }}>Live</span>
+              <span className="ml-auto px-2.5 py-1 text-xs font-semibold rounded-full" style={{ background: 'rgba(236, 65, 118, 0.1)', color: '#EC4176' }}>Live</span>
             </div>
 
             {[
@@ -206,23 +214,23 @@ const HeroSection = () => (
               { icon: Calendar, label: 'On Leave', value: '48 employees', percent: 4, color: '#EC4176' },
               { icon: TrendingUp, label: 'In Training', value: '87 enrolled', percent: 7, color: '#9A77CF' }
             ].map((stat, i) => (
-              <div key={i} className="mb-3">
+              <div key={i} className="mb-4 last:mb-3">
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${stat.color}1A` }}>
-                    <stat.icon className="w-4 h-4" style={{ color: stat.color }} />
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center shadow-sm" style={{ background: `${stat.color}1A` }}>
+                    <stat.icon className="w-4.5 h-4.5" style={{ color: stat.color }} />
                   </div>
                   <div className="flex-1">
                     <p className="text-xs text-muted-foreground">{stat.label}</p>
-                    <p className="text-xs font-semibold text-foreground">{stat.value}</p>
+                    <p className="text-sm font-semibold text-foreground">{stat.value}</p>
                   </div>
                 </div>
-                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: `${stat.color}26` }}>
-                  <div className="h-full transition-all" style={{ width: `${stat.percent}%`, background: stat.color }}></div>
+                <div className="h-2 rounded-full overflow-hidden" style={{ background: `${stat.color}1A` }}>
+                  <div className="h-full transition-all rounded-full" style={{ width: `${stat.percent}%`, background: stat.color }}></div>
                 </div>
               </div>
             ))}
 
-            <div className="flex items-end gap-1 h-12 mt-4">
+            <div className="flex items-end gap-1.5 h-14 mt-5 pt-4 border-t border-border">
               {[
                 { height: 40, color: '#543884' },
                 { height: 65, color: '#9A77CF' },
@@ -230,46 +238,80 @@ const HeroSection = () => (
                 { height: 80, color: '#EC4176' },
                 { height: 60, color: '#9A77CF' }
               ].map((bar, i) => (
-                <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                  <div className="w-full rounded-t transition-all" style={{ height: `${bar.height}%`, background: bar.color }}></div>
-                  <span className="text-[9px] text-muted-foreground">{['Mon', 'Tue', 'Wed', 'Thu', 'Fri'][i]}</span>
+                <div key={i} className="flex-1 flex flex-col items-center gap-1.5">
+                  <div className="w-full rounded-t-md transition-all" style={{ height: `${bar.height}%`, background: bar.color }}></div>
+                  <span className="text-[10px] text-muted-foreground font-medium">{['Mon', 'Tue', 'Wed', 'Thu', 'Fri'][i]}</span>
                 </div>
               ))}
             </div>
-          </div>
-
-          <motion.div
-            animate={{ y: [0, -10, 0] }}
-            transition={{ duration: 3, ease: "easeInOut", repeat: Infinity, delay: 0 }}
-            className="absolute top-0 right-0 bg-white dark:bg-[#251942] shadow-xl rounded-xl p-3 translate-x-6 -translate-y-4"
-            style={{ border: '1px solid rgba(236, 65, 118, 0.1)' }}
-          >
-            <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-full bg-[#EC4176] flex items-center justify-center">
-                <CheckCircle2 className="w-3 h-3 text-white" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-[#262254] dark:text-white">Payroll Processed</p>
-                <p className="text-sm font-semibold text-[#262254] dark:text-white">$94,210</p>
-              </div>
-              <div className="w-1.5 h-1.5 rounded-full bg-[#FFA45E] ml-1"></div>
-            </div>
           </motion.div>
 
+          {/* Leave Requests Notification - Slides in from right */}
           <motion.div
-            animate={{ y: [0, -10, 0] }}
-            transition={{ duration: 3, ease: "easeInOut", repeat: Infinity, delay: 1.5 }}
-            className="absolute bottom-0 left-0 bg-white dark:bg-[#251942] shadow-xl rounded-xl p-3 -translate-x-5 translate-y-5"
-            style={{ border: '1px solid rgba(154, 119, 207, 0.1)' }}
+            initial={{ opacity: 0, x: 100 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{
+              delay: 0.8,
+              duration: 0.6,
+              type: "spring",
+              stiffness: 100,
+              damping: 15
+            }}
+            className="absolute top-0 right-0 translate-x-[280px] -translate-y-2 bg-white dark:bg-[#251942] shadow-2xl rounded-2xl p-4 border border-border w-[250px]"
           >
-            <div className="flex items-center gap-2">
-              <Bell className="w-4 h-4 text-[#9A77CF]" />
-              <div>
-                <p className="text-xs font-semibold text-[#262254] dark:text-white">3 Leave Requests</p>
+            <motion.div
+              animate={{ y: [0, -6, 0] }}
+              transition={{
+                delay: 1.5,
+                duration: 3,
+                ease: "easeInOut",
+                repeat: Infinity
+              }}
+              className="flex items-center gap-3"
+            >
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#9A77CF]/20 to-[#543884]/20 flex items-center justify-center flex-shrink-0 shadow-sm">
+                <Bell className="w-5 h-5 text-[#9A77CF]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-[#262254] dark:text-white">3 Leave Requests</p>
                 <p className="text-xs text-muted-foreground">Pending approval</p>
               </div>
-              <div className="w-1.5 h-1.5 rounded-full bg-[#FFA45E] animate-pulse"></div>
-            </div>
+              <div className="w-2.5 h-2.5 rounded-full bg-[#FFA45E] animate-pulse flex-shrink-0"></div>
+            </motion.div>
+          </motion.div>
+
+          {/* Payroll Notification - Slides in from right after Leave Requests */}
+          <motion.div
+            initial={{ opacity: 0, x: 100 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{
+              delay: 1.2,
+              duration: 0.6,
+              type: "spring",
+              stiffness: 100,
+              damping: 15
+            }}
+            className="absolute bottom-0 right-0 translate-x-[280px] translate-y-2 bg-white dark:bg-[#251942] shadow-2xl rounded-2xl p-4 border border-border w-[250px]"
+          >
+            <motion.div
+              animate={{ y: [0, -6, 0] }}
+              transition={{
+                delay: 2.2,
+                duration: 3,
+                ease: "easeInOut",
+                repeat: Infinity
+              }}
+              className="flex items-center gap-3"
+            >
+              <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#EC4176] to-[#A13670] flex items-center justify-center flex-shrink-0 shadow-lg">
+                <CheckCircle2 className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-[#262254] dark:text-white mb-1">Payroll Processed</p>
+                <p className="text-lg font-bold bg-gradient-to-r from-[#543884] to-[#EC4176] bg-clip-text text-transparent">$94,210</p>
+              </div>
+              <div className="w-2.5 h-2.5 rounded-full bg-[#FFA45E] flex-shrink-0"></div>
+            </motion.div>
           </motion.div>
         </motion.div>
       </div>
@@ -359,16 +401,21 @@ const FeaturesSection = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-80px" }}
               transition={{ delay: i * 0.08 }}
-              className="bg-card border border-border rounded-2xl p-6 hover:shadow-md hover:-translate-y-0.5 transition-all"
+              className="bg-white dark:bg-[#251942] border border-border rounded-2xl p-6 hover:shadow-lg hover:-translate-y-1 transition-all flex flex-col"
             >
-              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-4" style={{ background: `${feature.color}1A` }}>
-                <feature.icon className="w-6 h-6" style={{ color: feature.color }} />
+              <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-5 shadow-sm" style={{ background: `${feature.color}1A` }}>
+                <feature.icon className="w-7 h-7" style={{ color: feature.color }} />
               </div>
-              <h3 className="text-lg font-semibold text-[#262254] dark:text-white mb-2">{feature.title}</h3>
-              <p className="text-sm text-muted-foreground mb-4">{feature.desc}</p>
-              <a href="#" className="text-sm text-[#9A77CF] hover:text-[#EC4176] transition-colors">Learn more →</a>
+              <h3 className="text-lg font-semibold text-[#262254] dark:text-white mb-3">{feature.title}</h3>
+              <p className="text-sm text-muted-foreground leading-relaxed">{feature.desc}</p>
             </motion.div>
           ))}
+        </div>
+
+        <div className="text-center mt-12">
+          <Link to="/features" className="inline-flex items-center gap-2 text-[#9A77CF] hover:text-[#EC4176] transition-colors font-semibold">
+            See all features →
+          </Link>
         </div>
       </div>
     </section>
@@ -396,14 +443,14 @@ const HowItWorksSection = () => {
           {steps.map((step, i) => (
             <motion.div
               key={i}
-              initial={{ opacity: 0, x: -20 }}
-              whileInView={{ opacity: 1, x: 0 }}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ delay: i * 0.2 }}
-              className="relative text-center z-10"
+              transition={{ delay: i * 0.15 }}
+              className="relative text-center z-10 flex flex-col items-center"
             >
               <div
-                className="w-16 h-16 rounded-full mx-auto mb-6 flex items-center justify-center text-white font-bold text-xl relative"
+                className="w-16 h-16 rounded-full mb-6 flex items-center justify-center text-white font-bold text-xl relative shadow-lg"
                 style={step.gradient
                   ? { background: 'linear-gradient(135deg, #A13670, #EC4176)' }
                   : { background: step.color }
@@ -411,13 +458,147 @@ const HowItWorksSection = () => {
               >
                 {step.num}
               </div>
-              <div className="p-3 rounded-lg inline-block mb-4" style={{ background: `${step.iconColor || step.color}1A` }}>
+              <div className="p-4 rounded-xl inline-flex items-center justify-center mb-5 shadow-sm" style={{ background: `${step.iconColor || step.color}1A` }}>
                 <step.icon className="w-8 h-8" style={{ color: step.iconColor || step.color }} />
               </div>
-              <h3 className="text-xl font-semibold text-[#262254] dark:text-white mb-2">{step.title}</h3>
-              <p className="text-sm text-muted-foreground">{step.desc}</p>
+              <h3 className="text-xl font-semibold text-[#262254] dark:text-white mb-3">{step.title}</h3>
+              <p className="text-sm text-muted-foreground max-w-xs">{step.desc}</p>
             </motion.div>
           ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const PricingSection = () => {
+  const plans = [
+    {
+      name: 'Starter',
+      price: '49',
+      period: 'month',
+      description: 'Perfect for small teams getting started',
+      features: [
+        'Up to 50 employees',
+        'Core HR features',
+        'Attendance tracking',
+        'Leave management',
+        'Basic payroll',
+        'Email support',
+        'Mobile app access'
+      ],
+      color: '#9A77CF',
+      popular: false
+    },
+    {
+      name: 'Professional',
+      price: '99',
+      period: 'month',
+      description: 'For growing teams that need more',
+      features: [
+        'Up to 200 employees',
+        'All Starter features',
+        'Performance reviews',
+        'Training & development',
+        'Advanced analytics',
+        'Priority support',
+        'API access',
+        'Custom workflows'
+      ],
+      color: '#EC4176',
+      popular: true
+    },
+    {
+      name: 'Enterprise',
+      price: 'Custom',
+      period: '',
+      description: 'Tailored solutions for large organizations',
+      features: [
+        'Unlimited employees',
+        'All Professional features',
+        'AI-powered CV filtering',
+        'Anonymous forum',
+        'Custom integrations',
+        'Dedicated account manager',
+        'SLA guarantee',
+        'On-premise deployment'
+      ],
+      color: '#543884',
+      popular: false
+    }
+  ];
+
+  return (
+    <section id="pricing" className="py-24 px-6 bg-white dark:bg-[#251942]">
+      <div className="max-w-7xl mx-auto">
+        <div className="text-center mb-16">
+          <p className="text-xs uppercase tracking-[0.15em] text-[#9A77CF] mb-2">PRICING</p>
+          <h2 className="text-4xl font-bold text-[#262254] dark:text-white mb-4">Simple, transparent pricing</h2>
+          <p className="text-muted-foreground max-w-lg mx-auto">Choose the plan that fits your team. All plans include a 14-day free trial.</p>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+          {plans.map((plan, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1 }}
+              className={`relative bg-white dark:bg-[#1a0f2e] border rounded-2xl p-8 hover:shadow-xl transition-all ${
+                plan.popular ? 'border-[#EC4176] shadow-lg scale-105' : 'border-border hover:-translate-y-1'
+              }`}
+            >
+              {plan.popular && (
+                <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-xs font-bold text-white" style={{ background: 'linear-gradient(135deg, #A13670, #EC4176)' }}>
+                  Most Popular
+                </div>
+              )}
+
+              <div className="mb-6">
+                <h3 className="text-2xl font-bold text-[#262254] dark:text-white mb-2">{plan.name}</h3>
+                <p className="text-sm text-muted-foreground">{plan.description}</p>
+              </div>
+
+              <div className="mb-8">
+                <div className="flex items-baseline gap-1">
+                  {plan.price !== 'Custom' && <span className="text-lg text-muted-foreground">$</span>}
+                  <span className="text-5xl font-bold bg-gradient-to-r from-[#543884] to-[#EC4176] bg-clip-text text-transparent">
+                    {plan.price}
+                  </span>
+                  {plan.period && <span className="text-muted-foreground">/{plan.period}</span>}
+                </div>
+              </div>
+
+              <ul className="space-y-3 mb-8">
+                {plan.features.map((feature, idx) => (
+                  <li key={idx} className="flex items-start gap-3">
+                    <CheckCircle2 className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: plan.color }} />
+                    <span className="text-sm text-foreground">{feature}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <Link to="/register" className="block">
+                <button
+                  className={`w-full py-3 rounded-xl font-semibold transition-all ${
+                    plan.popular
+                      ? 'text-white shadow-lg hover:brightness-110 hover:scale-[1.02]'
+                      : 'border-2 hover:bg-accent'
+                  }`}
+                  style={plan.popular ? { background: `linear-gradient(135deg, ${plan.color} 0%, #A13670 50%, #EC4176 100%)` } : { borderColor: plan.color, color: plan.color }}
+                >
+                  {plan.price === 'Custom' ? 'Contact Sales' : 'Start Free Trial'}
+                </button>
+              </Link>
+            </motion.div>
+          ))}
+        </div>
+
+        <div className="text-center mt-12">
+          <p className="text-sm text-muted-foreground">
+            All plans include a 14-day free trial. No credit card required.
+          </p>
         </div>
       </div>
     </section>
@@ -445,13 +626,10 @@ const CTABanner = () => (
       <p className="text-white/90 text-lg mb-8">Join forward-thinking teams already on HR Space.</p>
       <div className="flex flex-wrap gap-4 justify-center">
         <Link to="/register">
-          <button className="px-6 py-3 bg-white text-[#543884] rounded-xl font-semibold hover:scale-105 transition-transform shadow-md">
+          <button className="px-6 py-3 bg-white/20 backdrop-blur-md border border-white/30 text-white rounded-xl font-semibold hover:bg-white/30 hover:scale-105 transition-all shadow-lg">
             Start Free Trial
           </button>
         </Link>
-        <button className="px-6 py-3 border border-white/30 text-white rounded-xl font-semibold hover:bg-white/25 transition-all" style={{ background: 'rgba(255, 255, 255, 0.15)' }}>
-          Schedule a Demo
-        </button>
       </div>
     </div>
   </motion.section>

@@ -113,7 +113,7 @@ export function Payroll() {
                   }}
                   formatter={(value) => `$${value.toLocaleString()}`}
                 />
-                <Bar dataKey="amount" fill="var(--chart-1)" radius={[8, 8, 0, 0]} />
+                <Bar key="amount-bar" dataKey="amount" fill="var(--chart-1)" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>

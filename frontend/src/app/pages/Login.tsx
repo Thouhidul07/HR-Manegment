@@ -8,7 +8,7 @@ import { useTheme } from "../contexts/ThemeContext";
 export function Login() {
   const navigate = useNavigate();
   const { login } = useAuth();
-  const { resolvedTheme, toggleTheme } = useTheme();
+  const { theme, toggleTheme } = useTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -83,7 +83,7 @@ export function Login() {
           onClick={toggleTheme}
           className="absolute top-6 right-6 p-2 rounded-lg hover:bg-[#9A77CF]/10 transition-colors"
         >
-          {resolvedTheme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
         </button>
 
         <motion.div
@@ -178,8 +178,8 @@ export function Login() {
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 rounded border-[#543884]/30 text-[#543884] focus:ring-2 focus:ring-[#9A77CF]"
-                  style={{ accentColor: '#543884' }}
+                  className="w-4 h-4 rounded border-white text-white focus:ring-2 focus:ring-white"
+                  style={{ accentColor: '#ffffff' }}
                 />
                 <span className="text-sm text-[#262254] dark:text-white">Remember me</span>
               </label>

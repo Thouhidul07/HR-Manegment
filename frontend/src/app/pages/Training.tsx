@@ -1,19 +1,15 @@
-import { CheckCircle2, Play, Clock, Users, Award, BookOpen, Trash2 } from "lucide-react";
+import { Play, Clock, Users, Award, BookOpen } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
-import { Input } from "../components/ui/Input";
-import { Modal } from "../components/ui/Modal";
-import { Textarea } from "../components/ui/textarea";
 import api from "../services/api";
-import { useAuth } from "../contexts/AuthContext";
 
-const courses = [
+const fallbackCourses = [
   {
     id: 1,
     title: "Leadership & Management Fundamentals",
-    categories: ["Leadership", "Soft Skills"],
+    category: "Leadership",
     duration: "8 hours",
     enrolled: 45,
     completed: 32,
@@ -24,7 +20,7 @@ const courses = [
   {
     id: 2,
     title: "Advanced JavaScript & React",
-    categories: ["Technical"],
+    category: "Technical",
     duration: "12 hours",
     enrolled: 78,
     completed: 45,
@@ -35,7 +31,7 @@ const courses = [
   {
     id: 3,
     title: "Effective Communication Skills",
-    categories: ["Soft Skills", "Leadership"],
+    category: "Soft Skills",
     duration: "6 hours",
     enrolled: 92,
     completed: 88,
@@ -46,7 +42,7 @@ const courses = [
   {
     id: 4,
     title: "Data Analysis with Python",
-    categories: ["Technical"],
+    category: "Technical",
     duration: "10 hours",
     enrolled: 56,
     completed: 28,
@@ -56,7 +52,7 @@ const courses = [
   },
 ];
 
-const myTrainings = [
+const fallbackMyTrainings = [
   { id: 1, course: "Leadership Fundamentals", progress: 75, dueDate: "Apr 15, 2026", status: "In Progress" },
   { id: 2, course: "Time Management", progress: 100, dueDate: "Mar 28, 2026", status: "Completed" },
   { id: 3, course: "Conflict Resolution", progress: 40, dueDate: "Apr 20, 2026", status: "In Progress" },
@@ -69,23 +65,9 @@ const upcomingSchedule = [
 ];
 
 export function Training() {
-  const { user } = useAuth();
-  const [courseList, setCourseList] = useState(courses);
-  const [trainingList, setTrainingList] = useState(myTrainings);
-  const [scheduleList, setScheduleList] = useState(upcomingSchedule);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
+  const [courses, setCourses] = useState(fallbackCourses);
+  const [myTrainings, setMyTrainings] = useState(fallbackMyTrainings);
   const [activeCategory, setActiveCategory] = useState("All Categories");
-  const [trainingForm, setTrainingForm] = useState({
-    title: "",
-    category: "Leadership",
-    level: "Beginner",
-    duration: "",
-    instructor: "",
-    date: "",
-    time: "",
-    description: "",
-  });
 
   useEffect(() => {
     let isMounted = true;
@@ -95,175 +77,90 @@ export function Training() {
         if (!isMounted) return;
 
         if (response.data.sessions?.length) {
-          setCourseList(response.data.sessions.map((session: any) => ({
+          setCourses(response.data.sessions.map((session) => ({
             id: session.id,
             title: session.title,
-            categories: ["General"],
-            duration: "8 hours",
-            enrolled: session.enrolled,
-            completed: session.completed,
-            progress: session.enrolled ? Math.round((session.completed / session.enrolled) * 100) : 0,
-            instructor: session.trainer,
+            category: "Training",
+            duration: session.endsAt ? "Scheduled" : "Self-paced",
+            enrolled: session.enrolled || 0,
+            completed: session.completed || 0,
+            progress: session.enrolled ? Math.round(((session.completed || 0) / session.enrolled) * 100) : 0,
+            instructor: session.trainer || "HR Team",
             level: "Intermediate",
-          })));
-          setScheduleList(response.data.sessions.map((session: any) => ({
-            id: session.id,
-            title: session.title,
-            date: formatDisplayDate(String(session.startsAt).slice(0, 10)),
-            time: formatDisplayTime(String(session.startsAt).slice(11, 16) || "09:00"),
-            type: "Training",
           })));
         }
 
         if (response.data.enrollments?.length) {
-          setTrainingList(response.data.enrollments.map((enrollment: any) => ({
-            id: enrollment.id,
-            course: enrollment.course,
-            progress: enrollment.progress,
-            dueDate: formatDisplayDate(String(enrollment.dueDate).slice(0, 10)),
-            status: enrollment.status,
-          })));
+          setMyTrainings(response.data.enrollments);
         }
       })
-      .catch(() => {
-        // Keep demo training content available when the API/database is not ready.
-      });
+      .catch(() => {});
 
     return () => {
       isMounted = false;
     };
   }, []);
 
-  const showFloatingMessage = (message: string) => {
-    setSuccessMessage(message);
-    window.setTimeout(() => setSuccessMessage(""), 2200);
-  };
+  const filteredCourses = activeCategory === "All Categories"
+    ? courses
+    : courses.filter((course) => course.category === activeCategory);
+  const totalLearners = courses.reduce((total, course) => total + course.enrolled, 0);
+  const totalCertifications = courses.reduce((total, course) => total + course.completed, 0);
 
-  const resetTrainingForm = () => {
-    setTrainingForm({
-      title: "",
-      category: "Leadership",
-      level: "Beginner",
-      duration: "",
-      instructor: "",
-      date: "",
-      time: "",
-      description: "",
-    });
-  };
+  const handleCreateTraining = async () => {
+    const title = window.prompt("Training title", "New Training Session");
+    if (!title) return;
 
-  const formatDisplayDate = (dateValue: string) =>
-    new Date(`${dateValue}T00:00:00`).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-
-  const formatDisplayTime = (timeValue: string) =>
-    new Date(`2026-01-01T${timeValue}`).toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-    });
-
-  const handleCreateTraining = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const startsAt = `${trainingForm.date}T${trainingForm.time}:00`;
+    const now = new Date();
+    const startsAt = now.toISOString().slice(0, 16);
+    const endsAt = new Date(now.getTime() + 60 * 60 * 1000).toISOString().slice(0, 16);
     const response = await api.post("/training", {
-      title: trainingForm.title,
-      description: trainingForm.description,
-      trainer: trainingForm.instructor,
+      title,
+      description: title,
+      trainer: "HR Team",
       startsAt,
+      endsAt,
     });
-    const session = response.data.session;
 
-    setCourseList((currentCourses) => [
+    const session = response.data.session;
+    setCourses((currentCourses) => [
       {
         id: session.id,
         title: session.title,
-        categories: [trainingForm.category],
-        duration: `${trainingForm.duration} hours`,
-        enrolled: 0,
-        completed: 0,
+        category: "Training",
+        duration: "Scheduled",
+        enrolled: session.enrolled || 0,
+        completed: session.completed || 0,
         progress: 0,
-        instructor: session.trainer,
-        level: trainingForm.level,
+        instructor: session.trainer || "HR Team",
+        level: "Intermediate",
       },
       ...currentCourses,
     ]);
-
-    setScheduleList((currentSchedule) => [
-      {
-        id: session.id,
-        title: session.title,
-        date: formatDisplayDate(trainingForm.date),
-        time: formatDisplayTime(trainingForm.time),
-        type: trainingForm.category === "Technical" ? "Workshop" : trainingForm.category,
-      },
-      ...currentSchedule,
-    ]);
-
-    resetTrainingForm();
-    setIsCreateModalOpen(false);
-    showFloatingMessage("Training created");
   };
 
-  const handleContinueLearning = async (trainingId: number) => {
-    const currentTraining = trainingList.find((training) => training.id === trainingId);
-    const nextProgress = Math.min(100, (currentTraining?.progress || 0) + 10);
-    const response = await api.patch(`/training/enrollments/${trainingId}/progress`, {
+  const handleContinueLearning = async (training) => {
+    const nextProgress = Math.min(100, Number(training.progress || 0) + 10);
+    const response = await api.patch(`/training/enrollments/${training.id}/progress`, {
       progress: nextProgress,
     });
-    const updatedEnrollment = response.data.enrollment;
 
-    setTrainingList((currentTrainings) =>
-      currentTrainings.map((training) => {
-        if (training.id !== trainingId || training.status === "Completed") return training;
-        return {
-          ...training,
-          progress: updatedEnrollment.progress,
-          status: updatedEnrollment.status,
-        };
-      })
+    setMyTrainings((currentTrainings) =>
+      currentTrainings.map((item) => (item.id === training.id ? response.data.enrollment : item))
     );
-    showFloatingMessage("Learning progress updated");
   };
 
-  const handleStartCourse = async (course: (typeof courses)[number]) => {
+  const handleStartCourse = async (course) => {
     const response = await api.post(`/training/${course.id}/enroll`);
     const enrollment = response.data.enrollment;
 
-    setCourseList((currentCourses) =>
-      currentCourses.map((item) =>
-        item.id === course.id ? { ...item, enrolled: item.enrolled + 1 } : item
-      )
-    );
-    setTrainingList((currentTrainings) => {
-      const alreadyStarted = currentTrainings.some((training) => training.course === course.title);
-      if (alreadyStarted) return currentTrainings;
-
-      return [
-        {
-          id: enrollment.id,
-          course: enrollment.course,
-          progress: enrollment.progress,
-          dueDate: "Jun 30, 2026",
-          status: enrollment.status,
-        },
-        ...currentTrainings,
-      ];
+    setMyTrainings((currentTrainings) => {
+      const exists = currentTrainings.some((item) => item.id === enrollment.id);
+      return exists
+        ? currentTrainings.map((item) => (item.id === enrollment.id ? enrollment : item))
+        : [enrollment, ...currentTrainings];
     });
-    showFloatingMessage("Course started");
   };
-  const handleDeleteTraining = async (courseId: number) => {
-    await api.delete(`/training/${courseId}`);
-    setCourseList((currentCourses) => currentCourses.filter((course) => course.id !== courseId));
-    setScheduleList((currentSchedule) => currentSchedule.filter((session) => session.id !== courseId));
-    showFloatingMessage("Training deleted");
-  };
-  const canManageTraining = user?.role === "admin" || user?.role === "hr_manager";
-  const visibleCourses = activeCategory === "All Categories"
-    ? courseList
-    : courseList.filter((course) => course.categories.includes(activeCategory));
 
   return (
     <div className="space-y-6">
@@ -273,7 +170,7 @@ export function Training() {
           <h1 className="text-2xl text-foreground mb-2">Training & Development</h1>
           <p className="text-muted-foreground">Manage employee training programs and track progress</p>
         </div>
-        {canManageTraining && <Button variant="primary" onClick={() => setIsCreateModalOpen(true)}>Create Training</Button>}
+        <Button variant="primary" onClick={handleCreateTraining}>Create Training</Button>
       </div>
 
       {/* Stats */}
@@ -285,7 +182,7 @@ export function Training() {
             </div>
             <p className="text-sm text-muted-foreground">Total Courses</p>
           </div>
-          <p className="text-2xl text-foreground">{48 + courseList.length - courses.length}</p>
+          <p className="text-2xl text-foreground">{courses.length}</p>
         </Card>
 
         <Card className="p-4">
@@ -295,7 +192,7 @@ export function Training() {
             </div>
             <p className="text-sm text-muted-foreground">Active Learners</p>
           </div>
-          <p className="text-2xl text-foreground">342</p>
+          <p className="text-2xl text-foreground">{totalLearners}</p>
         </Card>
 
         <Card className="p-4">
@@ -305,7 +202,7 @@ export function Training() {
             </div>
             <p className="text-sm text-muted-foreground">Certifications</p>
           </div>
-          <p className="text-2xl text-foreground">156</p>
+          <p className="text-2xl text-foreground">{totalCertifications}</p>
         </Card>
 
         <Card className="p-4">
@@ -328,7 +225,7 @@ export function Training() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {trainingList.map((training) => (
+              {myTrainings.map((training) => (
                 <div
                   key={training.id}
                   className="p-4 rounded-lg border border-border hover:border-primary/50 transition-colors"
@@ -358,7 +255,7 @@ export function Training() {
                     </div>
                   </div>
                   {training.status === "In Progress" && (
-                    <Button variant="outline" size="sm" className="mt-3 gap-2" onClick={() => handleContinueLearning(training.id)}>
+                    <Button variant="outline" size="sm" className="mt-3 gap-2" onClick={() => handleContinueLearning(training)}>
                       <Play className="w-3 h-3" />
                       Continue Learning
                     </Button>
@@ -376,7 +273,7 @@ export function Training() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {scheduleList.map((session) => (
+              {upcomingSchedule.map((session) => (
                 <div
                   key={session.id}
                   className="p-3 rounded-lg bg-accent/30 hover:bg-accent/50 transition-colors"
@@ -406,23 +303,18 @@ export function Training() {
           <div className="flex items-center justify-between">
             <CardTitle>Available Courses</CardTitle>
             <div className="flex gap-2">
-              <select
-                value={activeCategory}
-                onChange={(event) => setActiveCategory(event.target.value)}
-                className="px-4 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-              >
+              <select className="px-4 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent" value={activeCategory} onChange={(event) => setActiveCategory(event.target.value)}>
                 <option>All Categories</option>
                 <option>Leadership</option>
                 <option>Technical</option>
                 <option>Soft Skills</option>
-                <option>Mandatory</option>
               </select>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {visibleCourses.map((course) => (
+            {filteredCourses.map((course) => (
               <div
                 key={course.id}
                 className="p-6 rounded-xl border border-border hover:border-primary/50 transition-all hover:shadow-md"
@@ -431,11 +323,9 @@ export function Training() {
                   <div className="flex-1">
                     <h3 className="text-foreground mb-2">{course.title}</h3>
                     <div className="flex flex-wrap gap-2">
-                      {course.categories.map((category) => (
-                        <Badge key={category} variant="secondary" size="sm">
-                          {category}
-                        </Badge>
-                      ))}
+                      <Badge variant="secondary" size="sm">
+                        {course.category}
+                      </Badge>
                       <Badge variant="info" size="sm">
                         {course.level}
                       </Badge>
@@ -471,145 +361,15 @@ export function Training() {
                   </div>
                 </div>
 
-                <div className="flex gap-2">
-                  <Button variant="primary" className="flex-1 gap-2" onClick={() => handleStartCourse(course)}>
-                    <Play className="w-4 h-4" />
-                    Start Course
-                  </Button>
-                  {canManageTraining && (
-                    <Button
-                      variant="outline"
-                      className="text-destructive"
-                      onClick={() => handleDeleteTraining(course.id)}
-                      aria-label="Delete training"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
+                <Button variant="primary" className="w-full gap-2" onClick={() => handleStartCourse(course)}>
+                  <Play className="w-4 h-4" />
+                  Start Course
+                </Button>
               </div>
             ))}
-            {visibleCourses.length === 0 && (
-              <div className="lg:col-span-2 rounded-xl border border-border p-8 text-center text-sm text-muted-foreground">
-                No courses found for {activeCategory}.
-              </div>
-            )}
           </div>
         </CardContent>
       </Card>
-
-      {successMessage && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none">
-          <div className="relative overflow-hidden rounded-2xl bg-card border border-[#543884]/20 px-8 py-6 shadow-2xl text-center">
-            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#543884] via-[#EC4176] to-[#FFA45E]" />
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-green-500/15 text-green-500">
-              <CheckCircle2 className="h-7 w-7" />
-            </div>
-            <p className="text-lg font-semibold text-foreground">{successMessage}</p>
-            <p className="mt-1 text-sm text-muted-foreground">Your training dashboard has been updated.</p>
-          </div>
-        </div>
-      )}
-
-      <Modal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        title="Create Training"
-        footer={
-          <>
-            <Button variant="outline" onClick={() => setIsCreateModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" form="create-training-form" variant="primary">
-              Create Training
-            </Button>
-          </>
-        }
-      >
-        <form id="create-training-form" onSubmit={handleCreateTraining} className="space-y-4">
-          <Input
-            label="Training Title"
-            required
-            value={trainingForm.title}
-            onChange={(event) => setTrainingForm((form) => ({ ...form, title: event.target.value }))}
-            placeholder="Workplace Safety Essentials"
-          />
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm mb-1.5 text-foreground">Category</label>
-              <select
-                value={trainingForm.category}
-                onChange={(event) => setTrainingForm((form) => ({ ...form, category: event.target.value }))}
-                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option>Leadership</option>
-                <option>Technical</option>
-                <option>Soft Skills</option>
-                <option>Mandatory</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm mb-1.5 text-foreground">Level</label>
-              <select
-                value={trainingForm.level}
-                onChange={(event) => setTrainingForm((form) => ({ ...form, level: event.target.value }))}
-                className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option>Beginner</option>
-                <option>Intermediate</option>
-                <option>Advanced</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              label="Duration"
-              type="number"
-              min="1"
-              required
-              value={trainingForm.duration}
-              onChange={(event) => setTrainingForm((form) => ({ ...form, duration: event.target.value }))}
-              placeholder="8"
-            />
-            <Input
-              label="Instructor"
-              required
-              value={trainingForm.instructor}
-              onChange={(event) => setTrainingForm((form) => ({ ...form, instructor: event.target.value }))}
-              placeholder="Sarah Johnson"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              label="Schedule Date"
-              type="date"
-              required
-              value={trainingForm.date}
-              onChange={(event) => setTrainingForm((form) => ({ ...form, date: event.target.value }))}
-            />
-            <Input
-              label="Schedule Time"
-              type="time"
-              required
-              value={trainingForm.time}
-              onChange={(event) => setTrainingForm((form) => ({ ...form, time: event.target.value }))}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm mb-1.5 text-foreground">Description</label>
-            <Textarea
-              required
-              value={trainingForm.description}
-              onChange={(event) => setTrainingForm((form) => ({ ...form, description: event.target.value }))}
-              placeholder="Briefly describe what employees will learn"
-            />
-          </div>
-        </form>
-      </Modal>
     </div>
   );
 }

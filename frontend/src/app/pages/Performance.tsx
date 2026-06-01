@@ -4,11 +4,10 @@ import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/Card"
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "../components/ui/Table";
-import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, Tooltip } from "recharts";
-import { useAuth } from "../contexts/AuthContext";
+import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer } from "recharts";
 import api from "../services/api";
 
-const performanceData = [
+const fallbackPerformanceData = [
   { id: 1, employee: "John Doe", avatar: "JD", department: "Engineering", role: "Senior Developer", overall: 4.5, technical: 4.8, communication: 4.2, leadership: 4.6, status: "Excellent" },
   { id: 2, employee: "Sarah Smith", avatar: "SS", department: "Marketing", role: "Marketing Manager", overall: 4.8, technical: 4.5, communication: 5.0, leadership: 4.9, status: "Outstanding" },
   { id: 3, employee: "Mike Johnson", avatar: "MJ", department: "Sales", role: "Sales Executive", overall: 3.8, technical: 3.5, communication: 4.2, leadership: 3.7, status: "Good" },
@@ -24,7 +23,7 @@ const skillsData = [
   { skill: "Time Management", current: 78, target: 85 },
 ];
 
-const goals = [
+const fallbackGoals = [
   { id: 1, title: "Complete React Advanced Course", progress: 75, dueDate: "Apr 15, 2026", status: "On Track" },
   { id: 2, title: "Lead 2 major projects", progress: 50, dueDate: "Jun 30, 2026", status: "On Track" },
   { id: 3, title: "Mentor 3 junior developers", progress: 33, dueDate: "Dec 31, 2026", status: "Behind" },
@@ -38,75 +37,71 @@ const reviewCycle = [
   { phase: "Final Review", status: "Pending", dueDate: "Apr 20, 2026" },
 ];
 
-type PerformanceReview = {
-  id: number;
-  employee: string;
-  reviewer: string | null;
-  reviewPeriod: string;
-  score: number | null;
-  goals: string[];
-  feedback: string;
-  status: "draft" | "submitted" | "approved";
-};
-
 export function Performance() {
-  const { user } = useAuth();
-  const [showCurrent, setShowCurrent] = useState(true);
-  const [showTarget, setShowTarget] = useState(true);
-  const [reviewMessage, setReviewMessage] = useState("");
-  const [reviews, setReviews] = useState<PerformanceReview[]>([]);
-  const isEmployee = user?.role === "employee";
-  const initials = user?.name
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase() || "EU";
-  const visiblePerformance = isEmployee
-    ? [{ ...performanceData[0], employee: user?.name || "Employee User", avatar: initials, role: "Software Engineer" }]
-    : performanceData;
-  const reviewRows = reviews.length
-    ? reviews.map((review) => ({
-        id: review.id,
-        employee: review.employee,
-        avatar: review.employee
-          .split(" ")
-          .map((part) => part[0])
-          .join("")
-          .slice(0, 2)
-          .toUpperCase(),
-        department: review.reviewPeriod,
-        role: review.reviewer ? `Reviewer: ${review.reviewer}` : "Reviewer pending",
-        overall: review.score ?? 0,
-        technical: review.goals.length,
-        communication: review.feedback ? 1 : 0,
-        leadership: review.status === "approved" ? 1 : 0,
-        status: review.status === "approved" ? "Excellent" : review.status === "submitted" ? "Good" : "Draft",
-      }))
-    : visiblePerformance;
-  const scoredReviews = reviews.filter((review) => review.score !== null);
-  const averageRating = scoredReviews.length
-    ? (scoredReviews.reduce((sum, review) => sum + (review.score || 0), 0) / scoredReviews.length).toFixed(1)
-    : reviews.length ? "0.0" : "4.3";
-  const pendingReviews = reviews.filter((review) => review.status !== "approved").length;
-
-  const loadReviews = () => {
-    api.get("/performance/reviews")
-      .then((response) => setReviews(response.data.reviews || []))
-      .catch(() => {
-        // Keep demo performance content visible when the API/database is unavailable.
-      });
-  };
+  const [performanceData, setPerformanceData] = useState(fallbackPerformanceData);
+  const [goals, setGoals] = useState(fallbackGoals);
 
   useEffect(() => {
-    loadReviews();
+    let isMounted = true;
+
+    api.get("/performance/reviews")
+      .then((response) => {
+        if (!isMounted || !response.data.reviews?.length) return;
+
+        const mappedPerformanceData = response.data.reviews.map((review, index) => {
+          const score = review.score || 0;
+          const initials = (review.employee || "Employee")
+            .split(" ")
+            .map((part) => part[0])
+            .join("")
+            .slice(0, 2)
+            .toUpperCase();
+
+          return {
+            id: review.id,
+            employee: review.employee || "Employee",
+            avatar: initials,
+            department: review.reviewPeriod || "Review",
+            role: review.reviewer ? `Reviewer: ${review.reviewer}` : "Pending reviewer",
+            overall: score || 0,
+            technical: score || 0,
+            communication: score || 0,
+            leadership: score || 0,
+            status: score >= 4.7 ? "Outstanding" : score >= 4.2 ? "Excellent" : score >= 3.5 ? "Good" : review.status || "Pending",
+          };
+        });
+        const mappedGoals = response.data.reviews.flatMap((review) =>
+          (review.goals?.length ? review.goals : [`Complete ${review.reviewPeriod || "review"} goals`]).map((goal, index) => ({
+            id: Number(`${review.id}${index}`),
+            title: goal,
+            progress: review.status === "approved" ? 100 : review.status === "submitted" ? 75 : 35,
+            dueDate: review.reviewPeriod || "Current cycle",
+            status: review.status === "approved" ? "Ahead" : review.status === "draft" ? "Behind" : "On Track",
+          }))
+        );
+
+        setPerformanceData(mappedPerformanceData);
+        setGoals(mappedGoals.length ? mappedGoals : fallbackGoals);
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
+
+  const averageRating = performanceData.length
+    ? (performanceData.reduce((total, record) => total + Number(record.overall || 0), 0) / performanceData.length).toFixed(1)
+    : "0.0";
+  const goalsAchieved = goals.length
+    ? Math.round(goals.reduce((total, goal) => total + Number(goal.progress || 0), 0) / goals.length)
+    : 0;
+  const topPerformers = performanceData.filter((record) => Number(record.overall || 0) >= 4.5).length;
+  const reviewsPending = performanceData.filter((record) => ["draft", "Pending"].includes(record.status)).length;
 
   const handleStartReview = async () => {
     const response = await api.post("/performance/review-cycles", {});
-    setReviewMessage(`${response.data.reviewPeriod} review cycle started for ${response.data.employeesQueued} employees.`);
-    loadReviews();
-    window.setTimeout(() => setReviewMessage(""), 2600);
+    window.alert(`${response.data.reviewPeriod} started for ${response.data.employeesQueued} employees`);
   };
 
   return (
@@ -114,18 +109,11 @@ export function Performance() {
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl text-foreground mb-2">{isEmployee ? "My Performance" : "Performance Management"}</h1>
-          <p className="text-muted-foreground">{isEmployee ? "Track your goals, skills, and review progress" : "Track and manage employee performance reviews"}</p>
+          <h1 className="text-2xl text-foreground mb-2">Performance Management</h1>
+          <p className="text-muted-foreground">Track and manage employee performance reviews</p>
         </div>
-        {!isEmployee && <Button variant="primary" onClick={handleStartReview}>Start Review</Button>}
+        <Button variant="primary" onClick={handleStartReview}>Start Review</Button>
       </div>
-
-      {reviewMessage && (
-        <div className="rounded-xl border border-green-500/20 bg-green-500/10 px-4 py-3 text-sm text-green-700 dark:text-green-300">
-          {reviewMessage}
-        </div>
-      )}
-
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card className="p-4">
@@ -146,7 +134,7 @@ export function Performance() {
             </div>
             <p className="text-sm text-muted-foreground">Goals Achieved</p>
           </div>
-          <p className="text-2xl text-foreground">85%</p>
+          <p className="text-2xl text-foreground">{goalsAchieved}%</p>
           <p className="text-xs text-muted-foreground mt-1">This quarter</p>
         </Card>
 
@@ -155,10 +143,10 @@ export function Performance() {
             <div className="p-2 rounded-lg bg-[var(--chart-3)]/20">
               <Award className="w-5 h-5 text-[var(--chart-3)]" />
             </div>
-            <p className="text-sm text-muted-foreground">{isEmployee ? "Strongest Skill" : "Top Performers"}</p>
+            <p className="text-sm text-muted-foreground">Top Performers</p>
           </div>
-          <p className="text-2xl text-foreground">{isEmployee ? "Teamwork" : "124"}</p>
-          <p className="text-xs text-muted-foreground mt-1">{isEmployee ? "90% current score" : "4.5+ rating"}</p>
+          <p className="text-2xl text-foreground">{topPerformers}</p>
+          <p className="text-xs text-muted-foreground mt-1">4.5+ rating</p>
         </Card>
 
         <Card className="p-4">
@@ -166,9 +154,9 @@ export function Performance() {
             <div className="p-2 rounded-lg bg-[var(--chart-4)]/20">
               <Star className="w-5 h-5 text-[var(--chart-4)]" />
             </div>
-            <p className="text-sm text-muted-foreground">{isEmployee ? "Review Status" : "Reviews Pending"}</p>
+            <p className="text-sm text-muted-foreground">Reviews Pending</p>
           </div>
-          <p className="text-2xl text-foreground">{isEmployee ? (reviews[0]?.status || "In Progress") : pendingReviews}</p>
+          <p className="text-2xl text-foreground">{reviewsPending}</p>
         </Card>
       </div>
 
@@ -185,37 +173,19 @@ export function Performance() {
                 <PolarGrid stroke="var(--border)" />
                 <PolarAngleAxis dataKey="skill" stroke="var(--muted-foreground)" />
                 <PolarRadiusAxis angle={90} domain={[0, 100]} stroke="var(--muted-foreground)" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "var(--popover)",
-                    border: "1px solid var(--border)",
-                    borderRadius: "8px",
-                    color: "var(--foreground)",
-                  }}
-                  formatter={(value, name) => [`${value}%`, name === "current" ? "Current" : "Target"]}
-                  labelStyle={{ color: "var(--foreground)" }}
-                />
-                {showCurrent && <Radar name="Current" dataKey="current" stroke="var(--chart-1)" fill="var(--chart-1)" fillOpacity={0.3} />}
-                {showTarget && <Radar name="Target" dataKey="target" stroke="var(--chart-2)" fill="var(--chart-2)" fillOpacity={0.2} />}
+                <Radar name="Current" dataKey="current" stroke="var(--chart-1)" fill="var(--chart-1)" fillOpacity={0.3} />
+                <Radar name="Target" dataKey="target" stroke="var(--chart-2)" fill="var(--chart-2)" fillOpacity={0.2} />
               </RadarChart>
             </ResponsiveContainer>
             <div className="flex gap-4 justify-center mt-4">
-              <button
-                type="button"
-                onClick={() => setShowCurrent((visible) => !visible)}
-                className={`flex items-center gap-2 rounded-md px-2 py-1 transition-colors ${showCurrent ? "text-foreground" : "text-muted-foreground opacity-60"}`}
-              >
+              <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-[var(--chart-1)]"></div>
                 <span className="text-xs text-muted-foreground">Current</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowTarget((visible) => !visible)}
-                className={`flex items-center gap-2 rounded-md px-2 py-1 transition-colors ${showTarget ? "text-foreground" : "text-muted-foreground opacity-60"}`}
-              >
+              </div>
+              <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-[var(--chart-2)]"></div>
                 <span className="text-xs text-muted-foreground">Target</span>
-              </button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -332,23 +302,24 @@ export function Performance() {
       {/* Performance Table */}
       <Card>
         <CardHeader>
-          <CardTitle>{isEmployee ? "My Performance Review" : "Team Performance Overview"}</CardTitle>
+          <CardTitle>Team Performance Overview</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Employee</TableHead>
-                <TableHead>Review Period</TableHead>
-                <TableHead>Reviewer</TableHead>
+                <TableHead>Department</TableHead>
+                <TableHead>Role</TableHead>
                 <TableHead>Overall Rating</TableHead>
-                <TableHead>Goals</TableHead>
-                <TableHead>Feedback</TableHead>
+                <TableHead>Technical</TableHead>
+                <TableHead>Communication</TableHead>
+                <TableHead>Leadership</TableHead>
                 <TableHead>Performance</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {reviewRows.map((record) => (
+              {performanceData.map((record) => (
                 <TableRow key={record.id}>
                   <TableCell>
                     <div className="flex items-center gap-3">
@@ -371,7 +342,8 @@ export function Performance() {
                     </div>
                   </TableCell>
                   <TableCell className="text-sm">{record.technical}</TableCell>
-                  <TableCell className="text-sm">{record.communication ? "Added" : "Pending"}</TableCell>
+                  <TableCell className="text-sm">{record.communication}</TableCell>
+                  <TableCell className="text-sm">{record.leadership}</TableCell>
                   <TableCell>
                     <Badge
                       variant={

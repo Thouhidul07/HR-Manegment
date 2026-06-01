@@ -11,14 +11,14 @@ interface RegisterFormData {
   password: string;
   confirmPassword: string;
   department: string;
-  role: 'employee' | 'hr_manager';
+  role: 'employee' | 'hr_manager' | 'admin' | 'project_manager';
   agreeToTerms: boolean;
 }
 
 const departments = ['Engineering', 'HR', 'Finance', 'Marketing', 'Sales', 'Operations'];
 
 export function Register() {
-  const { resolvedTheme, toggleTheme } = useTheme();
+  const { theme, toggleTheme } = useTheme();
   const [currentStep, setCurrentStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -120,7 +120,7 @@ export function Register() {
           onClick={toggleTheme}
           className="absolute top-6 right-6 p-2 rounded-lg hover:bg-[#9A77CF]/10 transition-colors"
         >
-          {resolvedTheme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
         </button>
 
         <motion.div
@@ -311,22 +311,27 @@ export function Register() {
 
                 <motion.div variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }}>
                   <label className="block text-sm font-medium text-[#262254] dark:text-white mb-2">Role</label>
-                  <div className="flex gap-3">
-                    {['employee', 'hr_manager'].map((roleType) => (
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { value: 'employee', label: 'Employee' },
+                      { value: 'hr_manager', label: 'HR Manager' },
+                      { value: 'project_manager', label: 'Project Manager' },
+                      { value: 'admin', label: 'Admin' }
+                    ].map((roleOption) => (
                       <label
-                        key={roleType}
-                        className={`flex-1 px-4 py-3 rounded-xl border-2 text-center cursor-pointer transition-all ${
-                          watch('role') === roleType
+                        key={roleOption.value}
+                        className={`px-4 py-3 rounded-xl border-2 text-center cursor-pointer transition-all ${
+                          watch('role') === roleOption.value
                             ? 'text-white shadow-md'
                             : 'text-[#543884] dark:text-[#9A77CF]'
                         }`}
-                        style={watch('role') === roleType
+                        style={watch('role') === roleOption.value
                           ? { background: 'linear-gradient(135deg, #543884 0%, #A13670 50%, #EC4176 100%)', borderColor: 'transparent' }
                           : { background: 'rgba(84, 56, 132, 0.05)', borderColor: 'rgba(84, 56, 132, 0.2)' }
                         }
                       >
-                        <input type="radio" {...register("role")} value={roleType} className="hidden" />
-                        <span className="text-sm font-medium">{roleType === 'employee' ? 'Employee' : 'HR Manager'}</span>
+                        <input type="radio" {...register("role")} value={roleOption.value} className="hidden" />
+                        <span className="text-sm font-medium">{roleOption.label}</span>
                       </label>
                     ))}
                   </div>
@@ -337,8 +342,8 @@ export function Register() {
                     <input
                       type="checkbox"
                       {...register("agreeToTerms", { required: "You must agree to the terms" })}
-                      className="w-4 h-4 mt-0.5 rounded border-[#543884]/30 text-[#543884] focus:ring-2 focus:ring-[#9A77CF]"
-                      style={{ accentColor: '#543884' }}
+                      className="w-4 h-4 mt-0.5 rounded border-white text-white focus:ring-2 focus:ring-white"
+                      style={{ accentColor: '#ffffff' }}
                     />
                     <span className="text-sm text-[#262254] dark:text-white">
                       I agree to the{" "}

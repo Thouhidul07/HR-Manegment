@@ -1,10 +1,33 @@
 const router = require("express").Router();
 const { body, param } = require("express-validator");
-const { listTasks, getProjectStats, createTask, updateTask, deleteTask } = require("./projects.controller");
+const {
+  listProjects,
+  createProject,
+  listTasks,
+  getProjectStats,
+  createTask,
+  updateTask,
+  deleteTask,
+} = require("./projects.controller");
 const validate = require("../../utils/validation");
 const { protect, authorize } = require("../../middleware/authMiddleware");
 
 router.use(protect, authorize("admin", "hr_manager"));
+
+router.get("/", listProjects);
+router.post(
+  "/",
+  [
+    body("name").trim().notEmpty(),
+    body("description").optional().trim(),
+    body("ownerId").optional().isInt({ min: 1 }),
+    body("status").optional().isIn(["planning", "active", "on-hold", "completed"]),
+    body("startDate").optional({ nullable: true }).isISO8601(),
+    body("endDate").optional({ nullable: true }).isISO8601(),
+  ],
+  validate,
+  createProject
+);
 
 router.get("/tasks", listTasks);
 router.get("/stats", getProjectStats);

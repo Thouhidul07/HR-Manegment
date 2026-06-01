@@ -48,6 +48,9 @@ router.patch(
   [
     param("id").isInt({ min: 1 }),
     body("status").isIn(["approved", "rejected", "paid"]),
+    body("paymentDate").optional().isISO8601(),
+    body("paymentMethod").optional().trim().notEmpty(),
+    body("paymentReference").optional().trim(),
   ],
   validate,
   updateExpenseStatus

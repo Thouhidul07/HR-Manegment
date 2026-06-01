@@ -1,6 +1,21 @@
 const { query } = require("../../config/database");
 const asyncHandler = require("../../utils/asyncHandler");
 
+async function ensureTrainingCertificatesTable() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS training_certificates (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      enrollment_id INT NOT NULL,
+      certificate_code VARCHAR(80) NOT NULL UNIQUE,
+      issued_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      issued_by INT,
+      UNIQUE KEY unique_enrollment_certificate (enrollment_id),
+      FOREIGN KEY (enrollment_id) REFERENCES training_enrollments(id) ON DELETE CASCADE,
+      FOREIGN KEY (issued_by) REFERENCES users(id) ON DELETE SET NULL
+    )
+  `);
+}
+
 function mapSession(row) {
   return {
     id: row.id,
@@ -24,10 +39,13 @@ function mapEnrollment(row) {
     progress: Number(row.progress),
     status: row.status === "completed" ? "Completed" : row.status === "cancelled" ? "Cancelled" : "In Progress",
     dueDate: row.ends_at || row.starts_at,
+    certificateCode: row.certificate_code || null,
+    certificateIssuedAt: row.issued_at || null,
   };
 }
 
 const listTraining = asyncHandler(async (req, res) => {
+  await ensureTrainingCertificatesTable();
   const [sessions] = await query(
     `SELECT ts.*,
       COUNT(te.id) AS enrolled,
@@ -39,10 +57,12 @@ const listTraining = asyncHandler(async (req, res) => {
   );
 
   const [enrollments] = await query(
-    `SELECT te.*, ts.title, ts.starts_at, ts.ends_at, u.name AS employee_name
+    `SELECT te.*, ts.title, ts.starts_at, ts.ends_at, u.name AS employee_name,
+       tc.certificate_code, tc.issued_at
      FROM training_enrollments te
      JOIN training_sessions ts ON ts.id = te.training_id
      JOIN users u ON u.id = te.user_id
+     LEFT JOIN training_certificates tc ON tc.enrollment_id = te.id
      WHERE te.user_id = ?
      ORDER BY te.created_at DESC`,
     [req.user.id]
@@ -168,6 +188,7 @@ const enrollTraining = asyncHandler(async (req, res) => {
 });
 
 const updateTrainingProgress = asyncHandler(async (req, res) => {
+  await ensureTrainingCertificatesTable();
   const progress = Number(req.body.progress);
   const status = progress >= 100 ? "completed" : "enrolled";
   const [result] = await query(
@@ -181,11 +202,22 @@ const updateTrainingProgress = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: "Enrollment not found" });
   }
 
+  if (status === "completed") {
+    await query(
+      `INSERT INTO training_certificates (enrollment_id, certificate_code, issued_by)
+       VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE issued_at = issued_at`,
+      [req.params.id, `CERT-${req.params.id}-${Date.now()}`, req.user.id]
+    );
+  }
+
   const [rows] = await query(
-    `SELECT te.*, ts.title, ts.starts_at, ts.ends_at, u.name AS employee_name
+    `SELECT te.*, ts.title, ts.starts_at, ts.ends_at, u.name AS employee_name,
+       tc.certificate_code, tc.issued_at
      FROM training_enrollments te
      JOIN training_sessions ts ON ts.id = te.training_id
      JOIN users u ON u.id = te.user_id
+     LEFT JOIN training_certificates tc ON tc.enrollment_id = te.id
      WHERE te.id = ?`,
     [req.params.id]
   );
