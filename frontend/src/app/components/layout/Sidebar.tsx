@@ -25,6 +25,7 @@ import {
   ListChecks,
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
+import { HRSpaceLogo } from "../brand/HRSpaceLogo";
 
 interface SidebarProps {
   collapsed: boolean;
@@ -113,21 +114,17 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         <div className={`h-16 flex items-center border-b border-[var(--sidebar-border)] transition-all duration-300 ${collapsed ? 'justify-center px-3' : 'px-6'}`}>
           {!collapsed && (
             <div className="flex items-center gap-2 animate-in fade-in duration-300">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#543884] to-[#9A77CF] flex items-center justify-center text-white font-bold text-xs shadow-sm">
-                HR
-              </div>
+              <HRSpaceLogo className="w-10 h-10 rounded-xl shadow-sm flex-shrink-0" />
               <h1 className="text-xl text-[var(--sidebar-foreground)] font-bold">
-                <span className="text-[var(--sidebar-primary)]">HR</span> Space
+                <span className="text-[var(--sidebar-primary)]">HR</span>Space
               </h1>
             </div>
           )}
           {collapsed && (
-            <div
-              className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#543884] to-[#9A77CF] flex items-center justify-center text-white font-bold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-default"
-              title="HR Space"
-            >
-              HR
-            </div>
+            <HRSpaceLogo
+              className="w-10 h-10 rounded-xl shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-default"
+              title="HRSpace"
+            />
           )}
         </div>
 

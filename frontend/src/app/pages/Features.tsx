@@ -226,7 +226,7 @@ export function Features() {
             Ready to get started?
           </h2>
           <p className="text-muted-foreground mb-8 text-lg">
-            Join hundreds of companies already using HR Space to transform their HR operations.
+            Join hundreds of companies already using HRSpace to transform their HR operations.
           </p>
           <div className="flex flex-wrap gap-4 justify-center">
             <Link to="/register">

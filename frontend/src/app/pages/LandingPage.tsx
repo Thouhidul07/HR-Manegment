@@ -7,6 +7,7 @@ import {
   Github, Twitter, Linkedin, CheckCircle2, Bell, TrendingUp, Calendar
 } from "lucide-react";
 import { useTheme } from "../contexts/ThemeContext";
+import { HRSpaceLogo } from "../components/brand/HRSpaceLogo";
 
 export function LandingPage() {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -44,9 +45,12 @@ const Navbar = ({ isScrolled, isMobileMenuOpen, setIsMobileMenuOpen, theme, togg
   >
     <div className="max-w-7xl mx-auto px-6 py-4">
       <div className="flex items-center justify-between">
-        <Link to="/" className="flex items-center">
-          <span className="text-xl font-bold text-[#EC4176]">HR</span>
-          <span className="text-xl font-bold text-[#262254] dark:text-white">Space</span>
+        <Link to="/" className="flex items-center gap-2">
+          <HRSpaceLogo className="w-9 h-9 rounded-xl shadow-sm" />
+          <span className="text-xl font-bold">
+            <span className="text-[#EC4176]">HR</span>
+            <span className="text-[#262254] dark:text-white">Space</span>
+          </span>
         </Link>
 
         <div className="hidden md:flex items-center gap-8">
@@ -137,7 +141,7 @@ const HeroSection = () => (
             transition={{ delay: 0.24 }}
             className="text-lg text-[#7c6b9e] dark:text-[#b5a3d1] max-w-xl"
           >
-            HR Space centralizes employee management, payroll, attendance, performance reviews, and analytics — empowering your team to focus on what matters most.
+            HRSpace centralizes employee management, payroll, attendance, performance reviews, and analytics — empowering your team to focus on what matters most.
           </motion.p>
 
           <motion.div
@@ -177,7 +181,7 @@ const HeroSection = () => (
                 </div>
               ))}
             </div>
-            <p className="text-sm text-muted-foreground">500+ teams trust HR Space</p>
+            <p className="text-sm text-muted-foreground">500+ teams trust HRSpace</p>
             <div className="flex items-center gap-1">
               <span className="text-[#FFA45E]">★★★★★</span>
               <span className="text-sm text-foreground ml-1">4.9/5</span>
@@ -623,7 +627,7 @@ const CTABanner = () => (
 
     <div className="max-w-4xl mx-auto text-center relative z-10">
       <h2 className="text-4xl font-bold text-white mb-4">Ready to transform your HR?</h2>
-      <p className="text-white/90 text-lg mb-8">Join forward-thinking teams already on HR Space.</p>
+      <p className="text-white/90 text-lg mb-8">Join forward-thinking teams already on HRSpace.</p>
       <div className="flex flex-wrap gap-4 justify-center">
         <Link to="/register">
           <button className="px-6 py-3 bg-white/20 backdrop-blur-md border border-white/30 text-white rounded-xl font-semibold hover:bg-white/30 hover:scale-105 transition-all shadow-lg">
@@ -640,9 +644,12 @@ const Footer = () => (
     <div className="max-w-7xl mx-auto">
       <div className="grid md:grid-cols-4 gap-8 mb-12">
         <div>
-          <div className="flex items-center mb-3">
-            <span className="text-xl font-bold text-[#EC4176]">HR</span>
-            <span className="text-xl font-bold text-white">Space</span>
+          <div className="flex items-center gap-2 mb-3">
+            <HRSpaceLogo className="w-9 h-9 rounded-xl shadow-sm" />
+            <span className="text-xl font-bold">
+              <span className="text-[#EC4176]">HR</span>
+              <span className="text-white">Space</span>
+            </span>
           </div>
           <p className="text-white/60 text-sm mb-4">Streamlining HR for modern teams.</p>
           <div className="flex gap-3">
@@ -691,7 +698,7 @@ const Footer = () => (
       </div>
 
       <div className="border-t border-white/10 pt-6 flex flex-col md:flex-row justify-between items-center gap-4">
-        <p className="text-sm text-white/70">© 2026 HR Space. All rights reserved.</p>
+        <p className="text-sm text-white/70">© 2026 HRSpace. All rights reserved.</p>
         <p className="text-sm text-white/70">Built for modern HR teams</p>
         <div className="flex gap-1.5">
           {['#262254', '#543884', '#9A77CF', '#A13670', '#EC4176', '#FFA45E'].map((color, i) => (

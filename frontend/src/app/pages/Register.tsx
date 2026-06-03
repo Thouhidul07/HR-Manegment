@@ -94,7 +94,7 @@ export function Register() {
               <span className="text-[#EC4176]">HR</span>
               <span className="text-white"> Space</span>
             </h1>
-            <p className="text-white/80 text-lg">Join your team on HR Space.</p>
+            <p className="text-white/80 text-lg">Join your team on HRSpace.</p>
           </div>
 
           <div className="flex flex-col gap-3 mt-8">
@@ -144,7 +144,7 @@ export function Register() {
 
           <motion.div variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }}>
             <h2 className="text-2xl font-bold text-[#262254] dark:text-white mb-1">Create your account</h2>
-            <p className="text-sm text-[#7c6b9e] dark:text-[#b5a3d1] mb-8">Set up your HR Space profile</p>
+            <p className="text-sm text-[#7c6b9e] dark:text-[#b5a3d1] mb-8">Set up your HRSpace profile</p>
           </motion.div>
 
           {/* Step Indicator */}

@@ -748,7 +748,7 @@ function ForumPreferencesTab() {
           <UserX className="w-5 h-5 text-[#A13670] mt-1" />
           <div className="flex-1">
             <h3 className="text-sm font-medium text-[#262254] dark:text-white">Anonymous Mode</h3>
-            <p className="text-xs text-muted-foreground mt-1">Your name appears as 'HR Space User' in non-critical systems</p>
+            <p className="text-xs text-muted-foreground mt-1">Your name appears as 'HRSpace User' in non-critical systems</p>
           </div>
           <label className="relative inline-flex items-center cursor-pointer">
             <input type="checkbox" checked={anonymousMode} onChange={(e) => setAnonymousMode(e.target.checked)} className="sr-only peer" />
@@ -976,7 +976,7 @@ function SystemSettingsTab() {
     <div className="bg-card border border-[#543884]/10 rounded-2xl p-6 md:p-8 shadow-sm">
       <h2 className="text-xl font-semibold text-[#262254] dark:text-white mb-6">System Settings</h2>
       <div className="grid md:grid-cols-2 gap-6">
-        <InputField label="Company Name" defaultValue="HR Space Inc." />
+        <InputField label="Company Name" defaultValue="HRSpace Inc." />
         <InputField label="Company Email" defaultValue="contact@hrspace.com" />
         <InputField label="Company Phone" defaultValue="+880 1234-567890" />
         <InputField label="Industry" defaultValue="Technology" />

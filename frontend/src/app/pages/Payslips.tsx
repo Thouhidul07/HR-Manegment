@@ -12,7 +12,7 @@ const payslips = [
 
 function downloadPayslip(month: string, net: number) {
   const file = new Blob(
-    [`HR Space Payslip\nMonth: ${month}\nNet Pay: $${net.toLocaleString()}\nStatus: Processed\n`],
+    [`HRSpace Payslip\nMonth: ${month}\nNet Pay: $${net.toLocaleString()}\nStatus: Processed\n`],
     { type: "text/plain" }
   );
   const url = URL.createObjectURL(file);
