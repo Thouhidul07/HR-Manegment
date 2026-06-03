@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import {
   Users, UserCheck, UserX, Briefcase, TrendingUp, TrendingDown, FileText,
@@ -12,6 +13,11 @@ import {
 } from "recharts";
 import { AdminDashboard } from "../components/dashboard/AdminDashboard";
 import { useNavigate } from "react-router-dom";
+import {
+  formatDashboardCurrency,
+  getRoleDashboardSummary,
+  RoleDashboardSummary,
+} from "../services/dashboardData";
 
 export function Dashboard() {
   const { user } = useAuth();
@@ -106,8 +112,29 @@ const chartTheme = {
 
 // HR Manager Dashboard
 function HRManagerDashboard({ user }: any) {
+  const [summary, setSummary] = useState<RoleDashboardSummary | null>(null);
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
+  useEffect(() => {
+    let isMounted = true;
+
+    getRoleDashboardSummary("hr_manager")
+      .then((data) => {
+        if (isMounted) setSummary(data);
+      })
+      .catch((error) => {
+        console.warn("Unable to load HR manager dashboard summary", error);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const activeEmployees = Number(summary?.activeEmployees ?? 247);
+  const pendingLeave = Number(summary?.pendingLeave ?? 12);
+  const upcomingTraining = Number(summary?.upcomingTraining ?? 18);
 
   const weekData = [
     { day: 'Mon', present: 238, leave: 9 },
@@ -127,7 +154,7 @@ function HRManagerDashboard({ user }: any) {
     >
       <DashboardHeader
         title={`${greeting}, ${user.name}`}
-        subtitle="You have 12 pending approvals and 4 onboarding tasks today."
+        subtitle={`You have ${pendingLeave} pending leave requests and ${upcomingTraining} upcoming training sessions.`}
         actions={
           <>
             <button className="rounded-xl px-4 py-2 text-sm text-white flex items-center gap-2 shadow-sm" style={{ background: 'linear-gradient(135deg, #543884, #A13670, #EC4176)' }}>
@@ -143,10 +170,10 @@ function HRManagerDashboard({ user }: any) {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard label="Team Size" value="247" change="8 new this month" trend="up" icon={Users} iconBg="#5438841A" iconColor="#543884" index={0} />
+        <StatCard label="Team Size" value={String(activeEmployees)} change={summary ? "Loaded from users table" : "8 new this month"} trend="up" icon={Users} iconBg="#5438841A" iconColor="#543884" index={0} />
         <StatCard label="Attendance Rate" value="94.2%" change="+1.2% vs last week" trend="up" icon={Clock} iconBg="#9A77CF1A" iconColor="#9A77CF" index={1} />
-        <StatCard label="Leave Requests" value="12" change="5 urgent" trend="down" icon={Calendar} iconBg="#FFA45E1A" iconColor="#FFA45E" index={2} />
-        <StatCard label="Training Progress" value="73%" change="18 completions" trend="up" icon={GraduationCap} iconBg="#EC41761A" iconColor="#EC4176" index={3} />
+        <StatCard label="Leave Requests" value={String(pendingLeave)} change={summary ? "Awaiting approval" : "5 urgent"} trend="down" icon={Calendar} iconBg="#FFA45E1A" iconColor="#FFA45E" index={2} />
+        <StatCard label="Upcoming Training" value={String(upcomingTraining)} change={summary ? "Scheduled sessions" : "18 completions"} trend="up" icon={GraduationCap} iconBg="#EC41761A" iconColor="#EC4176" index={3} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
@@ -501,9 +528,30 @@ function ProjectManagerDashboard({ user }: any) {
 
 // Employee Dashboard
 function EmployeeDashboard({ user }: any) {
+  const [summary, setSummary] = useState<RoleDashboardSummary | null>(null);
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Have a productive morning!' : hour < 17 ? 'Keep up the great work!' : 'Finish strong!';
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+
+  useEffect(() => {
+    let isMounted = true;
+
+    getRoleDashboardSummary("employee")
+      .then((data) => {
+        if (isMounted) setSummary(data);
+      })
+      .catch((error) => {
+        console.warn("Unable to load employee dashboard summary", error);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const daysPresent = Number(summary?.daysPresent ?? 23);
+  const pendingLeave = Number(summary?.pendingLeave ?? 0);
+  const latestPayroll = summary?.latestPayroll?.net_pay;
 
   return (
     <motion.div
@@ -531,9 +579,9 @@ function EmployeeDashboard({ user }: any) {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard label="My Attendance" value="23 / 25" change="92% this month" trend="up" icon={Clock} iconBg="#5438841A" iconColor="#543884" index={0} subtitle="days" />
-        <StatCard label="Leave Balance" value="12 days" change="6 used this year" trend="neutral" icon={Palmtree} iconBg="#9A77CF1A" iconColor="#9A77CF" index={1} />
-        <StatCard label="Tasks Due" value="3" change="1 overdue" trend="down" icon={CheckSquare} iconBg="#EC41761A" iconColor="#EC4176" index={2} />
+        <StatCard label="My Attendance" value={`${daysPresent} / 25`} change={summary ? "Present days this month" : "92% this month"} trend="up" icon={Clock} iconBg="#5438841A" iconColor="#543884" index={0} subtitle="days" />
+        <StatCard label="Pending Leave" value={String(pendingLeave)} change={summary ? "Requests awaiting decision" : "6 used this year"} trend="neutral" icon={Palmtree} iconBg="#9A77CF1A" iconColor="#9A77CF" index={1} />
+        <StatCard label="Latest Payroll" value={latestPayroll ? formatDashboardCurrency(latestPayroll) : "N/A"} change={summary ? "Most recent payroll record" : "1 overdue"} trend="neutral" icon={CheckSquare} iconBg="#EC41761A" iconColor="#EC4176" index={2} />
         <StatCard label="Training Progress" value="2 / 5" change="40% complete" trend="neutral" icon={BookOpen} iconBg="#FFA45E1A" iconColor="#FFA45E" index={3} />
       </div>
 

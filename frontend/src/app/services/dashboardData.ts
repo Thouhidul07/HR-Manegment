@@ -1,3 +1,5 @@
+import api from "./api";
+
 /**
  * dashboardData.ts — Mock data service for dashboard pages.
  *
@@ -50,6 +52,43 @@ export interface UpcomingEvent {
 export interface ChartPoint {
   month: string;
   [key: string]: string | number;
+}
+
+export type DashboardRole = "admin" | "hr_manager" | "employee";
+
+export interface RoleDashboardSummary {
+  totalEmployees?: number;
+  presentToday?: number;
+  pendingLeave?: number;
+  monthlyPayroll?: number | string;
+  activeEmployees?: number;
+  upcomingTraining?: number;
+  daysPresent?: number;
+  latestPayroll?: {
+    net_pay: number | string;
+    pay_period: string;
+  } | null;
+}
+
+const roleDashboardEndpoints: Record<DashboardRole, string> = {
+  admin: "/admin/dashboard",
+  hr_manager: "/hr-manager/dashboard",
+  employee: "/employee/dashboard",
+};
+
+export async function getRoleDashboardSummary(role: DashboardRole): Promise<RoleDashboardSummary> {
+  const response = await api.get(roleDashboardEndpoints[role]);
+  return response.data.dashboard ?? {};
+}
+
+export function formatDashboardCurrency(value: number | string | undefined | null): string {
+  const numericValue = Number(value ?? 0);
+
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(Number.isFinite(numericValue) ? numericValue : 0);
 }
 
 // ─── Admin Data ──────────────────────────────────────────────────────────────

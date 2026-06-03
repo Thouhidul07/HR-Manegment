@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import {
   Users, UserCheck, UserX, Briefcase,
   FileText, UserPlus, Calendar, Receipt,
@@ -10,7 +11,8 @@ import {
 import {
   getAdminStats, getAdminAttendanceTrend, getDepartmentBreakdown,
   getPayrollSummary, getPendingApprovals, getAdminActivity,
-  getUpcomingEvents, ActivityItem,
+  getUpcomingEvents, ActivityItem, getRoleDashboardSummary,
+  formatDashboardCurrency, RoleDashboardSummary,
 } from '../../services/dashboardData';
 import {
   C, CHART_COLORS, chartStyle, getGreeting,
@@ -27,6 +29,7 @@ const activityConfig: Record<ActivityItem['type'], { icon: React.ElementType; co
 };
 
 export function AdminDashboard({ userName }: { userName: string }) {
+  const [summary, setSummary] = useState<RoleDashboardSummary | null>(null);
   const stats    = getAdminStats();
   const trend    = getAdminAttendanceTrend();
   const depts    = getDepartmentBreakdown();
@@ -34,6 +37,53 @@ export function AdminDashboard({ userName }: { userName: string }) {
   const approvals= getPendingApprovals();
   const activity = getAdminActivity();
   const events   = getUpcomingEvents();
+
+  useEffect(() => {
+    let isMounted = true;
+
+    getRoleDashboardSummary("admin")
+      .then((data) => {
+        if (isMounted) setSummary(data);
+      })
+      .catch((error) => {
+        console.warn("Unable to load admin dashboard summary", error);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const liveStats = {
+    ...stats,
+    totalEmployees: {
+      ...stats.totalEmployees,
+      value: String(summary?.totalEmployees ?? stats.totalEmployees.value),
+      subtitle: summary ? "Loaded from employee records" : stats.totalEmployees.subtitle,
+    },
+    presentToday: {
+      ...stats.presentToday,
+      value: String(summary?.presentToday ?? stats.presentToday.value),
+      subtitle: summary ? "Attendance records for today" : stats.presentToday.subtitle,
+    },
+    onLeave: {
+      ...stats.onLeave,
+      label: summary ? "Pending Leave" : stats.onLeave.label,
+      value: String(summary?.pendingLeave ?? stats.onLeave.value),
+      subtitle: summary ? "Requests awaiting approval" : stats.onLeave.subtitle,
+    },
+  };
+
+  const livePayroll = {
+    ...payroll,
+    totalDisbursed: summary ? formatDashboardCurrency(summary.monthlyPayroll) : payroll.totalDisbursed,
+  };
+
+  const liveApprovals = approvals.map((approval) =>
+    approval.type === "leave" && summary
+      ? { ...approval, count: Number(summary.pendingLeave ?? approval.count) }
+      : approval
+  );
 
   return (
     <div className="space-y-6">
@@ -50,10 +100,10 @@ export function AdminDashboard({ userName }: { userName: string }) {
 
       {/* ── Row 1: KPI Stats ─────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard {...stats.totalEmployees} icon={Users}     iconColor={C.primary} iconBg={`${C.primary}18`} />
-        <StatCard {...stats.presentToday}   icon={UserCheck} iconColor={C.mid}     iconBg={`${C.mid}18`} />
-        <StatCard {...stats.onLeave}        icon={UserX}     iconColor={C.warm}    iconBg={`${C.warm}20`} />
-        <StatCard {...stats.openPositions}  icon={Briefcase} iconColor={C.action}  iconBg={`${C.action}15`} />
+        <StatCard {...liveStats.totalEmployees} icon={Users}     iconColor={C.primary} iconBg={`${C.primary}18`} />
+        <StatCard {...liveStats.presentToday}   icon={UserCheck} iconColor={C.mid}     iconBg={`${C.mid}18`} />
+        <StatCard {...liveStats.onLeave}        icon={UserX}     iconColor={C.warm}    iconBg={`${C.warm}20`} />
+        <StatCard {...liveStats.openPositions}  icon={Briefcase} iconColor={C.action}  iconBg={`${C.action}15`} />
       </div>
 
       {/* ── Row 2: Attendance Chart + Department Pie ─────────────────────── */}
@@ -122,9 +172,9 @@ export function AdminDashboard({ userName }: { userName: string }) {
         <SectionCard title="Payroll Summary" action={<GhostLink>View Details →</GhostLink>}>
           <div className="space-y-0">
             {[
-              { label: 'Total Disbursed', value: payroll.totalDisbursed, color: 'text-foreground' },
-              { label: 'Pending',         value: payroll.pending,        color: `text-[${C.warm}]` },
-              { label: 'Deductions',      value: payroll.deductions,     color: `text-[${C.action}]` },
+              { label: 'Total Disbursed', value: livePayroll.totalDisbursed, color: 'text-foreground' },
+              { label: 'Pending',         value: livePayroll.pending,        color: `text-[${C.warm}]` },
+              { label: 'Deductions',      value: livePayroll.deductions,     color: `text-[${C.action}]` },
             ].map(r => (
               <div key={r.label} className="flex justify-between items-center py-3 border-b border-border last:border-0">
                 <span className="text-sm text-muted-foreground">{r.label}</span>
@@ -135,7 +185,7 @@ export function AdminDashboard({ userName }: { userName: string }) {
           <div className="mt-4">
             <p className="text-xs text-muted-foreground mb-2">Monthly trend</p>
             <ResponsiveContainer width="100%" height={56}>
-              <BarChart data={payroll.trend.map((v, i) => ({ m: i, v }))} barSize={8}>
+              <BarChart data={livePayroll.trend.map((v, i) => ({ m: i, v }))} barSize={8}>
                 <Bar key="payroll-trend-bar" dataKey="v" fill={C.primary} radius={[2, 2, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -144,7 +194,7 @@ export function AdminDashboard({ userName }: { userName: string }) {
 
         <SectionCard title="Pending Approvals" action={<GhostLink>View All →</GhostLink>}>
           <div className="space-y-0">
-            {approvals.map(a => (
+            {liveApprovals.map(a => (
               <div key={a.type} className="flex items-center gap-3 py-3 border-b border-border last:border-0">
                 <div className="w-1 h-10 rounded-full flex-shrink-0" style={{ background: a.color }} />
                 <div className="flex-1 min-w-0">
