@@ -29,7 +29,7 @@ npm install
 npm run dev
 ```
 
-The backend runs at `http://localhost:5000` and the frontend expects API calls at `http://localhost:5000/api`.
+The backend runs at `http://localhost:5000` and the frontend expects API calls at `http://localhost:5174/api`.
 
 ## Login Credentials
 
