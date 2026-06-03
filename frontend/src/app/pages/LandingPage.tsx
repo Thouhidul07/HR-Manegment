@@ -4,7 +4,7 @@ import { motion, useInView } from "motion/react";
 import {
   Users, Clock, DollarSign, Target, GraduationCap, Shield,
   Building2, UserPlus, Zap, Menu, X, Sun, Moon,
-  Github, Twitter, Linkedin, CheckCircle2, Bell, TrendingUp, Calendar
+  Github, Twitter, Linkedin, CheckCircle2
 } from "lucide-react";
 import { useTheme } from "../contexts/ThemeContext";
 import { HRSpaceLogo } from "../components/brand/HRSpaceLogo";
@@ -107,9 +107,9 @@ const Navbar = ({ isScrolled, isMobileMenuOpen, setIsMobileMenuOpen, theme, togg
 );
 
 const HeroSection = () => (
-  <section className="min-h-screen flex items-center pt-24 pb-16 px-6 relative overflow-hidden">
-    <div className="max-w-7xl mx-auto w-full relative z-10">
-      <div className="grid lg:grid-cols-[58%_42%] gap-12 items-center">
+  <section className="min-h-[760px] lg:min-h-screen flex items-center pt-24 pb-16 px-6 relative overflow-visible">
+    <div className="max-w-7xl mx-auto w-full relative z-10 overflow-visible">
+      <div className="grid lg:grid-cols-[58%_42%] gap-12 items-center overflow-visible">
         <div className="space-y-6">
           <motion.span
             initial={{ opacity: 0, y: 30 }}
@@ -147,25 +147,6 @@ const HeroSection = () => (
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.36 }}
-            className="flex flex-wrap gap-4"
-          >
-            <Link to="/register">
-              <button
-                className="px-6 py-3 text-white rounded-xl shadow-lg hover:brightness-110 hover:scale-[1.02] transition-all"
-                style={{ background: 'linear-gradient(135deg, #543884 0%, #A13670 50%, #EC4176 100%)' }}
-              >
-                Get Started Free
-              </button>
-            </Link>
-            <button className="px-6 py-3 border-2 border-[#543884] text-[#543884] dark:text-[#9A77CF] rounded-xl hover:bg-[#543884]/5 transition-all">
-              Watch Demo
-            </button>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.48 }}
             className="flex items-center gap-4 pt-4 flex-wrap"
           >
@@ -193,58 +174,58 @@ const HeroSection = () => (
           initial={{ opacity: 0, x: 50 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.35, duration: 0.7 }}
-          className="relative hidden lg:flex justify-center items-center"
+          className="relative hidden lg:block min-h-[520px] overflow-visible"
         >
           <div className="absolute w-48 h-48 rounded-full blur-3xl top-0 right-4 pointer-events-none" style={{ background: 'rgba(154, 119, 207, 0.2)' }}></div>
           <div className="absolute w-32 h-32 rounded-full blur-2xl bottom-4 right-20 pointer-events-none" style={{ background: 'rgba(236, 65, 118, 0.15)' }}></div>
           <div className="absolute w-20 h-20 rounded-full blur-xl top-16 right-0 pointer-events-none" style={{ background: 'rgba(255, 164, 94, 0.1)' }}></div>
 
+          <div className="absolute right-[2%] top-1/2 h-[370px] w-[512px] max-w-[calc(100vw-4rem)] -translate-y-1/2 overflow-visible">
           {/* Main Workforce Overview Card */}
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.5, duration: 0.6 }}
-            className="relative z-10 bg-white dark:bg-[#251942] rounded-2xl shadow-2xl p-6 w-[340px]"
-            style={{ border: '1px solid rgba(84, 56, 132, 0.1)' }}
+            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-card border border-border rounded-2xl shadow-2xl p-6 w-[300px]"
           >
             <div className="flex items-center gap-2 mb-5">
-              <div className="w-2.5 h-2.5 rounded-full bg-[#9A77CF] animate-pulse"></div>
-              <span className="text-sm font-bold text-[#262254] dark:text-white">Workforce Overview</span>
-              <span className="ml-auto px-2.5 py-1 text-xs font-semibold rounded-full" style={{ background: 'rgba(236, 65, 118, 0.1)', color: '#EC4176' }}>Live</span>
+              <div className="w-2.5 h-2.5 rounded-full bg-[var(--info)] animate-pulse"></div>
+              <span className="text-sm font-bold text-foreground">Platform Progress</span>
+              <span className="ml-auto px-2.5 py-1 text-xs font-semibold rounded-full bg-[var(--action)]/10 text-[var(--action)]">Live</span>
             </div>
 
             {[
-              { icon: Users, label: 'Present Today', value: '1,156 / 1,234', percent: 93, color: '#543884' },
-              { icon: Calendar, label: 'On Leave', value: '48 employees', percent: 4, color: '#EC4176' },
-              { icon: TrendingUp, label: 'In Training', value: '87 enrolled', percent: 7, color: '#9A77CF' }
-            ].map((stat, i) => (
+              { label: 'Core Features', percent: 85, trackClass: 'bg-[var(--info)]/15', fillClass: 'bg-[var(--info)]' },
+              { label: 'Mobile Responsiveness', percent: 72, trackClass: 'bg-[var(--action)]/15', fillClass: 'bg-[var(--action)]' },
+              { label: 'Integrations', percent: 60, trackClass: 'bg-[var(--warning)]/20', fillClass: 'bg-[var(--warning)]' },
+              { label: 'Security & Compliance', percent: 90, trackClass: 'bg-[var(--primary)]/15', fillClass: 'bg-[var(--primary)]' }
+            ].map((milestone, i) => (
               <div key={i} className="mb-4 last:mb-3">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-9 h-9 rounded-lg flex items-center justify-center shadow-sm" style={{ background: `${stat.color}1A` }}>
-                    <stat.icon className="w-4.5 h-4.5" style={{ color: stat.color }} />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-xs text-muted-foreground">{stat.label}</p>
-                    <p className="text-sm font-semibold text-foreground">{stat.value}</p>
-                  </div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-medium text-muted-foreground">{milestone.label}</p>
+                  <p className="text-xs font-bold text-foreground">{milestone.percent}%</p>
                 </div>
-                <div className="h-2 rounded-full overflow-hidden" style={{ background: `${stat.color}1A` }}>
-                  <div className="h-full transition-all rounded-full" style={{ width: `${stat.percent}%`, background: stat.color }}></div>
+                <div className={`h-2 rounded-full overflow-hidden ${milestone.trackClass}`}>
+                  <div className={`h-full transition-all rounded-full ${milestone.fillClass}`} style={{ width: `${milestone.percent}%` }}></div>
                 </div>
               </div>
             ))}
 
-            <div className="flex items-end gap-1.5 h-14 mt-5 pt-4 border-t border-border">
+            <div className="grid grid-cols-4 gap-2 mt-5 pt-4 border-t border-border">
               {[
-                { height: 40, color: '#543884' },
-                { height: 65, color: '#9A77CF' },
-                { height: 50, color: '#A13670' },
-                { height: 80, color: '#EC4176' },
-                { height: 60, color: '#9A77CF' }
-              ].map((bar, i) => (
-                <div key={i} className="flex-1 flex flex-col items-center gap-1.5">
-                  <div className="w-full rounded-t-md transition-all" style={{ height: `${bar.height}%`, background: bar.color }}></div>
-                  <span className="text-[10px] text-muted-foreground font-medium">{['Mon', 'Tue', 'Wed', 'Thu', 'Fri'][i]}</span>
+                { label: 'Plan', active: true },
+                { label: 'Build', active: true },
+                { label: 'Test', active: true },
+                { label: 'Launch', active: false }
+              ].map((step, i) => (
+                <div key={step.label} className="flex flex-col items-center gap-1.5">
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold"
+                    style={step.active ? { background: 'linear-gradient(135deg, var(--primary), var(--action))' } : { background: 'var(--accent)' }}
+                  >
+                    <span className={step.active ? 'text-primary-foreground' : 'text-muted-foreground'}>{i + 1}</span>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground font-medium">{step.label}</span>
                 </div>
               ))}
             </div>
@@ -254,6 +235,7 @@ const HeroSection = () => (
           <motion.div
             initial={{ opacity: 0, x: 100 }}
             animate={{ opacity: 1, x: 0 }}
+            whileHover={{ x: 20, transition: { duration: 0.4, ease: [0.34, 1.56, 0.64, 1] } }}
             transition={{
               delay: 0.8,
               duration: 0.6,
@@ -261,7 +243,7 @@ const HeroSection = () => (
               stiffness: 100,
               damping: 15
             }}
-            className="absolute top-0 right-0 translate-x-[280px] -translate-y-2 bg-white dark:bg-[#251942] shadow-2xl rounded-2xl p-4 border border-border w-[250px]"
+            className="absolute left-[316px] top-[104px] z-20 bg-card border border-border shadow-2xl rounded-2xl px-4 py-3 w-[176px] min-h-[66px] transition-transform duration-[400ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] will-change-transform"
           >
             <motion.div
               animate={{ y: [0, -6, 0] }}
@@ -273,12 +255,12 @@ const HeroSection = () => (
               }}
               className="flex items-center gap-3"
             >
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#9A77CF]/20 to-[#543884]/20 flex items-center justify-center flex-shrink-0 shadow-sm">
-                <Bell className="w-5 h-5 text-[#9A77CF]" />
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#9A77CF]/20 to-[#543884]/20 flex items-center justify-center flex-shrink-0 shadow-sm">
+                <Users className="w-5 h-5 text-[#9A77CF]" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-[#262254] dark:text-white">3 Leave Requests</p>
-                <p className="text-xs text-muted-foreground">Pending approval</p>
+                <p className="text-base font-bold text-[#262254] dark:text-white">12,400+</p>
+                <p className="text-xs text-muted-foreground dark:text-white/60">Subscribers</p>
               </div>
               <div className="w-2.5 h-2.5 rounded-full bg-[#FFA45E] animate-pulse flex-shrink-0"></div>
             </motion.div>
@@ -288,6 +270,7 @@ const HeroSection = () => (
           <motion.div
             initial={{ opacity: 0, x: 100 }}
             animate={{ opacity: 1, x: 0 }}
+            whileHover={{ x: 20, transition: { duration: 0.4, ease: [0.34, 1.56, 0.64, 1] } }}
             transition={{
               delay: 1.2,
               duration: 0.6,
@@ -295,7 +278,7 @@ const HeroSection = () => (
               stiffness: 100,
               damping: 15
             }}
-            className="absolute bottom-0 right-0 translate-x-[280px] translate-y-2 bg-white dark:bg-[#251942] shadow-2xl rounded-2xl p-4 border border-border w-[250px]"
+            className="absolute left-[316px] top-[182px] z-20 bg-card border border-border shadow-2xl rounded-2xl px-4 py-3 w-[176px] min-h-[66px] transition-transform duration-[400ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] will-change-transform"
           >
             <motion.div
               animate={{ y: [0, -6, 0] }}
@@ -307,16 +290,17 @@ const HeroSection = () => (
               }}
               className="flex items-center gap-3"
             >
-              <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#EC4176] to-[#A13670] flex items-center justify-center flex-shrink-0 shadow-lg">
-                <CheckCircle2 className="w-5 h-5 text-white" />
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#EC4176] to-[#A13670] flex items-center justify-center flex-shrink-0 shadow-lg">
+                <Building2 className="w-5 h-5 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold text-[#262254] dark:text-white mb-1">Payroll Processed</p>
-                <p className="text-lg font-bold bg-gradient-to-r from-[#543884] to-[#EC4176] bg-clip-text text-transparent">$94,210</p>
+                <p className="text-base font-bold bg-gradient-to-r from-[#9A77CF] to-[#EC4176] bg-clip-text text-transparent">500+</p>
+                <p className="text-xs text-muted-foreground dark:text-white/60">Active Companies</p>
               </div>
               <div className="w-2.5 h-2.5 rounded-full bg-[#FFA45E] flex-shrink-0"></div>
             </motion.div>
           </motion.div>
+          </div>
         </motion.div>
       </div>
     </div>

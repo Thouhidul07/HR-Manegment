@@ -116,6 +116,15 @@ export function Register() {
 
       {/* Right Panel */}
       <div className="flex-1 lg:w-[60%] flex items-center justify-center p-8 bg-white dark:bg-[#1a0f2e] relative">
+        <Link
+          to="/"
+          className="absolute top-6 left-6 z-20 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-[#9A77CF]/40"
+          style={{ background: 'linear-gradient(135deg, #543884 0%, #9A77CF 52%, #EC4176 100%)' }}
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back
+        </Link>
+
         <button
           onClick={toggleTheme}
           className="absolute top-6 right-6 p-2 rounded-lg hover:bg-[#9A77CF]/10 transition-colors"
