@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Upload, FileText, Users, TrendingUp, Target,
   CheckCircle2, XCircle, Star, Search, Filter,
   Download, Eye, Brain, Sparkles, AlertCircle,
   BarChart3, Award, Briefcase, Calendar
 } from "lucide-react";
+import api from "../services/api";
 
 interface Candidate {
   id: number;
@@ -21,6 +22,7 @@ interface Candidate {
   uploadDate: string;
   keyStrengths: string[];
   concerns: string[];
+  cvUrl?: string | null;
 }
 
 export function CVFilter() {
@@ -28,16 +30,28 @@ export function CVFilter() {
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'shortlisted' | 'rejected'>('all');
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
-
-  const jobPositions = [
+  const [jobPositions, setJobPositions] = useState([
     "Senior Full Stack Developer",
     "Product Manager",
     "UI/UX Designer",
     "Data Scientist",
     "DevOps Engineer"
-  ];
+  ]);
+  const [apiCandidates, setApiCandidates] = useState<Candidate[]>([]);
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [candidateForm, setCandidateForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    position: "Senior Full Stack Developer",
+    skills: "",
+    experience: "0",
+    education: "",
+  });
+  const [cvFile, setCvFile] = useState<File | null>(null);
 
-  const candidates: Candidate[] = [
+  const fallbackCandidates: Candidate[] = [
     {
       id: 1,
       name: "Sarah Johnson",
@@ -136,6 +150,38 @@ export function CVFilter() {
     }
   ];
 
+  useEffect(() => {
+    api.get("/cv-filter/positions")
+      .then((response) => {
+        if (response.data.positions?.length) {
+          setJobPositions(response.data.positions);
+        }
+      })
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    api.get("/cv-filter/candidates", { params: { position: selectedJob } })
+      .then((response) => {
+        if (isMounted) {
+          setApiCandidates(response.data.candidates || []);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setApiCandidates([]);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedJob]);
+
+  const candidates = apiCandidates.length ? apiCandidates : fallbackCandidates;
+
   const filteredCandidates = candidates
     .filter(c => c.position === selectedJob)
     .filter(c => filterStatus === 'all' || c.status === filterStatus)
@@ -150,7 +196,50 @@ export function CVFilter() {
     pending: candidates.filter(c => c.position === selectedJob && c.status === 'pending').length,
     shortlisted: candidates.filter(c => c.position === selectedJob && c.status === 'shortlisted').length,
     rejected: candidates.filter(c => c.position === selectedJob && c.status === 'rejected').length,
-    avgScore: Math.round(candidates.filter(c => c.position === selectedJob).reduce((acc, c) => acc + c.score, 0) / candidates.filter(c => c.position === selectedJob).length)
+    avgScore: candidates.filter(c => c.position === selectedJob).length
+      ? Math.round(candidates.filter(c => c.position === selectedJob).reduce((acc, c) => acc + c.score, 0) / candidates.filter(c => c.position === selectedJob).length)
+      : 0
+  };
+
+  const resetCandidateForm = () => {
+    setCandidateForm({
+      name: "",
+      email: "",
+      phone: "",
+      position: selectedJob,
+      skills: "",
+      experience: "0",
+      education: "",
+    });
+    setCvFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleUploadCandidate = async () => {
+    const formData = new FormData();
+    Object.entries(candidateForm).forEach(([key, value]) => formData.append(key, value));
+    if (cvFile) {
+      formData.append("cv", cvFile);
+    }
+
+    const response = await api.post("/cv-filter/candidates", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    const candidate = response.data.candidate;
+    setApiCandidates((current) => [candidate, ...current]);
+    setSelectedJob(candidate.position);
+    setSelectedCandidate(candidate);
+    setIsUploadOpen(false);
+    resetCandidateForm();
+  };
+
+  const handleUpdateStatus = async (candidateId: number, status: "shortlisted" | "rejected") => {
+    const response = await api.patch(`/cv-filter/candidates/${candidateId}/status`, { status });
+    const updatedCandidate = response.data.candidate;
+    setApiCandidates((current) => current.map((candidate) => candidate.id === candidateId ? updatedCandidate : candidate));
+    setSelectedCandidate(updatedCandidate);
   };
 
   return (
@@ -163,11 +252,123 @@ export function CVFilter() {
             AI-powered resume screening to identify top candidates efficiently
           </p>
         </div>
-        <button className="px-4 py-2 bg-gradient-to-r from-[#543884] to-[#9A77CF] text-white rounded-lg hover:brightness-110 transition-all flex items-center gap-2">
+        <button
+          onClick={() => {
+            setCandidateForm((form) => ({ ...form, position: selectedJob }));
+            setIsUploadOpen(true);
+          }}
+          className="px-4 py-2 bg-gradient-to-r from-[#543884] to-[#9A77CF] text-white rounded-lg hover:brightness-110 transition-all flex items-center gap-2"
+        >
           <Upload className="w-4 h-4" />
           Upload CVs
         </button>
       </div>
+
+      {isUploadOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsUploadOpen(false)} />
+          <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-card border border-border rounded-xl shadow-xl">
+            <div className="p-6 border-b border-border">
+              <h2 className="text-xl font-semibold text-foreground">Upload Candidate CV</h2>
+              <p className="text-sm text-muted-foreground mt-1">Add candidate details and attach a resume file for screening.</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-2 block">Candidate Name</label>
+                  <input
+                    value={candidateForm.name}
+                    onChange={(e) => setCandidateForm({ ...candidateForm, name: e.target.value })}
+                    className="w-full px-3 py-2 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-2 block">Email</label>
+                  <input
+                    type="email"
+                    value={candidateForm.email}
+                    onChange={(e) => setCandidateForm({ ...candidateForm, email: e.target.value })}
+                    className="w-full px-3 py-2 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-2 block">Phone</label>
+                  <input
+                    value={candidateForm.phone}
+                    onChange={(e) => setCandidateForm({ ...candidateForm, phone: e.target.value })}
+                    className="w-full px-3 py-2 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-2 block">Position</label>
+                  <select
+                    value={candidateForm.position}
+                    onChange={(e) => setCandidateForm({ ...candidateForm, position: e.target.value })}
+                    className="w-full px-3 py-2 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    {jobPositions.map(job => (
+                      <option key={job} value={job}>{job}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-2 block">Experience</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={candidateForm.experience}
+                    onChange={(e) => setCandidateForm({ ...candidateForm, experience: e.target.value })}
+                    className="w-full px-3 py-2 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-2 block">CV File</label>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,.doc,.docx,.txt"
+                    onChange={(e) => setCvFile(e.target.files?.[0] || null)}
+                    className="w-full px-3 py-2 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-2 block">Skills</label>
+                <input
+                  value={candidateForm.skills}
+                  onChange={(e) => setCandidateForm({ ...candidateForm, skills: e.target.value })}
+                  placeholder="React, Node.js, TypeScript, AWS"
+                  className="w-full px-3 py-2 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-2 block">Education</label>
+                <input
+                  value={candidateForm.education}
+                  onChange={(e) => setCandidateForm({ ...candidateForm, education: e.target.value })}
+                  className="w-full px-3 py-2 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+            </div>
+            <div className="p-6 border-t border-border flex justify-end gap-3">
+              <button
+                onClick={() => setIsUploadOpen(false)}
+                className="px-4 py-2 border border-border rounded-lg hover:bg-accent transition-all text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUploadCandidate}
+                disabled={!candidateForm.name || !candidateForm.email || !candidateForm.position}
+                className="px-4 py-2 bg-gradient-to-r from-[#543884] to-[#9A77CF] text-white rounded-lg hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              >
+                Save Candidate
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* AI Features Banner */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -527,15 +728,29 @@ export function CVFilter() {
               </div>
 
               <div className="flex gap-2">
-                <button className="flex-1 px-4 py-2 bg-gradient-to-r from-[#543884] to-[#9A77CF] text-white rounded-lg hover:brightness-110 transition-all text-sm">
+                <button
+                  onClick={() => handleUpdateStatus(selectedCandidate.id, "shortlisted")}
+                  className="flex-1 px-4 py-2 bg-gradient-to-r from-[#543884] to-[#9A77CF] text-white rounded-lg hover:brightness-110 transition-all text-sm"
+                >
                   <CheckCircle2 className="w-4 h-4 inline mr-1" />
                   Shortlist
                 </button>
-                <button className="flex-1 px-4 py-2 border border-border rounded-lg hover:bg-accent transition-all text-sm">
+                <button
+                  onClick={() => selectedCandidate.cvUrl && window.open(selectedCandidate.cvUrl, "_blank")}
+                  disabled={!selectedCandidate.cvUrl}
+                  className="flex-1 px-4 py-2 border border-border rounded-lg hover:bg-accent transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   <Eye className="w-4 h-4 inline mr-1" />
                   View CV
                 </button>
               </div>
+              <button
+                onClick={() => handleUpdateStatus(selectedCandidate.id, "rejected")}
+                className="w-full mt-2 px-4 py-2 border border-red-500/30 text-red-500 rounded-lg hover:bg-red-500/10 transition-all text-sm"
+              >
+                <XCircle className="w-4 h-4 inline mr-1" />
+                Reject Candidate
+              </button>
             </div>
           ) : (
             <div className="bg-card border border-border rounded-xl p-12 text-center sticky top-6">

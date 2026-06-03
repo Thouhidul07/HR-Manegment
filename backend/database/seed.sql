@@ -10,6 +10,16 @@ ON DUPLICATE KEY UPDATE name = VALUES(name);
 INSERT INTO training_sessions (title, description, starts_at)
 VALUES ('Workplace Safety', 'Quarterly safety training', DATE_ADD(NOW(), INTERVAL 7 DAY));
 
+INSERT INTO peer_reviews
+  (reviewee_id, reviewer_id, project, duration, review_text, communication_rating, technical_rating, teamwork_rating, leadership_rating, strengths, improvements, review_date)
+VALUES
+  (3, 2, 'HR Portal Enhancement', '3 months', 'Excellent collaboration throughout the project. The code reviews were thorough and constructive.', 4, 5, 5, 4, JSON_ARRAY('Strong technical skills', 'Great team player'), JSON_ARRAY('Share knowledge more in team meetings'), '2026-05-15');
+
+INSERT INTO cv_candidates
+  (name, email, phone, position, score, skills, experience, education, match_percentage, status, key_strengths, concerns, upload_date)
+VALUES
+  ('Sarah Johnson', 'sarah.j@email.com', '+1 234 567 8901', 'Senior Full Stack Developer', 94, JSON_ARRAY('React', 'Node.js', 'TypeScript', 'AWS', 'Docker', 'PostgreSQL'), 7, 'M.S. Computer Science - Stanford University', 94, 'shortlisted', JSON_ARRAY('Matched react', 'Matched node.js', 'Matched typescript'), JSON_ARRAY(), '2026-05-28');
+
 INSERT INTO forum_posts
   (user_id, title, body, category, is_anonymous, anonymous_alias, anonymous_color, tags, sentiment, views)
 VALUES

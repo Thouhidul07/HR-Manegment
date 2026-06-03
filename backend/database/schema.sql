@@ -65,6 +65,50 @@ CREATE TABLE IF NOT EXISTS training_sessions (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS peer_reviews (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  reviewee_id INT NOT NULL,
+  reviewer_id INT,
+  project VARCHAR(160) NOT NULL,
+  duration VARCHAR(80) NOT NULL,
+  review_text TEXT NOT NULL,
+  communication_rating TINYINT NOT NULL,
+  technical_rating TINYINT NOT NULL,
+  teamwork_rating TINYINT NOT NULL,
+  leadership_rating TINYINT NOT NULL,
+  strengths TEXT,
+  improvements TEXT,
+  is_anonymous BOOLEAN NOT NULL DEFAULT TRUE,
+  status ENUM('submitted', 'approved', 'archived') NOT NULL DEFAULT 'submitted',
+  review_date DATE NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (reviewee_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (reviewer_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS cv_candidates (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(140) NOT NULL,
+  email VARCHAR(160) NOT NULL,
+  phone VARCHAR(60),
+  position VARCHAR(160) NOT NULL,
+  score INT NOT NULL DEFAULT 0,
+  skills JSON,
+  experience DECIMAL(4, 1) NOT NULL DEFAULT 0,
+  education VARCHAR(255),
+  match_percentage INT NOT NULL DEFAULT 0,
+  status ENUM('pending', 'shortlisted', 'rejected') NOT NULL DEFAULT 'pending',
+  key_strengths JSON,
+  concerns JSON,
+  cv_file_path VARCHAR(255),
+  uploaded_by INT,
+  upload_date DATE NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
 CREATE TABLE IF NOT EXISTS forum_posts (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT,

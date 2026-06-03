@@ -8,6 +8,8 @@ router.use("/payroll", require("../main/payroll/payroll.routes"));
 router.use("/expenses", require("../main/expenses/expenses.routes"));
 router.use("/training", require("../main/training/training.routes"));
 router.use("/performance", require("../main/performance/performance.routes"));
+router.use("/peer-reviews", require("../main/peerReviews/peerReviews.routes"));
+router.use("/cv-filter", require("../main/cvFilter/cvFilter.routes"));
 router.use("/projects", require("../main/projects/projects.routes"));
 router.use("/forum", require("../main/forum/forum.routes"));
 

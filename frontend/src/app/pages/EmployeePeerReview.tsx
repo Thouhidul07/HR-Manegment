@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Star, Plus, Send, User, Briefcase, Clock, Calendar, Award, TrendingUp, MessageSquare } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { motion } from "motion/react";
+import api from "../services/api";
 
 interface ReceivedReview {
   id: string;
@@ -93,6 +94,9 @@ export function EmployeePeerReview() {
   const [activeTab, setActiveTab] = useState<'received' | 'submit'>('received');
   const [showSubmitForm, setShowSubmitForm] = useState(false);
   const [selectedTeammate, setSelectedTeammate] = useState<Teammate | null>(null);
+  const [receivedReviews, setReceivedReviews] = useState<ReceivedReview[]>(mockReceivedReviews);
+  const [teammates, setTeammates] = useState<Teammate[]>(mockTeammates);
+  const [givenCount, setGivenCount] = useState(5);
   const [formData, setFormData] = useState({
     project: '',
     duration: '',
@@ -105,12 +109,56 @@ export function EmployeePeerReview() {
     improvements: ''
   });
 
-  const avgRating = (mockReceivedReviews.reduce((sum, r) => sum + r.rating, 0) / mockReceivedReviews.length).toFixed(1);
-  const totalReviews = mockReceivedReviews.length;
+  useEffect(() => {
+    let isMounted = true;
 
-  const handleSubmitReview = () => {
-    console.log("Submitting review:", { teammate: selectedTeammate, ...formData });
-    // Reset form
+    Promise.all([
+      api.get("/peer-reviews/mine"),
+      api.get("/peer-reviews/teammates"),
+    ])
+      .then(([mineResponse, teammatesResponse]) => {
+        if (!isMounted) return;
+
+        if (mineResponse.data.reviews?.length) {
+          setReceivedReviews(mineResponse.data.reviews);
+        }
+
+        setGivenCount(Number(mineResponse.data.givenCount || 0));
+
+        if (teammatesResponse.data.teammates?.length) {
+          setTeammates(teammatesResponse.data.teammates);
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const avgRating = receivedReviews.length
+    ? (receivedReviews.reduce((sum, r) => sum + r.rating, 0) / receivedReviews.length).toFixed(1)
+    : "0.0";
+  const totalReviews = receivedReviews.length;
+
+  const handleSubmitReview = async () => {
+    if (!selectedTeammate) {
+      return;
+    }
+
+    await api.post("/peer-reviews", {
+      revieweeId: selectedTeammate.id,
+      project: formData.project,
+      duration: formData.duration,
+      review: formData.review,
+      communication: formData.communication,
+      technical: formData.technical,
+      teamwork: formData.teamwork,
+      leadership: formData.leadership,
+      strengths: formData.strengths,
+      improvements: formData.improvements,
+    });
+
     setFormData({
       project: '',
       duration: '',
@@ -125,6 +173,7 @@ export function EmployeePeerReview() {
     setSelectedTeammate(null);
     setShowSubmitForm(false);
     setActiveTab('received');
+    setGivenCount((count) => count + 1);
   };
 
   const StarRating = ({ value, onChange, readonly = false }: { value: number; onChange?: (val: number) => void; readonly?: boolean }) => {
@@ -190,7 +239,7 @@ export function EmployeePeerReview() {
             </div>
             <p className="text-sm text-muted-foreground">Reviews Given</p>
           </div>
-          <p className="text-2xl text-foreground font-bold">5</p>
+          <p className="text-2xl text-foreground font-bold">{givenCount}</p>
         </Card>
       </div>
 
@@ -227,7 +276,7 @@ export function EmployeePeerReview() {
       {/* Content */}
       {activeTab === 'received' ? (
         <div className="space-y-4">
-          {mockReceivedReviews.map((review) => (
+          {receivedReviews.map((review) => (
             <motion.div
               key={review.id}
               initial={{ opacity: 0, y: 10 }}
@@ -336,7 +385,7 @@ export function EmployeePeerReview() {
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {mockTeammates.map((teammate) => (
+                    {teammates.map((teammate) => (
                       <button
                         key={teammate.id}
                         onClick={() => {

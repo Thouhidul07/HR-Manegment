@@ -13,6 +13,8 @@ DROP TABLE IF EXISTS forum_replies;
 DROP TABLE IF EXISTS forum_posts;
 DROP TABLE IF EXISTS expense_payments;
 DROP TABLE IF EXISTS expenses;
+DROP TABLE IF EXISTS cv_candidates;
+DROP TABLE IF EXISTS peer_reviews;
 DROP TABLE IF EXISTS performance_reviews;
 DROP TABLE IF EXISTS training_certificates;
 DROP TABLE IF EXISTS training_enrollments;
@@ -175,6 +177,50 @@ CREATE TABLE performance_reviews (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (reviewer_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE peer_reviews (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  reviewee_id INT NOT NULL,
+  reviewer_id INT,
+  project VARCHAR(160) NOT NULL,
+  duration VARCHAR(80) NOT NULL,
+  review_text TEXT NOT NULL,
+  communication_rating TINYINT NOT NULL,
+  technical_rating TINYINT NOT NULL,
+  teamwork_rating TINYINT NOT NULL,
+  leadership_rating TINYINT NOT NULL,
+  strengths TEXT,
+  improvements TEXT,
+  is_anonymous BOOLEAN NOT NULL DEFAULT TRUE,
+  status ENUM('submitted', 'approved', 'archived') NOT NULL DEFAULT 'submitted',
+  review_date DATE NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (reviewee_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (reviewer_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE cv_candidates (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(140) NOT NULL,
+  email VARCHAR(160) NOT NULL,
+  phone VARCHAR(60),
+  position VARCHAR(160) NOT NULL,
+  score INT NOT NULL DEFAULT 0,
+  skills JSON,
+  experience DECIMAL(4, 1) NOT NULL DEFAULT 0,
+  education VARCHAR(255),
+  match_percentage INT NOT NULL DEFAULT 0,
+  status ENUM('pending', 'shortlisted', 'rejected') NOT NULL DEFAULT 'pending',
+  key_strengths JSON,
+  concerns JSON,
+  cv_file_path VARCHAR(255),
+  uploaded_by INT,
+  upload_date DATE NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE TABLE expenses (
@@ -461,6 +507,21 @@ INSERT INTO performance_reviews
 VALUES
   (3, 2, 'Q2 2026', 4.40, 'Improve delivery predictability and mentor junior staff.', 'Strong technical contribution.', 'submitted'),
   (4, 2, 'Q2 2026', 4.10, 'Automate monthly expense reconciliation.', 'Reliable ownership of finance operations.', 'approved');
+
+INSERT INTO peer_reviews
+  (reviewee_id, reviewer_id, project, duration, review_text, communication_rating, technical_rating, teamwork_rating, leadership_rating, strengths, improvements, review_date)
+VALUES
+  (3, 2, 'HR Portal Enhancement', '3 months', 'Excellent collaboration throughout the project. The code reviews were thorough, practical, and easy for the team to act on.', 4, 5, 5, 4, JSON_ARRAY('Strong technical skills', 'Great team player', 'Helpful code reviews'), JSON_ARRAY('Share knowledge more in team meetings'), '2026-05-15'),
+  (3, 4, 'Customer Portal V2', '4 months', 'Good work on frontend components with strong attention to detail. Communication could be a little more proactive, but the contribution was solid.', 3, 4, 4, 3, JSON_ARRAY('Detail-oriented', 'Clean code', 'Good problem solver'), JSON_ARRAY('More proactive communication'), '2026-05-10'),
+  (4, 3, 'Data Pipeline Migration', '3 months', 'Outstanding work identifying issues early and documenting the migration clearly. The handoff was smooth and reliable.', 5, 5, 5, 5, JSON_ARRAY('Proactive problem-solving', 'Excellent documentation', 'Mentorship'), JSON_ARRAY(), '2026-04-28'),
+  (5, 4, 'Marketing Campaign Analytics', '2 months', 'Useful insights and a positive attitude throughout. The next step is deeper analysis and sharper prioritization.', 4, 3, 4, 2, JSON_ARRAY('Good team player', 'Quick learner', 'Positive attitude'), JSON_ARRAY('Deeper analysis', 'More initiative'), '2026-05-05');
+
+INSERT INTO cv_candidates
+  (name, email, phone, position, score, skills, experience, education, match_percentage, status, key_strengths, concerns, upload_date)
+VALUES
+  ('Sarah Johnson', 'sarah.j@email.com', '+1 234 567 8901', 'Senior Full Stack Developer', 94, JSON_ARRAY('React', 'Node.js', 'TypeScript', 'AWS', 'Docker', 'PostgreSQL'), 7, 'M.S. Computer Science - Stanford University', 94, 'shortlisted', JSON_ARRAY('Matched react', 'Matched node.js', 'Matched typescript'), JSON_ARRAY(), '2026-05-28'),
+  ('Michael Chen', 'm.chen@email.com', '+1 234 567 8902', 'Senior Full Stack Developer', 73, JSON_ARRAY('React', 'Python', 'Django', 'MySQL', 'Redis', 'Git'), 6, 'B.S. Software Engineering - MIT', 73, 'pending', JSON_ARRAY('Matched react'), JSON_ARRAY('Missing preferred skills: node.js, typescript, aws'), '2026-05-27'),
+  ('Emily Rodriguez', 'emily.r@email.com', '+1 234 567 8903', 'Senior Full Stack Developer', 68, JSON_ARRAY('Vue.js', 'Node.js', 'MongoDB', 'Express', 'GraphQL'), 5, 'B.S. Computer Science - UC Berkeley', 68, 'rejected', JSON_ARRAY('Matched node.js'), JSON_ARRAY('Missing preferred skills: react, typescript, aws'), '2026-05-26');
 
 INSERT INTO expenses
   (user_id, category, amount, expense_date, description, status, reviewed_by)

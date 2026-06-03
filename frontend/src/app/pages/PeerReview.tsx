@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Star, Search, Download, Calendar, Briefcase, Clock, TrendingUp, Award, AlertCircle, Filter, Users } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
+import api from "../services/api";
 
 interface PeerReview {
   id: string;
@@ -202,10 +203,27 @@ export function PeerReview() {
   const [filterRating, setFilterRating] = useState<number | null>(null);
   const [filterDepartment, setFilterDepartment] = useState<string | null>(null);
   const [selectedReview, setSelectedReview] = useState<PeerReview | null>(null);
+  const [reviews, setReviews] = useState<PeerReview[]>(mockReviews);
 
-  const departments = Array.from(new Set(mockReviews.map(r => r.employeeDepartment)));
+  useEffect(() => {
+    let isMounted = true;
 
-  const filteredReviews = mockReviews.filter(review => {
+    api.get("/peer-reviews/analytics")
+      .then((response) => {
+        if (isMounted && response.data.reviews?.length) {
+          setReviews(response.data.reviews);
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const departments = Array.from(new Set(reviews.map(r => r.employeeDepartment)));
+
+  const filteredReviews = reviews.filter(review => {
     const matchesSearch =
       review.employeeName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       review.project.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -217,13 +235,23 @@ export function PeerReview() {
     return matchesSearch && matchesRating && matchesDepartment;
   });
 
-  const avgRating = (mockReviews.reduce((sum, r) => sum + r.rating, 0) / mockReviews.length).toFixed(1);
-  const totalReviews = mockReviews.length;
+  const avgRating = (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1);
+  const totalReviews = reviews.length;
   const ratingDistribution = [5, 4, 3, 2, 1].map(star => ({
     star,
-    count: mockReviews.filter(r => r.rating === star).length,
-    percentage: (mockReviews.filter(r => r.rating === star).length / totalReviews) * 100
+    count: reviews.filter(r => r.rating === star).length,
+    percentage: totalReviews ? (reviews.filter(r => r.rating === star).length / totalReviews) * 100 : 0
   }));
+
+  const handleExportReport = () => {
+    const blob = new Blob([JSON.stringify(reviews, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `peer-review-report-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="space-y-6">
@@ -234,7 +262,7 @@ export function PeerReview() {
           <p className="text-muted-foreground">Employee feedback and performance insights across all teams</p>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" className="gap-2">
+          <Button variant="outline" className="gap-2" onClick={handleExportReport}>
             <Download className="w-4 h-4" />
             Export Report
           </Button>
@@ -260,7 +288,7 @@ export function PeerReview() {
             </div>
             <p className="text-sm text-muted-foreground">Employees Reviewed</p>
           </div>
-          <p className="text-2xl text-foreground font-bold">{mockReviews.length}</p>
+          <p className="text-2xl text-foreground font-bold">{new Set(reviews.map((review) => review.employeeName)).size}</p>
         </Card>
 
         <Card className="p-4">
