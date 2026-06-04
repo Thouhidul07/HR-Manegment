@@ -25,6 +25,7 @@ router.post(
 
 router.patch(
   "/reviews/:id",
+  authorize("admin", "hr_manager"),
   [
     param("id").isInt({ min: 1 }),
     body("score").optional({ nullable: true }).isFloat({ min: 0, max: 5 }),

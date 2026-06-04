@@ -83,11 +83,11 @@ const mockReceivedReviews: ReceivedReview[] = [
 ];
 
 const mockTeammates: Teammate[] = [
-  { id: "1", name: "Sarah Ahmed", avatar: "SA", role: "Senior Developer", department: "Engineering" },
-  { id: "2", name: "Michael Kim", avatar: "MK", role: "Product Manager", department: "Product" },
-  { id: "3", name: "Jessica Liu", avatar: "JL", role: "Data Engineer", department: "Engineering" },
-  { id: "4", name: "David Patel", avatar: "DP", role: "Marketing Analyst", department: "Marketing" },
-  { id: "5", name: "Emily Rodriguez", avatar: "ER", role: "Security Engineer", department: "Engineering" },
+  { id: "1", name: "Sadia Rahman", avatar: "SR", role: "Senior Developer", department: "Information Technology" },
+  { id: "2", name: "Mahmudul Karim", avatar: "MK", role: "Product Manager", department: "Product" },
+  { id: "3", name: "Jannatul Ferdous", avatar: "JF", role: "Data Engineer", department: "Information Technology" },
+  { id: "4", name: "Rafi Ahmed", avatar: "RA", role: "Marketing Analyst", department: "Marketing" },
+  { id: "5", name: "Tasmia Noor", avatar: "TN", role: "Security Engineer", department: "Information Technology" },
 ];
 
 export function EmployeePeerReview() {

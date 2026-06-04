@@ -5,13 +5,14 @@ import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "../components/ui/Table";
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer } from "recharts";
+import { useAuth } from "../contexts/AuthContext";
 import api from "../services/api";
 
 const fallbackPerformanceData = [
-  { id: 1, employee: "John Doe", avatar: "JD", department: "Engineering", role: "Senior Developer", overall: 4.5, technical: 4.8, communication: 4.2, leadership: 4.6, status: "Excellent" },
-  { id: 2, employee: "Sarah Smith", avatar: "SS", department: "Marketing", role: "Marketing Manager", overall: 4.8, technical: 4.5, communication: 5.0, leadership: 4.9, status: "Outstanding" },
-  { id: 3, employee: "Mike Johnson", avatar: "MJ", department: "Sales", role: "Sales Executive", overall: 3.8, technical: 3.5, communication: 4.2, leadership: 3.7, status: "Good" },
-  { id: 4, employee: "Emily Brown", avatar: "EB", department: "HR", role: "HR Specialist", overall: 4.2, technical: 4.0, communication: 4.5, leadership: 4.1, status: "Excellent" },
+  { id: 1, employee: "Tanvir Hasan", avatar: "TH", department: "Information Technology", role: "Senior Software Engineer", overall: 4.5, technical: 4.8, communication: 4.2, leadership: 4.6, status: "Excellent" },
+  { id: 2, employee: "Nusrat Jahan", avatar: "NJ", department: "Marketing", role: "Marketing Manager", overall: 4.8, technical: 4.5, communication: 5.0, leadership: 4.9, status: "Outstanding" },
+  { id: 3, employee: "Rakibul Islam", avatar: "RI", department: "Sales", role: "Sales Executive", overall: 3.8, technical: 3.5, communication: 4.2, leadership: 3.7, status: "Good" },
+  { id: 4, employee: "Farhana Akter", avatar: "FA", department: "Human Resources", role: "HR Specialist", overall: 4.2, technical: 4.0, communication: 4.5, leadership: 4.1, status: "Excellent" },
 ];
 
 const skillsData = [
@@ -38,8 +39,10 @@ const reviewCycle = [
 ];
 
 export function Performance() {
+  const { user } = useAuth();
   const [performanceData, setPerformanceData] = useState(fallbackPerformanceData);
   const [goals, setGoals] = useState(fallbackGoals);
+  const canManageReviews = user?.role === "admin" || user?.role === "hr_manager";
 
   useEffect(() => {
     let isMounted = true;
@@ -109,10 +112,14 @@ export function Performance() {
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl text-foreground mb-2">Performance Management</h1>
-          <p className="text-muted-foreground">Track and manage employee performance reviews</p>
+          <h1 className="text-2xl text-foreground mb-2">{canManageReviews ? "Performance Management" : "My Performance"}</h1>
+          <p className="text-muted-foreground">
+            {canManageReviews ? "Track and manage employee performance reviews" : "Track your performance reviews, goals, and development progress"}
+          </p>
         </div>
-        <Button variant="primary" onClick={handleStartReview}>Start Review</Button>
+        {canManageReviews && (
+          <Button variant="primary" onClick={handleStartReview}>Start Review</Button>
+        )}
       </div>
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -302,7 +309,7 @@ export function Performance() {
       {/* Performance Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Team Performance Overview</CardTitle>
+          <CardTitle>{canManageReviews ? "Team Performance Overview" : "My Performance Overview"}</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <Table>

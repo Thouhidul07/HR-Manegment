@@ -8,14 +8,14 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from ".
 import { Card } from "../components/ui/Card";
 
 const employees = [
-  { id: 1, name: "John Doe", email: "john.doe@company.com", phone: "+1 234 567 8901", department: "Engineering", role: "Senior Developer", status: "Active", avatar: "JD" },
-  { id: 2, name: "Sarah Smith", email: "sarah.smith@company.com", phone: "+1 234 567 8902", department: "Marketing", role: "Marketing Manager", status: "Active", avatar: "SS" },
-  { id: 3, name: "Mike Johnson", email: "mike.johnson@company.com", phone: "+1 234 567 8903", department: "Sales", role: "Sales Executive", status: "Active", avatar: "MJ" },
-  { id: 4, name: "Emily Brown", email: "emily.brown@company.com", phone: "+1 234 567 8904", department: "HR", role: "HR Specialist", status: "Active", avatar: "EB" },
-  { id: 5, name: "David Wilson", email: "david.wilson@company.com", phone: "+1 234 567 8905", department: "Finance", role: "Financial Analyst", status: "On Leave", avatar: "DW" },
-  { id: 6, name: "Lisa Anderson", email: "lisa.anderson@company.com", phone: "+1 234 567 8906", department: "Engineering", role: "UX Designer", status: "Active", avatar: "LA" },
-  { id: 7, name: "James Taylor", email: "james.taylor@company.com", phone: "+1 234 567 8907", department: "Sales", role: "Sales Manager", status: "Active", avatar: "JT" },
-  { id: 8, name: "Emma Martinez", email: "emma.martinez@company.com", phone: "+1 234 567 8908", department: "Marketing", role: "Content Writer", status: "Active", avatar: "EM" },
+  { id: 1, name: "Tanvir Hasan", email: "tanvir.hasan@hrspace.local", phone: "+8801712345678", department: "Information Technology", role: "Senior Software Engineer", status: "Active", avatar: "TH" },
+  { id: 2, name: "Nusrat Jahan", email: "nusrat.jahan@hrspace.local", phone: "+8801812345678", department: "Marketing", role: "Marketing Manager", status: "Active", avatar: "NJ" },
+  { id: 3, name: "Rakibul Islam", email: "rakibul.islam@hrspace.local", phone: "+8801912345678", department: "Sales", role: "Sales Executive", status: "Active", avatar: "RI" },
+  { id: 4, name: "Farhana Akter", email: "farhana.akter@hrspace.local", phone: "+8801612345678", department: "Human Resources", role: "HR Specialist", status: "Active", avatar: "FA" },
+  { id: 5, name: "Mehedi Hasan", email: "mehedi.hasan@hrspace.local", phone: "+8801512345678", department: "Finance", role: "Accounts Officer", status: "On Leave", avatar: "MH" },
+  { id: 6, name: "Sadia Rahman", email: "sadia.rahman@hrspace.local", phone: "+8801312345678", department: "Information Technology", role: "UX Designer", status: "Active", avatar: "SR" },
+  { id: 7, name: "Arif Hossain", email: "arif.hossain@hrspace.local", phone: "+8801412345678", department: "Sales", role: "Sales Manager", status: "Active", avatar: "AH" },
+  { id: 8, name: "Sharmin Sultana", email: "sharmin.sultana@hrspace.local", phone: "+8801811112222", department: "Marketing", role: "Content Writer", status: "Active", avatar: "SS" },
 ];
 
 export function EmployeeManagement() {
@@ -86,10 +86,10 @@ export function EmployeeManagement() {
               className="px-4 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
             >
               <option value="all">All Departments</option>
-              <option value="Engineering">Engineering</option>
+              <option value="Information Technology">Information Technology</option>
               <option value="Marketing">Marketing</option>
               <option value="Sales">Sales</option>
-              <option value="HR">HR</option>
+              <option value="Human Resources">Human Resources</option>
               <option value="Finance">Finance</option>
             </select>
             <Button variant="outline" className="gap-2">

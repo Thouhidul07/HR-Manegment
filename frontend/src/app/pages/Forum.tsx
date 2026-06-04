@@ -12,6 +12,7 @@ import { TrendingTopics } from "../components/forum/TrendingTopics";
 import { CreatePostModal } from "../components/forum/CreatePostModal";
 import { DiscussionCard } from "../components/forum/DiscussionCard";
 import { SentimentWidget } from "../components/forum/SentimentWidget";
+import { useAuth } from "../contexts/AuthContext";
 import api from "../services/api";
 
 const categories = [
@@ -128,6 +129,9 @@ const discussions = [
 ];
 
 export function Forum() {
+  const { user } = useAuth();
+  const canModerateForum = user?.role === "hr_manager";
+  const canCreatePost = user?.role === "employee" || user?.role === "hr_manager";
   const [discussionList, setDiscussionList] = useState(discussions);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -162,6 +166,7 @@ export function Forum() {
   );
 
   const handleCreatePost = async (post: any) => {
+    if (!canCreatePost) return;
     const response = await api.post("/forum/posts", post);
     setDiscussionList((currentDiscussions) => [response.data.post, ...currentDiscussions]);
   };
@@ -177,20 +182,24 @@ export function Forum() {
           </p>
         </div>
         <div className="flex gap-3">
-          <Link to="/dashboard/forum/moderation">
-            <Button variant="outline" className="gap-2">
-              <Shield className="w-4 h-4" />
-              Moderation
+          {canModerateForum && (
+            <Link to="/dashboard/forum/moderation">
+              <Button variant="outline" className="gap-2">
+                <Shield className="w-4 h-4" />
+                Moderation
+              </Button>
+            </Link>
+          )}
+          {canCreatePost && (
+            <Button
+              variant="primary"
+              className="gap-2 bg-[var(--action)] hover:bg-[var(--action)]/90"
+              onClick={() => setIsCreateModalOpen(true)}
+            >
+              <Plus className="w-4 h-4" />
+              New Post
             </Button>
-          </Link>
-          <Button
-            variant="primary"
-            className="gap-2 bg-[var(--action)] hover:bg-[var(--action)]/90"
-            onClick={() => setIsCreateModalOpen(true)}
-          >
-            <Plus className="w-4 h-4" />
-            New Post
-          </Button>
+          )}
         </div>
       </div>
 
@@ -390,7 +399,7 @@ export function Forum() {
 
       {/* Create Post Modal */}
       <CreatePostModal
-        isOpen={isCreateModalOpen}
+        isOpen={canCreatePost && isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onCreate={handleCreatePost}
       />

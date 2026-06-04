@@ -6,7 +6,7 @@ import { Button } from "../ui/Button";
 const accessRequests = [
   {
     id: 1,
-    user: { name: "David Thompson", email: "david.t@company.com", avatar: "DT" },
+    user: { name: "Rafi Ahmed", email: "rafi.ahmed@hrspace.local", avatar: "RA" },
     requestedRole: "HR Manager",
     currentRole: "Recruiter",
     reason: "Need access to employee records for new recruitment analytics project",
@@ -16,7 +16,7 @@ const accessRequests = [
   },
   {
     id: 2,
-    user: { name: "Lisa Anderson", email: "lisa.a@company.com", avatar: "LA" },
+    user: { name: "Sadia Rahman", email: "sadia.rahman@hrspace.local", avatar: "SR" },
     requestedRole: "Finance Officer",
     currentRole: "Employee Manager",
     reason: "Temporary access required for Q2 budget planning",
@@ -26,7 +26,7 @@ const accessRequests = [
   },
   {
     id: 3,
-    user: { name: "James Wilson", email: "james.w@company.com", avatar: "JW" },
+    user: { name: "Mahmudul Karim", email: "mahmudul.karim@hrspace.local", avatar: "MK" },
     requestedRole: "Super Admin",
     currentRole: "HR Manager",
     reason: "System migration and configuration updates needed",
@@ -36,7 +36,7 @@ const accessRequests = [
   },
   {
     id: 4,
-    user: { name: "Maria Garcia", email: "maria.g@company.com", avatar: "MG" },
+    user: { name: "Jannatul Ferdous", email: "jannatul.ferdous@hrspace.local", avatar: "JF" },
     requestedRole: "Employee Manager",
     currentRole: "Recruiter",
     reason: "Promotion to team lead position",
@@ -49,18 +49,18 @@ const accessRequests = [
 const recentDecisions = [
   {
     id: 1,
-    user: "Alexandra Lee",
+    user: "Sharmin Sultana",
     role: "Finance Officer",
     status: "approved",
-    decidedBy: "Sarah Johnson",
+    decidedBy: "Farhana Akter",
     decidedDate: "May 16, 2026"
   },
   {
     id: 2,
-    user: "Christopher Brown",
+    user: "Arif Hossain",
     role: "Employee Manager",
     status: "rejected",
-    decidedBy: "Michael Chen",
+    decidedBy: "Mahmudul Karim",
     decidedDate: "May 15, 2026"
   },
 ];

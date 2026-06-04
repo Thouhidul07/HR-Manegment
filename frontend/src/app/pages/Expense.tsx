@@ -9,33 +9,42 @@ import { useAuth } from "../contexts/AuthContext";
 import api from "../services/api";
 
 const fallbackExpenseClaims = [
-  { id: 1, employee: "John Doe", avatar: "JD", type: "Travel", amount: 450, date: "Apr 2, 2026", status: "Pending", description: "Client meeting in NYC" },
-  { id: 2, employee: "Sarah Smith", avatar: "SS", type: "Meals", amount: 85, date: "Apr 1, 2026", status: "Approved", description: "Team lunch" },
-  { id: 3, employee: "Mike Johnson", avatar: "MJ", type: "Accommodation", amount: 320, date: "Mar 30, 2026", status: "Pending", description: "Hotel stay - business trip" },
-  { id: 4, employee: "Emily Brown", avatar: "EB", type: "Office Supplies", amount: 125, date: "Mar 29, 2026", status: "Approved", description: "Office equipment" },
-  { id: 5, employee: "David Wilson", avatar: "DW", type: "Travel", amount: 680, date: "Mar 28, 2026", status: "Rejected", description: "Conference attendance" },
-  { id: 6, employee: "Lisa Anderson", avatar: "LA", type: "Training", amount: 1200, date: "Mar 27, 2026", status: "Approved", description: "Professional certification" },
+  { id: 1, employee: "Tanvir Hasan", avatar: "TH", type: "Travel", amount: 4500, date: "Apr 2, 2026", status: "Pending", description: "Client meeting in Gulshan, Dhaka" },
+  { id: 2, employee: "Nusrat Jahan", avatar: "NJ", type: "Meals", amount: 850, date: "Apr 1, 2026", status: "Approved", description: "Team lunch" },
+  { id: 3, employee: "Rakibul Islam", avatar: "RI", type: "Accommodation", amount: 3200, date: "Mar 30, 2026", status: "Pending", description: "Hotel stay - Chattogram visit" },
+  { id: 4, employee: "Farhana Akter", avatar: "FA", type: "Office Supplies", amount: 1250, date: "Mar 29, 2026", status: "Approved", description: "Office equipment" },
+  { id: 5, employee: "Mehedi Hasan", avatar: "MH", type: "Travel", amount: 6800, date: "Mar 28, 2026", status: "Rejected", description: "Training visit to Sylhet" },
+  { id: 6, employee: "Sadia Rahman", avatar: "SR", type: "Training", amount: 12000, date: "Mar 27, 2026", status: "Approved", description: "Professional certification" },
 ];
 
 const expenseByCategory = [
-  { name: "Travel", value: 2450, color: "var(--chart-1)" },
-  { name: "Meals", value: 850, color: "var(--chart-2)" },
-  { name: "Accommodation", value: 1200, color: "var(--chart-3)" },
-  { name: "Training", value: 3200, color: "var(--chart-4)" },
-  { name: "Office Supplies", value: 680, color: "var(--chart-5)" },
+  { name: "Travel", value: 24500, color: "var(--chart-1)" },
+  { name: "Meals", value: 8500, color: "var(--chart-2)" },
+  { name: "Accommodation", value: 12000, color: "var(--chart-3)" },
+  { name: "Training", value: 32000, color: "var(--chart-4)" },
+  { name: "Office Supplies", value: 6800, color: "var(--chart-5)" },
 ];
 
 const recentActivity = [
-  { id: 1, action: "Expense approved", employee: "Sarah Smith", amount: 85, time: "2 hours ago" },
-  { id: 2, action: "New expense submitted", employee: "John Doe", amount: 450, time: "4 hours ago" },
-  { id: 3, action: "Expense rejected", employee: "David Wilson", amount: 680, time: "1 day ago" },
+  { id: 1, action: "Expense approved", employee: "Nusrat Jahan", amount: 850, time: "2 hours ago" },
+  { id: 2, action: "New expense submitted", employee: "Tanvir Hasan", amount: 4500, time: "4 hours ago" },
+  { id: 3, action: "Expense rejected", employee: "Mehedi Hasan", amount: 6800, time: "1 day ago" },
 ];
+
+const formatCurrencyBDT = (value: number) =>
+  value.toLocaleString("en-BD", {
+    style: "currency",
+    currency: "BDT",
+    maximumFractionDigits: 0,
+  });
 
 export function Expense() {
   const { user } = useAuth();
   const [expenseClaims, setExpenseClaims] = useState(fallbackExpenseClaims);
   const [activityList, setActivityList] = useState(recentActivity);
   const [activeFilter, setActiveFilter] = useState("All");
+  const canReviewExpenses = user?.role === "admin" || user?.role === "hr_manager";
+  const canSubmitExpense = user?.role === "employee";
 
   useEffect(() => {
     let isMounted = true;
@@ -54,6 +63,8 @@ export function Expense() {
   }, []);
 
   const isEmployee = user?.role === "employee";
+  const pageTitle = isEmployee ? "My Expenses" : "Expense Management";
+  const pageSubtitle = isEmployee ? "Submit and track your expense claims" : "Review and manage employee expense claims";
   const initials = user?.name
     .split(" ")
     .map((part) => part[0])
@@ -96,7 +107,7 @@ export function Expense() {
         claim.employee,
         claim.type,
         claim.description,
-        `$${claim.amount}`,
+        formatCurrencyBDT(claim.amount),
         claim.date,
         claim.status,
       ].map((value) => `"${String(value).replace(/"/g, '""')}"`).join(",")
@@ -111,6 +122,7 @@ export function Expense() {
   };
 
   const handleSubmitExpense = async () => {
+    if (!canSubmitExpense) return;
     const type = window.prompt("Expense type", "Travel");
     const amount = window.prompt("Amount", "0");
     const description = window.prompt("Description", "");
@@ -162,18 +174,20 @@ export function Expense() {
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl text-foreground mb-2">Expense Management</h1>
-          <p className="text-muted-foreground">Submit and manage expense claims</p>
+          <h1 className="text-2xl text-foreground mb-2">{pageTitle}</h1>
+          <p className="text-muted-foreground">{pageSubtitle}</p>
         </div>
         <div className="flex gap-3">
           <Button variant="outline" className="gap-2" onClick={handleExportExpenses}>
             <Download className="w-4 h-4" />
             Export
           </Button>
-          <Button variant="primary" className="gap-2" onClick={handleSubmitExpense}>
-            <Plus className="w-4 h-4" />
-            Submit Expense
-          </Button>
+          {canSubmitExpense && (
+            <Button variant="primary" className="gap-2" onClick={handleSubmitExpense}>
+              <Plus className="w-4 h-4" />
+              Submit Expense
+            </Button>
+          )}
         </div>
       </div>
 
@@ -186,7 +200,7 @@ export function Expense() {
             </div>
             <p className="text-sm text-muted-foreground">Total Claims</p>
           </div>
-          <p className="text-2xl text-foreground">${totalClaims.toLocaleString()}</p>
+          <p className="text-2xl text-foreground">{formatCurrencyBDT(totalClaims)}</p>
           <p className="text-xs text-muted-foreground mt-1">This month</p>
         </Card>
 
@@ -197,7 +211,7 @@ export function Expense() {
             </div>
             <p className="text-sm text-muted-foreground">Approved</p>
           </div>
-          <p className="text-2xl text-foreground">${approvedClaims.toLocaleString()}</p>
+          <p className="text-2xl text-foreground">{formatCurrencyBDT(approvedClaims)}</p>
           <p className="text-xs text-muted-foreground mt-1">Ready for payment</p>
         </Card>
 
@@ -208,13 +222,13 @@ export function Expense() {
             </div>
             <p className="text-sm text-muted-foreground">Pending</p>
           </div>
-          <p className="text-2xl text-foreground">${pendingClaims.toLocaleString()}</p>
+          <p className="text-2xl text-foreground">{formatCurrencyBDT(pendingClaims)}</p>
           <p className="text-xs text-muted-foreground mt-1">Awaiting approval</p>
         </Card>
 
         <Card className="p-4">
           <p className="text-sm text-muted-foreground">Avg. Claim Amount</p>
-          <p className="text-2xl text-foreground mt-1">${Math.round(totalClaims / visibleClaims.length || 0)}</p>
+          <p className="text-2xl text-foreground mt-1">{formatCurrencyBDT(Math.round(totalClaims / visibleClaims.length || 0))}</p>
         </Card>
       </div>
 
@@ -248,7 +262,7 @@ export function Expense() {
                     border: "1px solid var(--border)",
                     borderRadius: "8px",
                   }}
-                  formatter={(value) => `$${value.toLocaleString()}`}
+                  formatter={(value) => formatCurrencyBDT(Number(value))}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -259,7 +273,7 @@ export function Expense() {
                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: category.color }} />
                     <span className="text-foreground">{category.name}</span>
                   </div>
-                  <span className="text-muted-foreground">${category.value.toLocaleString()}</span>
+                  <span className="text-muted-foreground">{formatCurrencyBDT(category.value)}</span>
                 </div>
               ))}
             </div>
@@ -283,7 +297,7 @@ export function Expense() {
                     <div>
                       <p className="text-sm text-foreground">{activity.action}</p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {activity.employee} • ${activity.amount}
+                        {activity.employee} • {formatCurrencyBDT(activity.amount)}
                       </p>
                     </div>
                   </div>
@@ -340,7 +354,7 @@ export function Expense() {
                   <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
                     {claim.description}
                   </TableCell>
-                  <TableCell className="text-sm">${claim.amount}</TableCell>
+                  <TableCell className="text-sm">{formatCurrencyBDT(claim.amount)}</TableCell>
                   <TableCell className="text-sm">{claim.date}</TableCell>
                   <TableCell>
                     <Badge
@@ -356,7 +370,7 @@ export function Expense() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {claim.status === "Pending" && (
+                    {canReviewExpenses && claim.status === "Pending" && (
                       <div className="flex gap-2">
                         <Button variant="ghost" size="sm" className="text-[var(--success)]" onClick={() => handleStatusChange(claim.id, "Approved")}>
                           Approve
@@ -366,7 +380,7 @@ export function Expense() {
                         </Button>
                       </div>
                     )}
-                    {claim.status !== "Pending" && (
+                    {(!canReviewExpenses || claim.status !== "Pending") && (
                       <Button variant="ghost" size="sm">
                         View
                       </Button>

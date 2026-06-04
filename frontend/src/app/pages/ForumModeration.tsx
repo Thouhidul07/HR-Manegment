@@ -8,6 +8,7 @@ import {
 import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
+import { useAuth } from "../contexts/AuthContext";
 import api from "../services/api";
 
 const reportedContent = [
@@ -98,6 +99,8 @@ const activityLog = [
 ];
 
 export function ForumModeration() {
+  const { user } = useAuth();
+  const backPath = user?.role === "admin" ? "/dashboard" : "/dashboard/forum";
   const [activeTab, setActiveTab] = useState<'pending' | 'reviewed' | 'activity'>('pending');
   const [selectedReport, setSelectedReport] = useState<number | null>(null);
   const [reports, setReports] = useState(reportedContent);
@@ -114,7 +117,7 @@ export function ForumModeration() {
           type: report.target_type,
           title: `${report.target_type} #${report.target_id}`,
           reportReason: report.reason,
-          reporter: report.reporter_name || "Anonymous User Report",
+          reporter: "Anonymous User Report",
           timestamp: new Date(report.created_at).toLocaleString(),
           status: report.status === "pending" ? "pending" : "reviewed",
           action: report.action_taken,
@@ -154,7 +157,7 @@ export function ForumModeration() {
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <Link to="/dashboard/forum">
+            <Link to={backPath}>
               <Button variant="ghost" size="sm" className="gap-2">
                 <ArrowLeft className="w-4 h-4" />
                 Back

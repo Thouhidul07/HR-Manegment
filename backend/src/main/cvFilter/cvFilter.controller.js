@@ -156,11 +156,11 @@ async function seedCandidatesIfEmpty() {
   }
 
   const seedCandidates = [
-    ["Sarah Johnson", "sarah.j@email.com", "+1 234 567 8901", "Senior Full Stack Developer", ["React", "Node.js", "TypeScript", "AWS", "Docker", "PostgreSQL"], 7, "M.S. Computer Science - Stanford University"],
-    ["Michael Chen", "m.chen@email.com", "+1 234 567 8902", "Senior Full Stack Developer", ["React", "Python", "Django", "MySQL", "Redis", "Git"], 6, "B.S. Software Engineering - MIT"],
-    ["Emily Rodriguez", "emily.r@email.com", "+1 234 567 8903", "Senior Full Stack Developer", ["Vue.js", "Node.js", "MongoDB", "Express", "GraphQL"], 5, "B.S. Computer Science - UC Berkeley"],
-    ["David Kim", "d.kim@email.com", "+1 234 567 8904", "Senior Full Stack Developer", ["Angular", "Java", "Spring Boot", "Oracle", "Jenkins"], 8, "M.S. Information Systems - Carnegie Mellon"],
-    ["Robert Lee", "r.lee@email.com", "+1 234 567 8906", "Senior Full Stack Developer", ["HTML", "CSS", "JavaScript", "WordPress", "Bootstrap"], 3, "B.A. Information Technology - State University"],
+    ["Mahmudul Karim", "mahmudul.karim@hrspace.local", "+8801711122233", "Senior Full Stack Developer", ["React", "Node.js", "TypeScript", "AWS", "Docker", "PostgreSQL"], 7, "M.S. Computer Science - BUET"],
+    ["Jannatul Ferdous", "jannatul.ferdous@hrspace.local", "+8801811122233", "Senior Full Stack Developer", ["React", "Python", "Django", "MySQL", "Redis", "Git"], 6, "B.S. Software Engineering - University of Dhaka"],
+    ["Rafi Ahmed", "rafi.ahmed@hrspace.local", "+8801911122233", "Senior Full Stack Developer", ["Vue.js", "Node.js", "MongoDB", "Express", "GraphQL"], 5, "B.S. Computer Science - North South University"],
+    ["Tasmia Noor", "tasmia.noor@hrspace.local", "+8801611122233", "Senior Full Stack Developer", ["Angular", "Java", "Spring Boot", "Oracle", "Jenkins"], 8, "M.S. Information Systems - BRAC University"],
+    ["Arif Hossain", "arif.hossain@hrspace.local", "+8801311122233", "Senior Full Stack Developer", ["HTML", "CSS", "JavaScript", "WordPress", "Bootstrap"], 3, "B.Sc. Information Technology - East West University"],
   ];
 
   for (const candidate of seedCandidates) {

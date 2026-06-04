@@ -463,7 +463,7 @@ const PricingSection = () => {
   const plans = [
     {
       name: 'Starter',
-      price: '49',
+      price: '4,900',
       period: 'month',
       description: 'Perfect for small teams getting started',
       features: [
@@ -480,7 +480,7 @@ const PricingSection = () => {
     },
     {
       name: 'Professional',
-      price: '99',
+      price: '9,900',
       period: 'month',
       description: 'For growing teams that need more',
       features: [
@@ -550,7 +550,7 @@ const PricingSection = () => {
 
               <div className="mb-8">
                 <div className="flex items-baseline gap-1">
-                  {plan.price !== 'Custom' && <span className="text-lg text-muted-foreground">$</span>}
+                  {plan.price !== 'Custom' && <span className="text-lg text-muted-foreground">BDT</span>}
                   <span className="text-5xl font-bold bg-gradient-to-r from-[#543884] to-[#EC4176] bg-clip-text text-transparent">
                     {plan.price}
                   </span>

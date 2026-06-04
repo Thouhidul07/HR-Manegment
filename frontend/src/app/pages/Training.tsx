@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
+import { useAuth } from "../contexts/AuthContext";
 import api from "../services/api";
 
 const fallbackCourses = [
@@ -14,7 +15,7 @@ const fallbackCourses = [
     enrolled: 45,
     completed: 32,
     progress: 71,
-    instructor: "Sarah Johnson",
+    instructor: "Farhana Akter",
     level: "Intermediate",
   },
   {
@@ -25,7 +26,7 @@ const fallbackCourses = [
     enrolled: 78,
     completed: 45,
     progress: 58,
-    instructor: "Mike Chen",
+    instructor: "Tanvir Hasan",
     level: "Advanced",
   },
   {
@@ -36,7 +37,7 @@ const fallbackCourses = [
     enrolled: 92,
     completed: 88,
     progress: 96,
-    instructor: "Emily Brown",
+    instructor: "Nusrat Jahan",
     level: "Beginner",
   },
   {
@@ -47,7 +48,7 @@ const fallbackCourses = [
     enrolled: 56,
     completed: 28,
     progress: 50,
-    instructor: "David Lee",
+    instructor: "Mehedi Hasan",
     level: "Intermediate",
   },
 ];
@@ -65,9 +66,14 @@ const upcomingSchedule = [
 ];
 
 export function Training() {
+  const { user } = useAuth();
   const [courses, setCourses] = useState(fallbackCourses);
   const [myTrainings, setMyTrainings] = useState(fallbackMyTrainings);
   const [activeCategory, setActiveCategory] = useState("All Categories");
+  const canManageTraining = user?.role === "admin" || user?.role === "hr_manager";
+  const canUseTrainingSelfService = user?.role === "employee";
+  const pageTitle = canManageTraining ? "Training & Development" : "My Training";
+  const pageSubtitle = canManageTraining ? "Manage employee training programs and track progress" : "View available trainings and track your progress";
 
   useEffect(() => {
     let isMounted = true;
@@ -140,6 +146,7 @@ export function Training() {
   };
 
   const handleContinueLearning = async (training) => {
+    if (!canUseTrainingSelfService) return;
     const nextProgress = Math.min(100, Number(training.progress || 0) + 10);
     const response = await api.patch(`/training/enrollments/${training.id}/progress`, {
       progress: nextProgress,
@@ -151,6 +158,7 @@ export function Training() {
   };
 
   const handleStartCourse = async (course) => {
+    if (!canUseTrainingSelfService) return;
     const response = await api.post(`/training/${course.id}/enroll`);
     const enrollment = response.data.enrollment;
 
@@ -167,10 +175,12 @@ export function Training() {
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl text-foreground mb-2">Training & Development</h1>
-          <p className="text-muted-foreground">Manage employee training programs and track progress</p>
+          <h1 className="text-2xl text-foreground mb-2">{pageTitle}</h1>
+          <p className="text-muted-foreground">{pageSubtitle}</p>
         </div>
-        <Button variant="primary" onClick={handleCreateTraining}>Create Training</Button>
+        {canManageTraining && (
+          <Button variant="primary" onClick={handleCreateTraining}>Create Training</Button>
+        )}
       </div>
 
       {/* Stats */}
@@ -221,7 +231,7 @@ export function Training() {
         {/* My Current Trainings */}
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>My Current Trainings</CardTitle>
+            <CardTitle>{canUseTrainingSelfService ? "My Current Trainings" : "Employee Training Progress"}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -254,7 +264,7 @@ export function Training() {
                       />
                     </div>
                   </div>
-                  {training.status === "In Progress" && (
+                  {canUseTrainingSelfService && training.status === "In Progress" && (
                     <Button variant="outline" size="sm" className="mt-3 gap-2" onClick={() => handleContinueLearning(training)}>
                       <Play className="w-3 h-3" />
                       Continue Learning
@@ -361,10 +371,12 @@ export function Training() {
                   </div>
                 </div>
 
-                <Button variant="primary" className="w-full gap-2" onClick={() => handleStartCourse(course)}>
-                  <Play className="w-4 h-4" />
-                  Start Course
-                </Button>
+                {canUseTrainingSelfService && (
+                  <Button variant="primary" className="w-full gap-2" onClick={() => handleStartCourse(course)}>
+                    <Play className="w-4 h-4" />
+                    Start Course
+                  </Button>
+                )}
               </div>
             ))}
           </div>

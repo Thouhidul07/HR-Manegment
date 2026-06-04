@@ -201,7 +201,7 @@ export function Register() {
                     <User className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-[#9A77CF]" />
                     <input
                       {...register("fullName", { required: "Full name is required", minLength: 2 })}
-                      placeholder="John Doe"
+                      placeholder="Tanvir Hasan"
                       className="w-full pl-10 pr-4 py-3 rounded-xl border bg-white dark:bg-[#251942] text-[#262254] dark:text-white placeholder:text-[#7c6b9e] focus:outline-none focus:ring-2 focus:ring-[#9A77CF] focus:border-transparent"
                       style={{ borderColor: 'rgba(84, 56, 132, 0.2)' }}
                     />

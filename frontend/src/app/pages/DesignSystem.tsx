@@ -200,21 +200,21 @@ export function DesignSystem() {
             </TableHeader>
             <TableBody>
               <TableRow>
-                <TableCell>John Doe</TableCell>
+                <TableCell>Tanvir Hasan</TableCell>
                 <TableCell>Developer</TableCell>
                 <TableCell>
                   <Badge variant="success">Active</Badge>
                 </TableCell>
               </TableRow>
               <TableRow>
-                <TableCell>Sarah Smith</TableCell>
+                <TableCell>Nusrat Jahan</TableCell>
                 <TableCell>Designer</TableCell>
                 <TableCell>
                   <Badge variant="success">Active</Badge>
                 </TableCell>
               </TableRow>
               <TableRow>
-                <TableCell>Mike Johnson</TableCell>
+                <TableCell>Rakibul Islam</TableCell>
                 <TableCell>Manager</TableCell>
                 <TableCell>
                   <Badge variant="warning">On Leave</Badge>

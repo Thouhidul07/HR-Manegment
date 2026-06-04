@@ -8,6 +8,7 @@ router.use(protect);
 router.get("/", listLeaveRequests);
 router.post(
   "/",
+  authorize("employee"),
   [
     body("leaveType").trim().notEmpty(),
     body("startDate").isISO8601(),

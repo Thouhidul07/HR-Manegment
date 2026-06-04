@@ -27,11 +27,11 @@ type LeaveRequest = {
 };
 
 const leaveRequests: LeaveRequest[] = [
-  { id: 1, employee: "John Doe", avatar: "JD", type: "Sick Leave", from: "Apr 5, 2026", to: "Apr 6, 2026", days: 2, status: "Pending", reason: "Medical checkup" },
-  { id: 2, employee: "Sarah Smith", avatar: "SS", type: "Vacation", from: "Apr 10, 2026", to: "Apr 15, 2026", days: 5, status: "Approved", reason: "Family vacation" },
-  { id: 3, employee: "Mike Johnson", avatar: "MJ", type: "Personal", from: "Apr 8, 2026", to: "Apr 8, 2026", days: 1, status: "Pending", reason: "Personal matters" },
-  { id: 4, employee: "Emily Brown", avatar: "EB", type: "Sick Leave", from: "Apr 3, 2026", to: "Apr 4, 2026", days: 2, status: "Approved", reason: "Flu" },
-  { id: 5, employee: "David Wilson", avatar: "DW", type: "Vacation", from: "Apr 20, 2026", to: "Apr 25, 2026", days: 5, status: "Rejected", reason: "Holiday trip" },
+  { id: 1, employee: "Tanvir Hasan", avatar: "TH", type: "Sick Leave", from: "Apr 5, 2026", to: "Apr 6, 2026", days: 2, status: "Pending", reason: "Medical checkup" },
+  { id: 2, employee: "Nusrat Jahan", avatar: "NJ", type: "Annual Leave", from: "Apr 10, 2026", to: "Apr 15, 2026", days: 5, status: "Approved", reason: "Family visit to Khulna" },
+  { id: 3, employee: "Rakibul Islam", avatar: "RI", type: "Personal", from: "Apr 8, 2026", to: "Apr 8, 2026", days: 1, status: "Pending", reason: "Personal matters" },
+  { id: 4, employee: "Farhana Akter", avatar: "FA", type: "Sick Leave", from: "Apr 3, 2026", to: "Apr 4, 2026", days: 2, status: "Approved", reason: "Flu" },
+  { id: 5, employee: "Mehedi Hasan", avatar: "MH", type: "Annual Leave", from: "Apr 20, 2026", to: "Apr 25, 2026", days: 5, status: "Rejected", reason: "Family trip to Sylhet" },
 ];
 
 const leaveBalances = [
@@ -42,10 +42,10 @@ const leaveBalances = [
 ];
 
 const upcomingLeaves = [
-  { date: "Apr 5-6", employee: "John Doe", type: "Sick Leave", avatar: "JD" },
-  { date: "Apr 8", employee: "Mike Johnson", type: "Personal", avatar: "MJ" },
-  { date: "Apr 10-15", employee: "Sarah Smith", type: "Vacation", avatar: "SS" },
-  { date: "Apr 12-13", employee: "Lisa Anderson", type: "Sick Leave", avatar: "LA" },
+  { date: "Apr 5-6", employee: "Tanvir Hasan", type: "Sick Leave", avatar: "TH" },
+  { date: "Apr 8", employee: "Rakibul Islam", type: "Personal", avatar: "RI" },
+  { date: "Apr 10-15", employee: "Nusrat Jahan", type: "Annual Leave", avatar: "NJ" },
+  { date: "Apr 12-13", employee: "Sadia Rahman", type: "Sick Leave", avatar: "SR" },
 ];
 
 const leaveFilters: LeaveFilter[] = ["All", "Pending", "Approved", "Rejected"];
@@ -93,6 +93,9 @@ export function LeaveManagement() {
     reason: "",
   });
   const isEmployee = user?.role === "employee";
+  const canRequestLeave = isEmployee;
+  const pageTitle = isEmployee ? "My Leave" : "Leave Management";
+  const pageSubtitle = isEmployee ? "Request leave and track your balances" : "Manage employee leave requests and balances";
   const initials = user?.name
     .split(" ")
     .map((part) => part[0])
@@ -122,16 +125,16 @@ export function LeaveManagement() {
   const approvedThisMonthCount = visibleLeaveRequests.filter((request) => request.status === "Approved").length;
   const visibleUpcomingLeaves = isEmployee
     ? upcomingLeaveList
-      .filter((leave) => leave.employee === "John Doe" || leave.employee === (user?.name || "Employee User"))
+      .filter((leave) => leave.employee === "Tanvir Hasan" || leave.employee === (user?.name || "Employee User"))
       .slice(0, 3)
       .map((leave) => ({ ...leave, employee: user?.name || "Employee User", avatar: initials }))
     : upcomingLeaveList;
 
   useEffect(() => {
-    if (location.state?.openRequestLeave) {
+    if (canRequestLeave && location.state?.openRequestLeave) {
       setIsRequestModalOpen(true);
     }
-  }, [location.state]);
+  }, [canRequestLeave, location.state]);
 
   useEffect(() => {
     let isMounted = true;
@@ -153,6 +156,7 @@ export function LeaveManagement() {
   };
 
   const handleSubmitLeaveRequest = async () => {
+    if (!canRequestLeave) return;
     const response = await api.post("/leave", {
       leaveType: leaveForm.type,
       startDate: leaveForm.from,
@@ -187,13 +191,15 @@ export function LeaveManagement() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl text-foreground mb-2">Leave Management</h1>
-          <p className="text-muted-foreground">Manage employee leave requests and balances</p>
+          <h1 className="text-2xl text-foreground mb-2">{pageTitle}</h1>
+          <p className="text-muted-foreground">{pageSubtitle}</p>
         </div>
-        <Button variant="primary" className="gap-2" onClick={() => setIsRequestModalOpen(true)}>
-          <Plus className="w-4 h-4" />
-          Request Leave
-        </Button>
+        {canRequestLeave && (
+          <Button variant="primary" className="gap-2" onClick={() => setIsRequestModalOpen(true)}>
+            <Plus className="w-4 h-4" />
+            Request Leave
+          </Button>
+        )}
       </div>
 
       {showSubmittedMessage && (
@@ -225,7 +231,7 @@ export function LeaveManagement() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Your Leave Balance</CardTitle>
+            <CardTitle>{isEmployee ? "Your Leave Balance" : "Leave Balances"}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
@@ -357,7 +363,7 @@ export function LeaveManagement() {
       </Card>
 
       <Modal
-        isOpen={isRequestModalOpen}
+        isOpen={canRequestLeave && isRequestModalOpen}
         onClose={() => setIsRequestModalOpen(false)}
         title="Request Leave"
         footer={(

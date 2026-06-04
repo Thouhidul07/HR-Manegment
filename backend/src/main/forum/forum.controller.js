@@ -324,6 +324,26 @@ const createReply = asyncHandler(async (req, res) => {
   res.status(201).json({ reply: mapReply(rows[0]) });
 });
 
+const deletePost = asyncHandler(async (req, res) => {
+  await ensureForumTables();
+  const [result] = await query("UPDATE forum_posts SET status = 'hidden' WHERE id = ?", [req.params.id]);
+  if (!result.affectedRows) {
+    return res.status(404).json({ message: "Forum post not found" });
+  }
+
+  res.json({ message: "Forum post removed" });
+});
+
+const deleteReply = asyncHandler(async (req, res) => {
+  await ensureForumTables();
+  const [result] = await query("UPDATE forum_replies SET status = 'hidden' WHERE id = ?", [req.params.id]);
+  if (!result.affectedRows) {
+    return res.status(404).json({ message: "Forum reply not found" });
+  }
+
+  res.json({ message: "Forum reply removed" });
+});
+
 const toggleReaction = asyncHandler(async (req, res) => {
   await ensureForumTables();
   const { targetType, targetId, reaction } = req.body;
@@ -401,6 +421,8 @@ module.exports = {
   getPost,
   createPost,
   createReply,
+  deletePost,
+  deleteReply,
   toggleReaction,
   reportContent,
   listReports,

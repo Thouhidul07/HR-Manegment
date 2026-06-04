@@ -53,8 +53,28 @@ function RoleRoute({
   return children;
 }
 
+function DevOnlyRoute({ children }: { children: ReactElement }) {
+  if (!import.meta.env.DEV) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+}
+
 const adminHr: UserRole[] = ["admin", "hr_manager"];
 const allRoles: UserRole[] = ["admin", "hr_manager", "employee"];
+const employeesOnly: UserRole[] = ["employee"];
+const forumRoles: UserRole[] = ["hr_manager", "employee"];
+
+function ForumRoute({ children }: { children: ReactElement }) {
+  const { user } = useAuth();
+
+  if (user?.role === "admin") {
+    return <Navigate to="/dashboard/forum/moderation" replace />;
+  }
+
+  return <RoleRoute allowed={forumRoles}>{children}</RoleRoute>;
+}
 
 export const router = createBrowserRouter([
   {
@@ -87,15 +107,15 @@ export const router = createBrowserRouter([
           { path: "onboarding", element: <RoleRoute allowed={adminHr}><Onboarding /></RoleRoute> },
           { path: "attendance", element: <RoleRoute allowed={allRoles}><Attendance /></RoleRoute> },
           { path: "leave", element: <RoleRoute allowed={allRoles}><LeaveManagement /></RoleRoute> },
-          { path: "tasks", element: <RoleRoute allowed={allRoles}><Tasks /></RoleRoute> },
+          { path: "tasks", element: <RoleRoute allowed={employeesOnly}><Tasks /></RoleRoute> },
           { path: "training", element: <RoleRoute allowed={allRoles}><Training /></RoleRoute> },
           { path: "payroll", element: <RoleRoute allowed={adminHr}><Payroll /></RoleRoute> },
-          { path: "payslips", element: <RoleRoute allowed={allRoles}><Payslips /></RoleRoute> },
+          { path: "payslips", element: <RoleRoute allowed={employeesOnly}><Payslips /></RoleRoute> },
           { path: "expense", element: <RoleRoute allowed={allRoles}><Expense /></RoleRoute> },
           { path: "performance", element: <RoleRoute allowed={allRoles}><Performance /></RoleRoute> },
           { path: "roles", element: <RoleRoute allowed={["admin"]}><RolesPermissions /></RoleRoute> },
-          { path: "forum", element: <RoleRoute allowed={allRoles}><Forum /></RoleRoute> },
-          { path: "forum/thread/:threadId", element: <RoleRoute allowed={allRoles}><ForumThread /></RoleRoute> },
+          { path: "forum", element: <ForumRoute><Forum /></ForumRoute> },
+          { path: "forum/thread/:threadId", element: <ForumRoute><ForumThread /></ForumRoute> },
           { path: "forum/moderation", element: <RoleRoute allowed={adminHr}><ForumModeration /></RoleRoute> },
           { path: "peer-review", element: <RoleRoute allowed={adminHr}><PeerReview /></RoleRoute> },
           { path: "my-peer-review", element: <RoleRoute allowed={["employee"]}><EmployeePeerReview /></RoleRoute> },
@@ -106,7 +126,7 @@ export const router = createBrowserRouter([
           { path: "project-reports", element: <RoleRoute allowed={adminHr}><ProjectReports /></RoleRoute> },
           { path: "project-history", element: <RoleRoute allowed={adminHr}><ProjectHistory /></RoleRoute> },
           { path: "design-wbs", element: <RoleRoute allowed={adminHr}><DesignWBS /></RoleRoute> },
-          { path: "design-system", element: <RoleRoute allowed={["admin"]}><DesignSystem /></RoleRoute> },
+          { path: "design-system", element: <DevOnlyRoute><RoleRoute allowed={["admin"]}><DesignSystem /></RoleRoute></DevOnlyRoute> },
           { path: "profile", element: <RoleRoute allowed={allRoles}><Profile /></RoleRoute> },
         ],
       },

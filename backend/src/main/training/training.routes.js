@@ -57,7 +57,7 @@ router.post(
   assignTraining
 );
 
-router.post("/:id/enroll", [param("id").isInt({ min: 1 })], validate, enrollTraining);
+router.post("/:id/enroll", authorize("employee"), [param("id").isInt({ min: 1 })], validate, enrollTraining);
 
 router.delete(
   "/:id",
@@ -69,6 +69,7 @@ router.delete(
 
 router.patch(
   "/enrollments/:id/progress",
+  authorize("employee"),
   [param("id").isInt({ min: 1 }), body("progress").isInt({ min: 0, max: 100 })],
   validate,
   updateTrainingProgress

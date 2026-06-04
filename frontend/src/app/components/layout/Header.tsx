@@ -16,7 +16,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
   const { user, logout } = useAuth();
 
   const notifications = [
-    { id: 1, title: "New leave request from John Doe", time: "5 min ago" },
+    { id: 1, title: "New leave request from Tanvir Hasan", time: "5 min ago" },
     { id: 2, title: "Payroll processing completed", time: "1 hour ago" },
     { id: 3, title: "3 employees on leave today", time: "2 hours ago" },
   ];

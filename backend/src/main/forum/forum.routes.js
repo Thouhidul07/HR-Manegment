@@ -5,6 +5,8 @@ const {
   getPost,
   createPost,
   createReply,
+  deletePost,
+  deleteReply,
   toggleReaction,
   reportContent,
   listReports,
@@ -20,6 +22,7 @@ router.get("/posts/:id", [param("id").isInt({ min: 1 })], validate, getPost);
 
 router.post(
   "/posts",
+  authorize("employee", "hr_manager"),
   [
     body("title").trim().notEmpty(),
     body("content").trim().notEmpty(),
@@ -37,6 +40,7 @@ router.post(
 
 router.post(
   "/posts/:id/replies",
+  authorize("employee", "hr_manager"),
   [
     param("id").isInt({ min: 1 }),
     body("content").trim().notEmpty(),
@@ -49,8 +53,25 @@ router.post(
   createReply
 );
 
+router.delete(
+  "/posts/:id",
+  authorize("admin", "hr_manager"),
+  [param("id").isInt({ min: 1 })],
+  validate,
+  deletePost
+);
+
+router.delete(
+  "/replies/:id",
+  authorize("admin", "hr_manager"),
+  [param("id").isInt({ min: 1 })],
+  validate,
+  deleteReply
+);
+
 router.post(
   "/reactions",
+  authorize("employee", "hr_manager"),
   [
     body("targetType").isIn(["post", "reply"]),
     body("targetId").isInt({ min: 1 }),
@@ -62,6 +83,7 @@ router.post(
 
 router.post(
   "/reports",
+  authorize("employee", "hr_manager"),
   [
     body("targetType").isIn(["post", "reply"]),
     body("targetId").isInt({ min: 1 }),

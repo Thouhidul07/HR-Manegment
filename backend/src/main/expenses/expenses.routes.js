@@ -17,6 +17,7 @@ router.get("/", listExpenses);
 
 router.post(
   "/",
+  authorize("employee"),
   upload.single("receipt"),
   [
     body("category").trim().notEmpty(),
@@ -30,6 +31,7 @@ router.post(
 
 router.patch(
   "/:id",
+  authorize("employee"),
   upload.single("receipt"),
   [
     param("id").isInt({ min: 1 }),

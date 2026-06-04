@@ -23,14 +23,14 @@ type AttendanceRecord = {
 };
 
 const attendanceData: AttendanceRecord[] = [
-  { id: 1, name: "John Doe", avatar: "JD", checkIn: "09:05 AM", checkOut: "06:15 PM", hours: "9h 10m", status: "Present", break: "45m" },
-  { id: 2, name: "Sarah Smith", avatar: "SS", checkIn: "08:55 AM", checkOut: "05:50 PM", hours: "8h 55m", status: "Present", break: "40m" },
-  { id: 3, name: "Mike Johnson", avatar: "MJ", checkIn: "09:25 AM", checkOut: "06:30 PM", hours: "9h 5m", status: "Late", break: "50m" },
-  { id: 4, name: "Emily Brown", avatar: "EB", checkIn: "-", checkOut: "-", hours: "-", status: "On Leave", break: "-" },
-  { id: 5, name: "David Wilson", avatar: "DW", checkIn: "09:02 AM", checkOut: "06:05 PM", hours: "9h 3m", status: "Present", break: "48m" },
-  { id: 6, name: "Lisa Anderson", avatar: "LA", checkIn: "-", checkOut: "-", hours: "-", status: "Absent", break: "-" },
-  { id: 7, name: "James Taylor", avatar: "JT", checkIn: "08:50 AM", checkOut: "05:45 PM", hours: "8h 55m", status: "Present", break: "42m" },
-  { id: 8, name: "Emma Martinez", avatar: "EM", checkIn: "09:15 AM", checkOut: "06:20 PM", hours: "9h 5m", status: "Late", break: "47m" },
+  { id: 1, name: "Tanvir Hasan", avatar: "TH", checkIn: "09:05 AM", checkOut: "06:15 PM", hours: "9h 10m", status: "Present", break: "45m" },
+  { id: 2, name: "Nusrat Jahan", avatar: "NJ", checkIn: "08:55 AM", checkOut: "05:50 PM", hours: "8h 55m", status: "Present", break: "40m" },
+  { id: 3, name: "Rakibul Islam", avatar: "RI", checkIn: "09:25 AM", checkOut: "06:30 PM", hours: "9h 5m", status: "Late", break: "50m" },
+  { id: 4, name: "Farhana Akter", avatar: "FA", checkIn: "-", checkOut: "-", hours: "-", status: "On Leave", break: "-" },
+  { id: 5, name: "Mehedi Hasan", avatar: "MH", checkIn: "09:02 AM", checkOut: "06:05 PM", hours: "9h 3m", status: "Present", break: "48m" },
+  { id: 6, name: "Sadia Rahman", avatar: "SR", checkIn: "-", checkOut: "-", hours: "-", status: "Absent", break: "-" },
+  { id: 7, name: "Arif Hossain", avatar: "AH", checkIn: "08:50 AM", checkOut: "05:45 PM", hours: "8h 55m", status: "Present", break: "42m" },
+  { id: 8, name: "Sharmin Sultana", avatar: "SS", checkIn: "09:15 AM", checkOut: "06:20 PM", hours: "9h 5m", status: "Late", break: "47m" },
 ];
 
 const weeklyAttendance = [
@@ -100,6 +100,8 @@ export function Attendance() {
     status: "present",
   });
   const isEmployee = user?.role === "employee";
+  const pageTitle = isEmployee ? "My Attendance" : "Attendance & Time";
+  const pageSubtitle = isEmployee ? "Track your attendance and working hours" : "Track employee attendance and working hours";
   const currentUserInitials = user?.name
     .split(" ")
     .map((part) => part[0])
@@ -127,10 +129,10 @@ export function Attendance() {
   };
 
   useEffect(() => {
-    if (location.state?.openLogAttendance) {
+    if (isEmployee && location.state?.openLogAttendance) {
       setIsLogModalOpen(true);
     }
-  }, [location.state]);
+  }, [isEmployee, location.state]);
 
   useEffect(() => {
     let isMounted = true;
@@ -163,6 +165,7 @@ export function Attendance() {
   const leaveCount = visibleRecords.filter((record) => record.status === "On Leave").length;
 
   const handleLogAttendance = async () => {
+    if (!isEmployee) return;
     const response = await api.post("/attendance/log", {
       workDate: attendanceForm.workDate,
       clockIn: attendanceForm.checkIn,
@@ -184,8 +187,8 @@ export function Attendance() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl text-foreground mb-2">Attendance & Time Tracking</h1>
-          <p className="text-muted-foreground">Track employee attendance and working hours</p>
+          <h1 className="text-2xl text-foreground mb-2">{pageTitle}</h1>
+          <p className="text-muted-foreground">{pageSubtitle}</p>
         </div>
         <div className="flex gap-3">
           {isEmployee && (
@@ -351,7 +354,7 @@ export function Attendance() {
       </Card>
 
       <Modal
-        isOpen={isLogModalOpen}
+        isOpen={isEmployee && isLogModalOpen}
         onClose={() => setIsLogModalOpen(false)}
         title="Log Attendance"
         footer={(

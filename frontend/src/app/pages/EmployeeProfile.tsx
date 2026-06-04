@@ -20,28 +20,28 @@ export function EmployeeProfile() {
         <CardContent className="p-8">
           <div className="flex flex-col md:flex-row gap-6">
             <div className="w-24 h-24 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-3xl flex-shrink-0">
-              JD
+              TH
             </div>
             <div className="flex-1">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h1 className="text-2xl text-foreground mb-1">John Doe</h1>
-                  <p className="text-muted-foreground">Senior Developer • Engineering</p>
+                  <h1 className="text-2xl text-foreground mb-1">Tanvir Hasan</h1>
+                  <p className="text-muted-foreground">Senior Software Engineer • Information Technology</p>
                 </div>
                 <Badge variant="success">Active</Badge>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Mail className="w-4 h-4" />
-                  john.doe@company.com
+                  tanvir.hasan@hrspace.local
                 </div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Phone className="w-4 h-4" />
-                  +1 234 567 8901
+                  +8801712345678
                 </div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <MapPin className="w-4 h-4" />
-                  San Francisco, CA
+                  Gulshan, Dhaka
                 </div>
               </div>
             </div>
@@ -97,7 +97,7 @@ export function EmployeeProfile() {
                     <DollarSign className="w-4 h-4 text-muted-foreground" />
                     <span className="text-sm text-foreground">Salary</span>
                   </div>
-                  <span className="text-sm text-muted-foreground">$95,000/year</span>
+                  <span className="text-sm text-muted-foreground">BDT 95,000/month</span>
                 </div>
               </CardContent>
             </Card>
@@ -127,7 +127,7 @@ export function EmployeeProfile() {
                   </div>
                   <div>
                     <label className="text-sm text-muted-foreground">Nationality</label>
-                    <p className="text-foreground mt-1">American</p>
+                    <p className="text-foreground mt-1">Bangladeshi</p>
                   </div>
                   <div>
                     <label className="text-sm text-muted-foreground">Blood Group</label>
@@ -147,11 +147,11 @@ export function EmployeeProfile() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <label className="text-sm text-muted-foreground">Department</label>
-                  <p className="text-foreground mt-1">Engineering</p>
+                  <p className="text-foreground mt-1">Information Technology</p>
                 </div>
                 <div>
                   <label className="text-sm text-muted-foreground">Job Title</label>
-                  <p className="text-foreground mt-1">Senior Developer</p>
+                  <p className="text-foreground mt-1">Senior Software Engineer</p>
                 </div>
                 <div>
                   <label className="text-sm text-muted-foreground">Employment Type</label>
@@ -159,11 +159,11 @@ export function EmployeeProfile() {
                 </div>
                 <div>
                   <label className="text-sm text-muted-foreground">Reporting Manager</label>
-                  <p className="text-foreground mt-1">Sarah Smith</p>
+                  <p className="text-foreground mt-1">Nusrat Jahan</p>
                 </div>
                 <div>
                   <label className="text-sm text-muted-foreground">Work Location</label>
-                  <p className="text-foreground mt-1">San Francisco Office</p>
+                  <p className="text-foreground mt-1">HRSpace Head Office, Gulshan, Dhaka</p>
                 </div>
                 <div>
                   <label className="text-sm text-muted-foreground">Shift</label>
@@ -182,7 +182,7 @@ export function EmployeeProfile() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="text-sm text-muted-foreground">Contact Name</label>
-                  <p className="text-foreground mt-1">Jane Doe</p>
+                  <p className="text-foreground mt-1">Tasmia Noor</p>
                 </div>
                 <div>
                   <label className="text-sm text-muted-foreground">Relationship</label>
@@ -190,11 +190,11 @@ export function EmployeeProfile() {
                 </div>
                 <div>
                   <label className="text-sm text-muted-foreground">Phone Number</label>
-                  <p className="text-foreground mt-1">+1 234 567 8999</p>
+                  <p className="text-foreground mt-1">+8801811122233</p>
                 </div>
                 <div>
                   <label className="text-sm text-muted-foreground">Email</label>
-                  <p className="text-foreground mt-1">jane.doe@email.com</p>
+                  <p className="text-foreground mt-1">tasmia.noor@example.com</p>
                 </div>
               </div>
             </CardContent>

@@ -11,6 +11,11 @@ DROP TABLE IF EXISTS forum_reports;
 DROP TABLE IF EXISTS forum_reactions;
 DROP TABLE IF EXISTS forum_replies;
 DROP TABLE IF EXISTS forum_posts;
+DROP TABLE IF EXISTS project_comments;
+DROP TABLE IF EXISTS project_milestones;
+DROP TABLE IF EXISTS project_members;
+DROP TABLE IF EXISTS projects;
+DROP TABLE IF EXISTS project_tasks;
 DROP TABLE IF EXISTS expense_payments;
 DROP TABLE IF EXISTS expenses;
 DROP TABLE IF EXISTS cv_candidates;
@@ -253,6 +258,68 @@ CREATE TABLE expense_payments (
   FOREIGN KEY (paid_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
+CREATE TABLE project_tasks (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(180) NOT NULL,
+  description TEXT NOT NULL,
+  status ENUM('todo', 'in-progress', 'in-review', 'completed') NOT NULL DEFAULT 'todo',
+  priority ENUM('low', 'medium', 'high', 'urgent') NOT NULL DEFAULT 'medium',
+  assignee VARCHAR(120) NOT NULL,
+  assignee_avatar VARCHAR(8),
+  deadline DATE NOT NULL,
+  project VARCHAR(120) NOT NULL,
+  tags TEXT,
+  estimated_hours DECIMAL(6, 2),
+  comments INT NOT NULL DEFAULT 0,
+  attachments INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE projects (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(120) NOT NULL UNIQUE,
+  description TEXT,
+  owner_id INT,
+  status ENUM('planning', 'active', 'on-hold', 'completed') NOT NULL DEFAULT 'active',
+  start_date DATE,
+  end_date DATE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE project_members (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  project_id INT NOT NULL,
+  user_id INT NOT NULL,
+  role VARCHAR(80) NOT NULL DEFAULT 'Member',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_project_member (project_id, user_id),
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE project_milestones (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  project_id INT NOT NULL,
+  title VARCHAR(160) NOT NULL,
+  due_date DATE NOT NULL,
+  status ENUM('pending', 'in-progress', 'completed') NOT NULL DEFAULT 'pending',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+
+CREATE TABLE project_comments (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  task_id INT NOT NULL,
+  user_id INT,
+  body TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (task_id) REFERENCES project_tasks(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
 CREATE TABLE forum_posts (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT,
@@ -320,11 +387,11 @@ CREATE TABLE forum_reports (
 INSERT INTO users
   (id, name, email, password, role, phone, department, designation, hire_date, salary)
 VALUES
-  (1, 'Admin User', 'admin@hrms.com', '$2a$10$7IAQrKRQwkIHv2eZSIRDj.S1O0ove29.KjCkCXD3369iJk9dTKngi', 'admin', '+880 1700-000001', 'Operations', 'System Admin', '2024-01-01', 120000.00),
-  (2, 'HR Manager', 'hr@hrms.com', '$2a$10$cteqOigYNxjG6l8d.G7tNOSlBprtlBiCUvj03ljajfV.0CMwhd.Uq', 'hr_manager', '+880 1700-000002', 'Human Resources', 'HR Manager', '2024-02-01', 95000.00),
-  (3, 'Employee User', 'employee@hrms.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+880 1700-000003', 'Engineering', 'Software Engineer', '2024-03-01', 75000.00),
-  (4, 'Ayesha Rahman', 'ayesha@hrms.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+880 1700-000004', 'Finance', 'Accountant', '2024-04-15', 68000.00),
-  (5, 'Tanvir Hasan', 'tanvir@hrms.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+880 1700-000005', 'Marketing', 'Marketing Executive', '2024-05-10', 62000.00);
+  (1, 'Mahmudul Karim', 'admin@hrms.com', '$2a$10$7IAQrKRQwkIHv2eZSIRDj.S1O0ove29.KjCkCXD3369iJk9dTKngi', 'admin', '+8801712345601', 'Administration', 'System Administrator', '2024-01-01', 120000.00),
+  (2, 'Farhana Akter', 'hr@hrms.com', '$2a$10$cteqOigYNxjG6l8d.G7tNOSlBprtlBiCUvj03ljajfV.0CMwhd.Uq', 'hr_manager', '+8801712345602', 'Human Resources', 'HR Manager', '2024-02-01', 95000.00),
+  (3, 'Tanvir Hasan', 'employee@hrms.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801712345603', 'Information Technology', 'Software Engineer', '2024-03-01', 75000.00),
+  (4, 'Nusrat Jahan', 'nusrat.jahan@hrspace.local', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801712345604', 'Finance', 'Accounts Officer', '2024-04-15', 68000.00),
+  (5, 'Rakibul Islam', 'rakibul.islam@hrspace.local', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801712345605', 'Marketing', 'Marketing Executive', '2024-05-10', 62000.00);
 
 INSERT INTO roles (id, code, name, description)
 VALUES
@@ -519,9 +586,9 @@ VALUES
 INSERT INTO cv_candidates
   (name, email, phone, position, score, skills, experience, education, match_percentage, status, key_strengths, concerns, upload_date)
 VALUES
-  ('Sarah Johnson', 'sarah.j@email.com', '+1 234 567 8901', 'Senior Full Stack Developer', 94, JSON_ARRAY('React', 'Node.js', 'TypeScript', 'AWS', 'Docker', 'PostgreSQL'), 7, 'M.S. Computer Science - Stanford University', 94, 'shortlisted', JSON_ARRAY('Matched react', 'Matched node.js', 'Matched typescript'), JSON_ARRAY(), '2026-05-28'),
-  ('Michael Chen', 'm.chen@email.com', '+1 234 567 8902', 'Senior Full Stack Developer', 73, JSON_ARRAY('React', 'Python', 'Django', 'MySQL', 'Redis', 'Git'), 6, 'B.S. Software Engineering - MIT', 73, 'pending', JSON_ARRAY('Matched react'), JSON_ARRAY('Missing preferred skills: node.js, typescript, aws'), '2026-05-27'),
-  ('Emily Rodriguez', 'emily.r@email.com', '+1 234 567 8903', 'Senior Full Stack Developer', 68, JSON_ARRAY('Vue.js', 'Node.js', 'MongoDB', 'Express', 'GraphQL'), 5, 'B.S. Computer Science - UC Berkeley', 68, 'rejected', JSON_ARRAY('Matched node.js'), JSON_ARRAY('Missing preferred skills: react, typescript, aws'), '2026-05-26');
+  ('Mahmudul Karim', 'mahmudul.karim@hrspace.local', '+8801711122233', 'Senior Full Stack Developer', 94, JSON_ARRAY('React', 'Node.js', 'TypeScript', 'AWS', 'Docker', 'PostgreSQL'), 7, 'M.S. Computer Science - BUET', 94, 'shortlisted', JSON_ARRAY('Matched react', 'Matched node.js', 'Matched typescript'), JSON_ARRAY(), '2026-05-28'),
+  ('Jannatul Ferdous', 'jannatul.ferdous@hrspace.local', '+8801811122233', 'Senior Full Stack Developer', 73, JSON_ARRAY('React', 'Python', 'Django', 'MySQL', 'Redis', 'Git'), 6, 'B.S. Software Engineering - University of Dhaka', 73, 'pending', JSON_ARRAY('Matched react'), JSON_ARRAY('Missing preferred skills: node.js, typescript, aws'), '2026-05-27'),
+  ('Rafi Ahmed', 'rafi.ahmed@hrspace.local', '+8801911122233', 'Senior Full Stack Developer', 68, JSON_ARRAY('Vue.js', 'Node.js', 'MongoDB', 'Express', 'GraphQL'), 5, 'B.S. Computer Science - North South University', 68, 'rejected', JSON_ARRAY('Matched node.js'), JSON_ARRAY('Missing preferred skills: react, typescript, aws'), '2026-05-26');
 
 INSERT INTO expenses
   (user_id, category, amount, expense_date, description, status, reviewed_by)
@@ -534,6 +601,24 @@ INSERT INTO expense_payments
   (expense_id, amount, payment_date, method, reference, paid_by)
 VALUES
   (3, 1200.00, CURDATE(), 'Bank Transfer', 'PAY-EXP-0003', 2);
+
+INSERT INTO project_tasks
+  (title, description, status, priority, assignee, assignee_avatar, deadline, project, tags, estimated_hours, comments, attachments)
+VALUES
+  ('Design Homepage Mockup', 'Create high-fidelity mockups for the new homepage design', 'in-progress', 'high', 'Emily Rodriguez', 'ER', '2026-06-05', 'Website Redesign', '["Design","UI/UX"]', NULL, 3, 2),
+  ('Implement Authentication API', 'Build JWT-based authentication endpoints with refresh token support', 'in-progress', 'urgent', 'Michael Chen', 'MC', '2026-06-03', 'User Portal', '["Backend","Security"]', NULL, 5, 1),
+  ('Create Component Library', 'Build reusable React components following design system', 'todo', 'medium', 'Sarah Johnson', 'SJ', '2026-06-10', 'Website Redesign', '["Frontend","React"]', NULL, 1, 0),
+  ('Database Schema Migration', 'Update database schema for new user role permissions', 'in-review', 'high', 'David Kim', 'DK', '2026-06-02', 'User Portal', '["Database","Backend"]', NULL, 2, 1),
+  ('E2E Testing Suite', 'Set up end-to-end testing with Cypress for critical user flows', 'todo', 'medium', 'Jessica Martinez', 'JM', '2026-06-12', 'User Portal', '["Testing","QA"]', NULL, 0, 0),
+  ('Landing Page Optimization', 'Improve performance and SEO for landing page', 'completed', 'low', 'Sarah Johnson', 'SJ', '2026-05-30', 'Website Redesign', '["Frontend","Performance"]', NULL, 4, 3),
+  ('Mobile Responsive Design', 'Ensure all pages are mobile-friendly and responsive', 'in-progress', 'high', 'Emily Rodriguez', 'ER', '2026-06-07', 'Website Redesign', '["Design","Mobile"]', NULL, 2, 1),
+  ('API Documentation', 'Write comprehensive API documentation with examples', 'todo', 'low', 'Michael Chen', 'MC', '2026-06-15', 'User Portal', '["Documentation","Backend"]', NULL, 0, 0);
+
+INSERT INTO projects
+  (name, description, owner_id, status)
+VALUES
+  ('Website Redesign', 'Website Redesign delivery workspace', NULL, 'active'),
+  ('User Portal', 'User Portal delivery workspace', NULL, 'active');
 
 INSERT INTO forum_posts
   (user_id, title, body, category, is_anonymous, anonymous_alias, anonymous_color, tags, sentiment, views)

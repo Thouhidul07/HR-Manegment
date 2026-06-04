@@ -36,10 +36,10 @@ export function CircularApply() {
       id: 1,
       title: "Senior Product Manager",
       department: "Product",
-      location: "New York, NY",
+      location: "Gulshan, Dhaka",
       type: 'Full-time',
       experience: "5-7 years",
-      salary: "$120,000 - $150,000",
+      salary: "BDT 120,000 - BDT 150,000",
       deadline: "2026-06-15",
       posted: "2026-05-20",
       openings: 2,
@@ -59,9 +59,9 @@ export function CircularApply() {
         "Track and analyze product metrics"
       ],
       benefits: [
-        "Competitive salary and equity",
-        "Health, dental, and vision insurance",
-        "401(k) matching",
+        "Competitive salary and festival bonus",
+        "Health insurance",
+        "Provident fund",
         "Flexible work arrangements",
         "Professional development budget"
       ],
@@ -72,10 +72,10 @@ export function CircularApply() {
       id: 2,
       title: "UI/UX Designer",
       department: "Design",
-      location: "San Francisco, CA",
+      location: "Banani, Dhaka",
       type: 'Full-time',
       experience: "3-5 years",
-      salary: "$90,000 - $120,000",
+      salary: "BDT 90,000 - BDT 120,000",
       deadline: "2026-06-10",
       posted: "2026-05-18",
       openings: 1,
@@ -108,10 +108,10 @@ export function CircularApply() {
       id: 3,
       title: "Data Scientist",
       department: "Analytics",
-      location: "Remote",
+      location: "Dhaka / Remote",
       type: 'Full-time',
       experience: "4-6 years",
-      salary: "$110,000 - $140,000",
+      salary: "BDT 110,000 - BDT 140,000",
       deadline: "2026-06-20",
       posted: "2026-05-22",
       openings: 3,
@@ -144,10 +144,10 @@ export function CircularApply() {
       id: 4,
       title: "DevOps Engineer",
       department: "Engineering",
-      location: "Austin, TX",
+      location: "Bashundhara, Dhaka",
       type: 'Full-time',
       experience: "3-5 years",
-      salary: "$100,000 - $130,000",
+      salary: "BDT 100,000 - BDT 130,000",
       deadline: "2026-06-08",
       posted: "2026-05-15",
       openings: 2,
@@ -180,10 +180,10 @@ export function CircularApply() {
       id: 5,
       title: "Marketing Manager",
       department: "Marketing",
-      location: "Boston, MA",
+      location: "Chattogram Regional Office",
       type: 'Full-time',
       experience: "5-8 years",
-      salary: "$95,000 - $125,000",
+      salary: "BDT 95,000 - BDT 125,000",
       deadline: "2026-06-05",
       posted: "2026-05-10",
       openings: 1,
@@ -586,7 +586,7 @@ export function CircularApply() {
                     </label>
                     <input
                       type="text"
-                      placeholder="John"
+                      placeholder="Tanvir"
                       className="w-full px-3 py-2 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                       required
                     />
@@ -597,7 +597,7 @@ export function CircularApply() {
                     </label>
                     <input
                       type="text"
-                      placeholder="Doe"
+                      placeholder="Hasan"
                       className="w-full px-3 py-2 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                       required
                     />
@@ -610,7 +610,7 @@ export function CircularApply() {
                   </label>
                   <input
                     type="email"
-                    placeholder="john.doe@email.com"
+                    placeholder="tanvir.hasan@example.com"
                     className="w-full px-3 py-2 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     required
                   />
@@ -622,7 +622,7 @@ export function CircularApply() {
                   </label>
                   <input
                     type="tel"
-                    placeholder="+1 (234) 567-8900"
+                    placeholder="+8801712345678"
                     className="w-full px-3 py-2 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     required
                   />
@@ -634,7 +634,7 @@ export function CircularApply() {
                   </label>
                   <input
                     type="text"
-                    placeholder="City, State/Country"
+                    placeholder="Gulshan, Dhaka"
                     className="w-full px-3 py-2 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     required
                   />
@@ -664,7 +664,7 @@ export function CircularApply() {
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g., $80,000 - $100,000"
+                      placeholder="e.g., BDT 80,000 - BDT 100,000"
                       className="w-full px-3 py-2 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                       required
                     />
@@ -677,7 +677,7 @@ export function CircularApply() {
                   </label>
                   <input
                     type="url"
-                    placeholder="https://linkedin.com/in/johndoe"
+                    placeholder="https://linkedin.com/in/tanvirhasan"
                     className="w-full px-3 py-2 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
@@ -688,7 +688,7 @@ export function CircularApply() {
                   </label>
                   <input
                     type="url"
-                    placeholder="https://johndoe.com"
+                    placeholder="https://tanvirhasan.dev"
                     className="w-full px-3 py-2 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
