@@ -6,6 +6,7 @@ import { Button } from "../components/ui/Button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "../components/ui/Table";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import api from "../services/api";
+import { formatCurrencyBDT } from "../utils/formatters";
 
 type PayrollRecord = {
   id: number;
@@ -23,14 +24,6 @@ type PayrollRecord = {
 
 function asNumber(value: string | number) {
   return Number(value || 0);
-}
-
-function money(value: string | number) {
-  return asNumber(value).toLocaleString("en-BD", {
-    style: "currency",
-    currency: "BDT",
-    maximumFractionDigits: 0,
-  });
 }
 
 function monthLabel(value: string) {
@@ -189,7 +182,7 @@ export function Payroll() {
             </div>
             <p className="text-sm text-muted-foreground">Total Payroll</p>
           </div>
-          <p className="text-2xl text-foreground">{money(totals.gross)}</p>
+          <p className="text-2xl text-foreground">{formatCurrencyBDT(totals.gross)}</p>
           <p className="text-xs text-muted-foreground mt-1">Visible records</p>
         </Card>
 
@@ -200,13 +193,13 @@ export function Payroll() {
             </div>
             <p className="text-sm text-muted-foreground">Net Payable</p>
           </div>
-          <p className="text-2xl text-foreground">{money(totals.net)}</p>
+          <p className="text-2xl text-foreground">{formatCurrencyBDT(totals.net)}</p>
           <p className="text-xs text-muted-foreground mt-1">After deductions</p>
         </Card>
 
         <Card className="p-4">
           <p className="text-sm text-muted-foreground">Total Deductions</p>
-          <p className="text-2xl text-foreground mt-1">{money(totals.deductions)}</p>
+          <p className="text-2xl text-foreground mt-1">{formatCurrencyBDT(totals.deductions)}</p>
         </Card>
 
         <Card className="p-4">
@@ -232,7 +225,7 @@ export function Payroll() {
                     border: "1px solid var(--border)",
                     borderRadius: "8px",
                   }}
-                  formatter={(value) => money(Number(value))}
+                  formatter={(value) => formatCurrencyBDT(Number(value))}
                 />
                 <Bar key="amount-bar" dataKey="amount" fill="var(--chart-1)" radius={[8, 8, 0, 0]} />
               </BarChart>
@@ -255,7 +248,7 @@ export function Payroll() {
                   ].map((item) => (
                     <div key={item.component} className="flex items-center justify-between text-sm mb-2">
                       <span className="text-foreground">{item.component}</span>
-                      <span className="text-muted-foreground">{money(item.amount)}</span>
+                      <span className="text-muted-foreground">{formatCurrencyBDT(item.amount)}</span>
                     </div>
                   ))}
                 </div>
@@ -264,14 +257,14 @@ export function Payroll() {
                   <h4 className="text-sm text-muted-foreground mb-3">Deductions</h4>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-foreground">Total Deductions</span>
-                    <span className="text-muted-foreground">-{money(latest.deductions)}</span>
+                    <span className="text-muted-foreground">-{formatCurrencyBDT(latest.deductions)}</span>
                   </div>
                 </div>
 
                 <div className="pt-4 border-t border-border">
                   <div className="flex items-center justify-between">
                     <span className="text-foreground">Net Salary</span>
-                    <span className="text-foreground text-lg">{money(latest.net_pay)}</span>
+                    <span className="text-foreground text-lg">{formatCurrencyBDT(latest.net_pay)}</span>
                   </div>
                 </div>
               </div>
@@ -331,9 +324,9 @@ export function Payroll() {
                       <Badge variant="secondary">{record.department || "N/A"}</Badge>
                     </TableCell>
                     <TableCell className="text-sm">{monthLabel(record.pay_period)}</TableCell>
-                    <TableCell className="text-sm">{money(asNumber(record.basic_salary) + asNumber(record.allowances))}</TableCell>
-                    <TableCell className="text-sm text-destructive">-{money(record.deductions)}</TableCell>
-                    <TableCell className="text-sm">{money(record.net_pay)}</TableCell>
+                    <TableCell className="text-sm">{formatCurrencyBDT(asNumber(record.basic_salary) + asNumber(record.allowances))}</TableCell>
+                    <TableCell className="text-sm text-destructive">-{formatCurrencyBDT(record.deductions)}</TableCell>
+                    <TableCell className="text-sm">{formatCurrencyBDT(record.net_pay)}</TableCell>
                     <TableCell>
                       <Badge variant={record.status === "processed" ? "default" : "secondary"}>
                         {statusLabel(record.status)}

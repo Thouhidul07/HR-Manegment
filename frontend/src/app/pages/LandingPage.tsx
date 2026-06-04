@@ -550,7 +550,7 @@ const PricingSection = () => {
 
               <div className="mb-8">
                 <div className="flex items-baseline gap-1">
-                  {plan.price !== 'Custom' && <span className="text-lg text-muted-foreground">BDT</span>}
+                  {plan.price !== 'Custom' && <span className="text-lg text-muted-foreground">৳</span>}
                   <span className="text-5xl font-bold bg-gradient-to-r from-[#543884] to-[#EC4176] bg-clip-text text-transparent">
                     {plan.price}
                   </span>

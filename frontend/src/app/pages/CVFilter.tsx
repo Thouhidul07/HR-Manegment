@@ -26,16 +26,16 @@ interface Candidate {
 }
 
 export function CVFilter() {
-  const [selectedJob, setSelectedJob] = useState("Senior Full Stack Developer");
+  const [selectedJob, setSelectedJob] = useState("Software Engineer");
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'shortlisted' | 'rejected'>('all');
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [jobPositions, setJobPositions] = useState([
-    "Senior Full Stack Developer",
-    "Product Manager",
-    "UI/UX Designer",
-    "Data Scientist",
-    "DevOps Engineer"
+    "Software Engineer",
+    "Software Engineer",
+    "Accounts Officer",
+    "Operations Executive",
+    "Support Executive"
   ]);
   const [apiCandidates, setApiCandidates] = useState<Candidate[]>([]);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
@@ -44,7 +44,7 @@ export function CVFilter() {
     name: "",
     email: "",
     phone: "",
-    position: "Senior Full Stack Developer",
+    position: "Software Engineer",
     skills: "",
     experience: "0",
     education: "",
@@ -57,7 +57,7 @@ export function CVFilter() {
       name: "Mahmudul Karim",
       email: "mahmudul.karim@hrspace.local",
       phone: "+8801711122233",
-      position: "Senior Full Stack Developer",
+      position: "Software Engineer",
       score: 94,
       skills: ["React", "Node.js", "TypeScript", "AWS", "Docker", "PostgreSQL"],
       experience: 7,
@@ -73,7 +73,7 @@ export function CVFilter() {
       name: "Jannatul Ferdous",
       email: "jannatul.ferdous@hrspace.local",
       phone: "+8801811122233",
-      position: "Senior Full Stack Developer",
+      position: "Software Engineer",
       score: 89,
       skills: ["React", "Python", "Django", "MySQL", "Redis", "Git"],
       experience: 6,
@@ -89,7 +89,7 @@ export function CVFilter() {
       name: "Rafi Ahmed",
       email: "rafi.ahmed@hrspace.local",
       phone: "+8801911122233",
-      position: "Senior Full Stack Developer",
+      position: "Software Engineer",
       score: 86,
       skills: ["Vue.js", "Node.js", "MongoDB", "Express", "GraphQL"],
       experience: 5,
@@ -105,7 +105,7 @@ export function CVFilter() {
       name: "Tasmia Noor",
       email: "tasmia.noor@hrspace.local",
       phone: "+8801611122233",
-      position: "Senior Full Stack Developer",
+      position: "Software Engineer",
       score: 82,
       skills: ["Angular", "Java", "Spring Boot", "Oracle", "Jenkins"],
       experience: 8,
@@ -121,7 +121,7 @@ export function CVFilter() {
       name: "Sharmin Sultana",
       email: "sharmin.sultana@hrspace.local",
       phone: "+8801511122233",
-      position: "Senior Full Stack Developer",
+      position: "Software Engineer",
       score: 78,
       skills: ["React", "PHP", "Laravel", "MySQL", "jQuery"],
       experience: 4,
@@ -137,7 +137,7 @@ export function CVFilter() {
       name: "Arif Hossain",
       email: "arif.hossain@hrspace.local",
       phone: "+8801311122233",
-      position: "Senior Full Stack Developer",
+      position: "Software Engineer",
       score: 65,
       skills: ["HTML", "CSS", "JavaScript", "WordPress", "Bootstrap"],
       experience: 3,

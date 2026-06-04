@@ -15,7 +15,7 @@ interface RegisterFormData {
   agreeToTerms: boolean;
 }
 
-const departments = ['Engineering', 'HR', 'Finance', 'Marketing', 'Sales', 'Operations'];
+const departments = ['Information Technology', 'Human Resources', 'Finance', 'Marketing', 'Sales', 'Operations', 'Administration', 'Customer Support'];
 
 export function Register() {
   const { theme, toggleTheme } = useTheme();

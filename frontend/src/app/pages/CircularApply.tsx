@@ -34,29 +34,29 @@ export function CircularApply() {
   const circulars: JobCircular[] = [
     {
       id: 1,
-      title: "Senior Product Manager",
-      department: "Product",
+      title: "Operations Executive",
+      department: "Operations",
       location: "Gulshan, Dhaka",
       type: 'Full-time',
       experience: "5-7 years",
-      salary: "BDT 120,000 - BDT 150,000",
+      salary: "৳120,000 - ৳150,000",
       deadline: "2026-06-15",
       posted: "2026-05-20",
       openings: 2,
-      description: "We're looking for an experienced Product Manager to lead our core product initiatives and drive innovation.",
+      description: "We're looking for an experienced Operations Executive to improve day-to-day HR service delivery and office operations.",
       requirements: [
         "Bachelor's degree in Computer Science, Business, or related field",
-        "5+ years of product management experience",
+        "5+ years of operations or HR operations experience",
         "Strong analytical and problem-solving skills",
-        "Experience with Agile methodologies",
+        "Experience coordinating cross-functional business workflows",
         "Excellent communication and leadership skills"
       ],
       responsibilities: [
-        "Define product vision and roadmap",
-        "Work closely with engineering, design, and marketing teams",
-        "Conduct market research and competitive analysis",
-        "Prioritize features and manage product backlog",
-        "Track and analyze product metrics"
+        "Coordinate office operations and HR service workflows",
+        "Work closely with HR, finance, and administration teams",
+        "Monitor process quality and operational performance",
+        "Maintain vendor, asset, and employee service records",
+        "Prepare weekly operations reports"
       ],
       benefits: [
         "Competitive salary and festival bonus",
@@ -70,34 +70,34 @@ export function CircularApply() {
     },
     {
       id: 2,
-      title: "UI/UX Designer",
-      department: "Design",
+      title: "Software Engineer",
+      department: "Information Technology",
       location: "Banani, Dhaka",
       type: 'Full-time',
       experience: "3-5 years",
-      salary: "BDT 90,000 - BDT 120,000",
+      salary: "৳90,000 - ৳120,000",
       deadline: "2026-06-10",
       posted: "2026-05-18",
       openings: 1,
-      description: "Join our design team to create beautiful and intuitive user experiences for our products.",
+      description: "Join our technology team to build reliable HR and employee self-service features.",
       requirements: [
-        "Portfolio showcasing UI/UX design work",
-        "3+ years of experience in product design",
-        "Proficiency in Figma, Sketch, or Adobe XD",
-        "Understanding of user-centered design principles",
-        "Strong visual design skills"
+        "3+ years of software engineering experience",
+        "Strong React and Node.js fundamentals",
+        "Experience with REST APIs and relational databases",
+        "Understanding of secure application development",
+        "Strong debugging and communication skills"
       ],
       responsibilities: [
-        "Design user interfaces for web and mobile applications",
-        "Create wireframes, prototypes, and high-fidelity mockups",
-        "Conduct user research and usability testing",
-        "Collaborate with product and engineering teams",
-        "Maintain and evolve design system"
+        "Build and maintain web application features",
+        "Integrate frontend components with backend APIs",
+        "Write clean, maintainable application code",
+        "Collaborate with HR and operations stakeholders",
+        "Support production issue investigation"
       ],
       benefits: [
         "Competitive compensation package",
         "Health and wellness benefits",
-        "Remote work flexibility",
+        "Hybrid work flexibility",
         "Learning and development opportunities",
         "Modern design tools and equipment"
       ],
@@ -106,35 +106,35 @@ export function CircularApply() {
     },
     {
       id: 3,
-      title: "Data Scientist",
-      department: "Analytics",
-      location: "Dhaka / Remote",
+      title: "Accounts Officer",
+      department: "Finance",
+      location: "Dhanmondi, Dhaka",
       type: 'Full-time',
       experience: "4-6 years",
-      salary: "BDT 110,000 - BDT 140,000",
+      salary: "৳110,000 - ৳140,000",
       deadline: "2026-06-20",
       posted: "2026-05-22",
       openings: 3,
-      description: "We're seeking a talented Data Scientist to derive insights from data and build predictive models.",
+      description: "We're seeking an Accounts Officer to support payroll, reimbursements, and monthly finance reporting.",
       requirements: [
-        "Master's degree in Data Science, Statistics, or related field",
-        "4+ years of experience in data science",
-        "Strong programming skills in Python or R",
-        "Experience with machine learning frameworks",
-        "Excellent communication skills"
+        "Bachelor's or Master's degree in Accounting, Finance, or related field",
+        "4+ years of finance or accounts experience",
+        "Strong skills in Excel and accounting workflows",
+        "Experience with payroll or reimbursement processing",
+        "Excellent documentation and communication skills"
       ],
       responsibilities: [
-        "Analyze large datasets to identify trends and insights",
-        "Build and deploy machine learning models",
-        "Collaborate with cross-functional teams",
-        "Present findings to stakeholders",
-        "Develop data pipelines and automation"
+        "Prepare monthly payroll and expense summaries",
+        "Verify reimbursement and vendor payment records",
+        "Collaborate with HR and administration teams",
+        "Prepare financial reports for management",
+        "Maintain accurate finance documentation"
       ],
       benefits: [
-        "Competitive salary and bonuses",
-        "100% remote work option",
+        "Competitive salary and festival bonuses",
+        "Hybrid work option",
         "Comprehensive health benefits",
-        "Stock options",
+        "Provident fund",
         "Conference and training budget"
       ],
       status: 'open',
@@ -142,12 +142,12 @@ export function CircularApply() {
     },
     {
       id: 4,
-      title: "DevOps Engineer",
-      department: "Engineering",
+      title: "Junior Software Engineer",
+      department: "Information Technology",
       location: "Bashundhara, Dhaka",
       type: 'Full-time',
       experience: "3-5 years",
-      salary: "BDT 100,000 - BDT 130,000",
+      salary: "৳100,000 - ৳130,000",
       deadline: "2026-06-08",
       posted: "2026-05-15",
       openings: 2,
@@ -168,7 +168,7 @@ export function CircularApply() {
       ],
       benefits: [
         "Competitive compensation",
-        "Health and retirement benefits",
+        "Health insurance and provident fund",
         "Work-from-home flexibility",
         "Professional certifications support",
         "Latest DevOps tools and technologies"
@@ -183,7 +183,7 @@ export function CircularApply() {
       location: "Chattogram Regional Office",
       type: 'Full-time',
       experience: "5-8 years",
-      salary: "BDT 95,000 - BDT 125,000",
+      salary: "৳95,000 - ৳125,000",
       deadline: "2026-06-05",
       posted: "2026-05-10",
       openings: 1,
@@ -664,7 +664,7 @@ export function CircularApply() {
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g., BDT 80,000 - BDT 100,000"
+                      placeholder="e.g., ৳80,000 - ৳100,000"
                       className="w-full px-3 py-2 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                       required
                     />

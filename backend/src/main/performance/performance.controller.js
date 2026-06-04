@@ -1,6 +1,25 @@
 const { query } = require("../../config/database");
 const asyncHandler = require("../../utils/asyncHandler");
 
+async function ensurePerformanceReviewsTable() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS performance_reviews (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      reviewer_id INT,
+      review_period VARCHAR(50) NOT NULL,
+      score DECIMAL(4, 2),
+      goals TEXT,
+      feedback TEXT,
+      status ENUM('draft', 'submitted', 'approved') NOT NULL DEFAULT 'draft',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (reviewer_id) REFERENCES users(id) ON DELETE SET NULL
+    )
+  `);
+}
+
 function parseGoals(goals) {
   if (!goals) {
     return [];
@@ -35,6 +54,7 @@ function mapReview(row) {
 }
 
 const listReviews = asyncHandler(async (req, res) => {
+  await ensurePerformanceReviewsTable();
   const where = req.user.role === "employee" ? "WHERE pr.user_id = ?" : "";
   const params = req.user.role === "employee" ? [req.user.id] : [];
   const [rows] = await query(
@@ -51,6 +71,7 @@ const listReviews = asyncHandler(async (req, res) => {
 });
 
 const startReviewCycle = asyncHandler(async (req, res) => {
+  await ensurePerformanceReviewsTable();
   const reviewPeriod = req.body.reviewPeriod || `Q${Math.ceil((new Date().getMonth() + 1) / 3)} ${new Date().getFullYear()}`;
   const [employees] = await query("SELECT id FROM users WHERE role IN ('employee', 'hr_manager')");
 
@@ -74,6 +95,7 @@ const startReviewCycle = asyncHandler(async (req, res) => {
 });
 
 const updateReview = asyncHandler(async (req, res) => {
+  await ensurePerformanceReviewsTable();
   const [existingRows] = await query("SELECT * FROM performance_reviews WHERE id = ?", [req.params.id]);
 
   if (!existingRows.length) {
@@ -141,6 +163,7 @@ const updateReview = asyncHandler(async (req, res) => {
 });
 
 const createReview = asyncHandler(async (req, res) => {
+  await ensurePerformanceReviewsTable();
   const goals = Array.isArray(req.body.goals) ? JSON.stringify(req.body.goals) : req.body.goals || null;
   const [result] = await query(
     `INSERT INTO performance_reviews (user_id, reviewer_id, review_period, score, goals, feedback, status)

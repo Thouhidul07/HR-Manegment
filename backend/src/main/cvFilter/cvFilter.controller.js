@@ -2,25 +2,21 @@ const { query } = require("../../config/database");
 const asyncHandler = require("../../utils/asyncHandler");
 
 const jobProfiles = {
-  "Senior Full Stack Developer": {
+  "Software Engineer": {
     skills: ["react", "node.js", "typescript", "aws", "docker", "postgresql"],
     minExperience: 5,
   },
-  "Product Manager": {
-    skills: ["roadmap", "analytics", "stakeholder", "agile", "research"],
+  "Accounts Officer": {
+    skills: ["excel", "payroll", "accounting", "reconciliation", "reporting"],
     minExperience: 4,
   },
-  "UI/UX Designer": {
-    skills: ["figma", "user research", "prototype", "design system", "accessibility"],
+  "Operations Executive": {
+    skills: ["operations", "vendor management", "documentation", "coordination", "reporting"],
     minExperience: 3,
   },
-  "Data Scientist": {
-    skills: ["python", "machine learning", "sql", "statistics", "visualization"],
-    minExperience: 4,
-  },
-  "DevOps Engineer": {
-    skills: ["aws", "docker", "kubernetes", "ci/cd", "terraform"],
-    minExperience: 4,
+  "Support Executive": {
+    skills: ["customer support", "communication", "ticketing", "documentation", "problem solving"],
+    minExperience: 2,
   },
 };
 
@@ -156,11 +152,11 @@ async function seedCandidatesIfEmpty() {
   }
 
   const seedCandidates = [
-    ["Mahmudul Karim", "mahmudul.karim@hrspace.local", "+8801711122233", "Senior Full Stack Developer", ["React", "Node.js", "TypeScript", "AWS", "Docker", "PostgreSQL"], 7, "M.S. Computer Science - BUET"],
-    ["Jannatul Ferdous", "jannatul.ferdous@hrspace.local", "+8801811122233", "Senior Full Stack Developer", ["React", "Python", "Django", "MySQL", "Redis", "Git"], 6, "B.S. Software Engineering - University of Dhaka"],
-    ["Rafi Ahmed", "rafi.ahmed@hrspace.local", "+8801911122233", "Senior Full Stack Developer", ["Vue.js", "Node.js", "MongoDB", "Express", "GraphQL"], 5, "B.S. Computer Science - North South University"],
-    ["Tasmia Noor", "tasmia.noor@hrspace.local", "+8801611122233", "Senior Full Stack Developer", ["Angular", "Java", "Spring Boot", "Oracle", "Jenkins"], 8, "M.S. Information Systems - BRAC University"],
-    ["Arif Hossain", "arif.hossain@hrspace.local", "+8801311122233", "Senior Full Stack Developer", ["HTML", "CSS", "JavaScript", "WordPress", "Bootstrap"], 3, "B.Sc. Information Technology - East West University"],
+    ["Mahmudul Karim", "mahmudul.karim@hrspace.local", "+8801711122233", "Software Engineer", ["React", "Node.js", "TypeScript", "AWS", "Docker", "PostgreSQL"], 7, "M.S. Computer Science - BUET"],
+    ["Jannatul Ferdous", "jannatul.ferdous@hrspace.local", "+8801811122233", "Software Engineer", ["React", "Python", "Django", "MySQL", "Redis", "Git"], 6, "B.S. Software Engineering - University of Dhaka"],
+    ["Rafi Ahmed", "rafi.ahmed@hrspace.local", "+8801911122233", "Software Engineer", ["Vue.js", "Node.js", "MongoDB", "Express", "GraphQL"], 5, "B.S. Computer Science - North South University"],
+    ["Tasmia Noor", "tasmia.noor@hrspace.local", "+8801611122233", "Software Engineer", ["Angular", "Java", "Spring Boot", "Oracle", "Jenkins"], 8, "M.S. Information Systems - BRAC University"],
+    ["Arif Hossain", "arif.hossain@hrspace.local", "+8801311122233", "Software Engineer", ["HTML", "CSS", "JavaScript", "WordPress", "Bootstrap"], 3, "B.Sc. Information Technology - East West University"],
   ];
 
   for (const candidate of seedCandidates) {

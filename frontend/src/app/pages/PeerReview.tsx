@@ -32,9 +32,9 @@ const mockReviews: PeerReview[] = [
     id: "1",
     employeeAvatar: "SA",
     employeeName: "Sadia Rahman",
-    employeeRole: "Senior Developer",
-    employeeDepartment: "Engineering",
-    project: "Mobile App Redesign",
+    employeeRole: "Software Engineer",
+    employeeDepartment: "Information Technology",
+    project: "Employee Portal Enhancement",
     duration: "6 months",
     rating: 5,
     review: "Sadia consistently demonstrates exceptional technical skills and leadership. She mentored junior developers effectively and delivered high-quality code on time. Her attention to detail and proactive communication made the project smoother for everyone.",
@@ -53,9 +53,9 @@ const mockReviews: PeerReview[] = [
     id: "2",
     employeeAvatar: "MK",
     employeeName: "Mahmudul Karim",
-    employeeRole: "Product Manager",
-    employeeDepartment: "Product",
-    project: "Customer Portal V2",
+    employeeRole: "Operations Executive",
+    employeeDepartment: "Operations",
+    project: "HR Service Desk Rollout",
     duration: "4 months",
     rating: 4,
     review: "Mahmudul did a great job keeping the team aligned and prioritizing features effectively. He was responsive to feedback and maintained clear documentation throughout. Sometimes decisions took longer than needed, but the outcomes were always well thought out.",
@@ -74,7 +74,7 @@ const mockReviews: PeerReview[] = [
     id: "3",
     employeeAvatar: "JF",
     employeeName: "Jannatul Ferdous",
-    employeeRole: "Data Engineer",
+    employeeRole: "Software Engineer",
     employeeDepartment: "Information Technology",
     project: "Data Pipeline Migration",
     duration: "3 months",
@@ -95,7 +95,7 @@ const mockReviews: PeerReview[] = [
     id: "4",
     employeeAvatar: "RA",
     employeeName: "Rafi Ahmed",
-    employeeRole: "Marketing Analyst",
+    employeeRole: "Marketing Executive",
     employeeDepartment: "Marketing",
     project: "Marketing Campaign Analytics",
     duration: "2 months",
@@ -116,7 +116,7 @@ const mockReviews: PeerReview[] = [
     id: "5",
     employeeAvatar: "TN",
     employeeName: "Tasmia Noor",
-    employeeRole: "Security Engineer",
+    employeeRole: "Software Engineer",
     employeeDepartment: "Information Technology",
     project: "Security Audit 2026",
     duration: "5 months",
@@ -135,14 +135,14 @@ const mockReviews: PeerReview[] = [
   },
   {
     id: "6",
-    employeeAvatar: "TN",
-    employeeName: "Thomas Nguyen",
-    employeeRole: "Frontend Developer",
-    employeeDepartment: "Engineering",
+    employeeAvatar: "MH",
+    employeeName: "Mehedi Hasan",
+    employeeRole: "Junior Software Engineer",
+    employeeDepartment: "Information Technology",
     project: "HR Portal Enhancement",
     duration: "3 months",
     rating: 4,
-    review: "Thomas delivered a clean, user-friendly interface with great attention to accessibility. He was responsive to design feedback and collaborated well with the UX team. Some components could have been more reusable, but overall solid work.",
+    review: "Mehedi delivered a clean, user-friendly interface with great attention to accessibility. He was responsive to feedback and collaborated well with the IT team. Some components could have been more reusable, but overall solid work.",
     reviewDate: "2026-04-22",
     reviewCount: 3,
     strengths: ["Strong UI/UX skills", "Accessibility-focused", "Great collaboration"],
@@ -156,14 +156,14 @@ const mockReviews: PeerReview[] = [
   },
   {
     id: "7",
-    employeeAvatar: "AM",
+    employeeAvatar: "AH",
     employeeName: "Arif Hossain",
-    employeeRole: "DevOps Engineer",
-    employeeDepartment: "Engineering",
+    employeeRole: "Software Engineer",
+    employeeDepartment: "Information Technology",
     project: "Infrastructure Modernization",
     duration: "8 months",
     rating: 5,
-    review: "Alex led the infrastructure modernization with expertise and precision. The migration to containerized services was seamless, and the new CI/CD pipeline significantly improved our deployment speed. Excellent technical leadership and team collaboration.",
+    review: "Arif led the infrastructure modernization with expertise and precision. The migration to containerized services was seamless, and the new CI/CD pipeline significantly improved our deployment speed. Excellent technical leadership and team collaboration.",
     reviewDate: "2026-05-20",
     reviewCount: 4,
     strengths: ["Infrastructure expertise", "Strategic thinking", "Strong leadership"],
@@ -177,14 +177,14 @@ const mockReviews: PeerReview[] = [
   },
   {
     id: "8",
-    employeeAvatar: "LS",
+    employeeAvatar: "SS",
     employeeName: "Sharmin Sultana",
-    employeeRole: "UX Designer",
-    employeeDepartment: "Design",
-    project: "Design System V2",
+    employeeRole: "Support Executive",
+    employeeDepartment: "Customer Support",
+    project: "Support Workflow Improvement",
     duration: "4 months",
     rating: 5,
-    review: "Lisa created a comprehensive design system that has unified our product experience. Her user research was thorough, and she collaborated effectively with both design and engineering teams. The documentation is exemplary.",
+    review: "Sharmin created a comprehensive support workflow that improved employee service quality. Her documentation was thorough, and she collaborated effectively with HR and IT teams. The documentation is exemplary.",
     reviewDate: "2026-05-18",
     reviewCount: 5,
     strengths: ["User-centered approach", "Excellent documentation", "Cross-functional collaboration"],
@@ -203,18 +203,31 @@ export function PeerReview() {
   const [filterRating, setFilterRating] = useState<number | null>(null);
   const [filterDepartment, setFilterDepartment] = useState<string | null>(null);
   const [selectedReview, setSelectedReview] = useState<PeerReview | null>(null);
-  const [reviews, setReviews] = useState<PeerReview[]>(mockReviews);
+  const [reviews, setReviews] = useState<PeerReview[]>([]);
+  const [loadingReviews, setLoadingReviews] = useState(true);
+  const [reviewsError, setReviewsError] = useState("");
 
   useEffect(() => {
     let isMounted = true;
 
     api.get("/peer-reviews/analytics")
       .then((response) => {
-        if (isMounted && response.data.reviews?.length) {
-          setReviews(response.data.reviews);
+        if (isMounted) {
+          setReviews(response.data.reviews || []);
+          setReviewsError("");
         }
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (isMounted) {
+          setReviews([]);
+          setReviewsError("Unable to load peer review analytics.");
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setLoadingReviews(false);
+        }
+      });
 
     return () => {
       isMounted = false;
@@ -235,7 +248,9 @@ export function PeerReview() {
     return matchesSearch && matchesRating && matchesDepartment;
   });
 
-  const avgRating = (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1);
+  const avgRating = reviews.length
+    ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
+    : "0.0";
   const totalReviews = reviews.length;
   const ratingDistribution = [5, 4, 3, 2, 1].map(star => ({
     star,
@@ -298,7 +313,7 @@ export function PeerReview() {
             </div>
             <p className="text-sm text-muted-foreground">Total Reviews</p>
           </div>
-          <p className="text-2xl text-foreground font-bold">{mockReviews.reduce((sum, r) => sum + r.reviewCount, 0)}</p>
+          <p className="text-2xl text-foreground font-bold">{reviews.length}</p>
         </Card>
 
         <Card className="p-4">
@@ -429,7 +444,16 @@ export function PeerReview() {
               </div>
             </CardHeader>
             <CardContent>
-              {filteredReviews.length === 0 ? (
+              {loadingReviews ? (
+                <div className="text-center py-12">
+                  <p className="text-muted-foreground">Loading peer review analytics...</p>
+                </div>
+              ) : reviewsError ? (
+                <div className="text-center py-12">
+                  <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground">{reviewsError}</p>
+                </div>
+              ) : filteredReviews.length === 0 ? (
                 <div className="text-center py-12">
                   <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
                   <p className="text-muted-foreground">No reviews found matching your criteria</p>

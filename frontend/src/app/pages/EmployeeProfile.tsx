@@ -1,12 +1,66 @@
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Mail, Phone, MapPin, Calendar, Briefcase, Award, DollarSign } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import * as Tabs from "@radix-ui/react-tabs";
+import api from "../services/api";
+import { formatCurrencyBDT } from "../utils/formatters";
+
+const fallbackEmployee = {
+  id: 1,
+  name: "Tanvir Hasan",
+  email: "tanvir.hasan@hrspace.local",
+  phone: "+8801712345678",
+  department: "Information Technology",
+  designation: "Senior Software Engineer",
+  hire_date: "2024-03-01",
+  salary: 95000,
+  status: "active",
+  avatar: "TH",
+};
+
+function initials(name: string, fallback?: string) {
+  return fallback || name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+}
+
+function displayDate(value?: string | null) {
+  if (!value) return "Not added";
+  return new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function yearsSince(value?: string | null) {
+  if (!value) return "Not added";
+  const years = (Date.now() - new Date(value).getTime()) / 31557600000;
+  return `${Math.max(0, years).toFixed(1)} years`;
+}
 
 export function EmployeeProfile() {
   const { id } = useParams();
+  const [employee, setEmployee] = useState(fallbackEmployee);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!id) return;
+    let isMounted = true;
+
+    api.get(`/employees/${id}`)
+      .then((response) => {
+        if (isMounted && response.data.employee) {
+          setEmployee(response.data.employee);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setError("Unable to load employee profile. Showing demo profile.");
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [id]);
 
   return (
     <div className="space-y-6">
@@ -15,33 +69,35 @@ export function EmployeeProfile() {
         ← Back to Employees
       </Button>
 
+      {error && <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
+
       {/* Profile Header */}
       <Card>
         <CardContent className="p-8">
           <div className="flex flex-col md:flex-row gap-6">
             <div className="w-24 h-24 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-3xl flex-shrink-0">
-              TH
+              {initials(employee.name, employee.avatar)}
             </div>
             <div className="flex-1">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h1 className="text-2xl text-foreground mb-1">Tanvir Hasan</h1>
-                  <p className="text-muted-foreground">Senior Software Engineer • Information Technology</p>
+                  <h1 className="text-2xl text-foreground mb-1">{employee.name}</h1>
+                  <p className="text-muted-foreground">{employee.designation || "Employee"} • {employee.department || "Unassigned"}</p>
                 </div>
-                <Badge variant="success">Active</Badge>
+                <Badge variant={employee.status === "active" ? "success" : "warning"}>{employee.status === "active" ? "Active" : "Inactive"}</Badge>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Mail className="w-4 h-4" />
-                  tanvir.hasan@hrspace.local
+                  {employee.email}
                 </div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Phone className="w-4 h-4" />
-                  +8801712345678
+                  {employee.phone || "Not added"}
                 </div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <MapPin className="w-4 h-4" />
-                  Gulshan, Dhaka
+                  HRSpace Head Office, Gulshan, Dhaka
                 </div>
               </div>
             </div>
@@ -76,14 +132,14 @@ export function EmployeeProfile() {
                     <Calendar className="w-4 h-4 text-muted-foreground" />
                     <span className="text-sm text-foreground">Join Date</span>
                   </div>
-                  <span className="text-sm text-muted-foreground">Jan 15, 2022</span>
+                  <span className="text-sm text-muted-foreground">{displayDate(employee.hire_date)}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Briefcase className="w-4 h-4 text-muted-foreground" />
                     <span className="text-sm text-foreground">Experience</span>
                   </div>
-                  <span className="text-sm text-muted-foreground">4.2 years</span>
+                  <span className="text-sm text-muted-foreground">{yearsSince(employee.hire_date)}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -97,7 +153,7 @@ export function EmployeeProfile() {
                     <DollarSign className="w-4 h-4 text-muted-foreground" />
                     <span className="text-sm text-foreground">Salary</span>
                   </div>
-                  <span className="text-sm text-muted-foreground">BDT 95,000/month</span>
+                  <span className="text-sm text-muted-foreground">{formatCurrencyBDT(employee.salary)}/month</span>
                 </div>
               </CardContent>
             </Card>
@@ -111,7 +167,7 @@ export function EmployeeProfile() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="text-sm text-muted-foreground">Employee ID</label>
-                    <p className="text-foreground mt-1">EMP-001234</p>
+                    <p className="text-foreground mt-1">EMP-{String(employee.id).padStart(4, "0")}</p>
                   </div>
                   <div>
                     <label className="text-sm text-muted-foreground">Date of Birth</label>
@@ -147,11 +203,11 @@ export function EmployeeProfile() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <label className="text-sm text-muted-foreground">Department</label>
-                  <p className="text-foreground mt-1">Information Technology</p>
+                  <p className="text-foreground mt-1">{employee.department || "Unassigned"}</p>
                 </div>
                 <div>
                   <label className="text-sm text-muted-foreground">Job Title</label>
-                  <p className="text-foreground mt-1">Senior Software Engineer</p>
+                  <p className="text-foreground mt-1">{employee.designation || "Employee"}</p>
                 </div>
                 <div>
                   <label className="text-sm text-muted-foreground">Employment Type</label>

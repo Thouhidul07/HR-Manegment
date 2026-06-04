@@ -253,7 +253,7 @@ function HRManagerDashboard({ user }: any) {
         <SectionCard title="Department Health">
           <div className="space-y-3">
             {[
-              { dept: 'Engineering', score: 87, color: '#543884' },
+              { dept: 'Information Technology', score: 87, color: '#543884' },
               { dept: 'Sales', score: 79, color: '#9A77CF' },
               { dept: 'Marketing', score: 91, color: '#EC4176' }
             ].map((dept, i) => (
@@ -708,9 +708,9 @@ function EmployeeDashboard({ user }: any) {
         <SectionCard title="Recent Payslips" action={<a href="#" className="text-[#9A77CF] text-sm hover:text-[#EC4176]">View All →</a>}>
           <div className="space-y-0">
             {[
-              { month: 'March 2026', amount: 'BDT 75,000' },
-              { month: 'February 2026', amount: 'BDT 75,000' },
-              { month: 'January 2026', amount: 'BDT 73,500' }
+              { month: 'March 2026', amount: formatDashboardCurrency(75000) },
+              { month: 'February 2026', amount: formatDashboardCurrency(75000) },
+              { month: 'January 2026', amount: formatDashboardCurrency(73500) }
             ].map((slip, i) => (
               <div key={i} className="flex items-center justify-between py-3 border-b border-[#543884]/8 last:border-0">
                 <div className="flex items-center gap-3">

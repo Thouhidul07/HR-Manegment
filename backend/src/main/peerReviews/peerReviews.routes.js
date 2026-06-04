@@ -12,10 +12,11 @@ const {
 router.use(protect);
 
 router.get("/analytics", authorize("admin", "hr_manager"), listAnalytics);
-router.get("/mine", listMine);
-router.get("/teammates", listTeammates);
+router.get("/mine", authorize("employee"), listMine);
+router.get("/teammates", authorize("employee"), listTeammates);
 router.post(
   "/",
+  authorize("employee"),
   [
     body("revieweeId").isInt({ min: 1 }),
     body("project").trim().notEmpty(),
@@ -29,7 +30,7 @@ router.post(
     body("improvements").optional(),
   ],
   validate,
-  createReview
+  createReview,
 );
 
 module.exports = router;

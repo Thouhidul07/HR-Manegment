@@ -1,12 +1,18 @@
 const router = require("express").Router();
 const { body } = require("express-validator");
-const { listAttendance, clockIn, logAttendance } = require("./attendance.controller");
+const {
+  listAttendance,
+  clockIn,
+  clockOut,
+  logAttendance,
+} = require("./attendance.controller");
 const { protect, authorize } = require("../../middleware/authMiddleware");
 const validate = require("../../utils/validation");
 
 router.use(protect);
 router.get("/", listAttendance);
 router.post("/clock-in", authorize("employee"), clockIn);
+router.post("/clock-out", authorize("employee"), clockOut);
 router.post(
   "/log",
   authorize("employee"),

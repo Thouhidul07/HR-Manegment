@@ -93,6 +93,7 @@ async function ensureForumTables() {
   await addColumnIfMissing("forum_replies", "anonymous_alias", "VARCHAR(40)");
   await addColumnIfMissing("forum_replies", "anonymous_color", "VARCHAR(20)");
   await addColumnIfMissing("forum_replies", "status", "ENUM('published', 'hidden', 'flagged') NOT NULL DEFAULT 'published'");
+  await addColumnIfMissing("forum_replies", "updated_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
 
   await query(`
     CREATE TABLE IF NOT EXISTS forum_reactions (
@@ -154,6 +155,7 @@ function mapPost(row) {
     moderationNote: row.moderation_note || (row.status === "flagged" ? "Under review" : undefined),
     status: row.status,
     createdAt: row.created_at,
+    isOwner: Boolean(row.is_owner),
   };
 }
 
@@ -178,6 +180,7 @@ function mapReply(row) {
     replies: [],
     status: row.status,
     createdAt: row.created_at,
+    isOwner: Boolean(row.is_owner),
   };
 }
 
@@ -197,6 +200,7 @@ function nestReplies(rows) {
 
 const postSelect = `
   SELECT fp.*, u.name AS user_name,
+    fp.user_id = ? AS is_owner,
     COUNT(DISTINCT frp.id) AS reply_count,
     SUM(CASE WHEN fre.reaction = 'like' THEN 1 ELSE 0 END) AS likes,
     SUM(CASE WHEN fre.reaction = 'heart' THEN 1 ELSE 0 END) AS hearts,
@@ -211,7 +215,7 @@ const listPosts = asyncHandler(async (req, res) => {
   await ensureForumTables();
 
   const filters = ["fp.status != 'hidden'"];
-  const params = [];
+  const params = [req.user.id];
   if (req.query.category && req.query.category !== "all") {
     filters.push("fp.category = ?");
     params.push(req.query.category);
@@ -241,13 +245,13 @@ const listPosts = asyncHandler(async (req, res) => {
 const getPost = asyncHandler(async (req, res) => {
   await ensureForumTables();
   await query("UPDATE forum_posts SET views = views + 1 WHERE id = ?", [req.params.id]);
-  const [rows] = await query(`${postSelect} WHERE fp.id = ? GROUP BY fp.id`, [req.params.id]);
+  const [rows] = await query(`${postSelect} WHERE fp.id = ? GROUP BY fp.id`, [req.user.id, req.params.id]);
   if (!rows.length || rows[0].status === "hidden") {
     return res.status(404).json({ message: "Forum post not found" });
   }
 
   const [replyRows] = await query(
-    `SELECT fr.*, u.name AS user_name,
+    `SELECT fr.*, u.name AS user_name, fr.user_id = ? AS is_owner,
       SUM(CASE WHEN fre.reaction = 'like' THEN 1 ELSE 0 END) AS likes,
       SUM(CASE WHEN fre.reaction = 'heart' THEN 1 ELSE 0 END) AS hearts,
       SUM(CASE WHEN fre.reaction = 'helpful' THEN 1 ELSE 0 END) AS helpful
@@ -257,7 +261,7 @@ const getPost = asyncHandler(async (req, res) => {
      WHERE fr.post_id = ? AND fr.status != 'hidden'
      GROUP BY fr.id
      ORDER BY fr.created_at ASC`,
-    [req.params.id]
+    [req.user.id, req.params.id]
   );
 
   res.json({ post: { ...mapPost(rows[0]), replies: nestReplies(replyRows) } });
@@ -288,7 +292,7 @@ const createPost = asyncHandler(async (req, res) => {
     ]
   );
 
-  const [rows] = await query(`${postSelect} WHERE fp.id = ? GROUP BY fp.id`, [result.insertId]);
+  const [rows] = await query(`${postSelect} WHERE fp.id = ? GROUP BY fp.id`, [req.user.id, result.insertId]);
   res.status(201).json({ post: mapPost(rows[0]) });
 });
 
@@ -314,18 +318,97 @@ const createReply = asyncHandler(async (req, res) => {
   );
 
   const [rows] = await query(
-    `SELECT fr.*, u.name AS user_name, 0 AS likes, 0 AS hearts, 0 AS helpful
+    `SELECT fr.*, u.name AS user_name, fr.user_id = ? AS is_owner, 0 AS likes, 0 AS hearts, 0 AS helpful
      FROM forum_replies fr
      LEFT JOIN users u ON u.id = fr.user_id
      WHERE fr.id = ?`,
-    [result.insertId]
+    [req.user.id, result.insertId]
   );
 
   res.status(201).json({ reply: mapReply(rows[0]) });
 });
 
+const updatePost = asyncHandler(async (req, res) => {
+  await ensureForumTables();
+  const [posts] = await query("SELECT user_id, status FROM forum_posts WHERE id = ?", [req.params.id]);
+  if (!posts.length || posts[0].status === "hidden") {
+    return res.status(404).json({ message: "Forum post not found" });
+  }
+
+  const isOwner = Number(posts[0].user_id) === Number(req.user.id);
+  const isModerator = ["admin", "hr_manager"].includes(req.user.role);
+  if (!isOwner && !isModerator) {
+    return res.status(403).json({ message: "You do not have permission to edit this post" });
+  }
+
+  await query(
+    `UPDATE forum_posts
+     SET title = COALESCE(?, title),
+         body = COALESCE(?, body),
+         category = COALESCE(?, category),
+         tags = COALESCE(?, tags),
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?`,
+    [
+      req.body.title || null,
+      req.body.content || null,
+      req.body.category || null,
+      req.body.tags ? JSON.stringify(req.body.tags) : null,
+      req.params.id,
+    ]
+  );
+
+  const [rows] = await query(`${postSelect} WHERE fp.id = ? GROUP BY fp.id`, [req.user.id, req.params.id]);
+  res.json({ post: mapPost(rows[0]) });
+});
+
+const updateReply = asyncHandler(async (req, res) => {
+  await ensureForumTables();
+  const [replies] = await query("SELECT user_id, status FROM forum_replies WHERE id = ?", [req.params.id]);
+  if (!replies.length || replies[0].status === "hidden") {
+    return res.status(404).json({ message: "Forum reply not found" });
+  }
+
+  const isOwner = Number(replies[0].user_id) === Number(req.user.id);
+  const isModerator = ["admin", "hr_manager"].includes(req.user.role);
+  if (!isOwner && !isModerator) {
+    return res.status(403).json({ message: "You do not have permission to edit this reply" });
+  }
+
+  await query(
+    "UPDATE forum_replies SET body = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+    [req.body.content, req.params.id]
+  );
+
+  const [rows] = await query(
+    `SELECT fr.*, u.name AS user_name, fr.user_id = ? AS is_owner,
+      SUM(CASE WHEN fre.reaction = 'like' THEN 1 ELSE 0 END) AS likes,
+      SUM(CASE WHEN fre.reaction = 'heart' THEN 1 ELSE 0 END) AS hearts,
+      SUM(CASE WHEN fre.reaction = 'helpful' THEN 1 ELSE 0 END) AS helpful
+     FROM forum_replies fr
+     LEFT JOIN users u ON u.id = fr.user_id
+     LEFT JOIN forum_reactions fre ON fre.target_type = 'reply' AND fre.target_id = fr.id
+     WHERE fr.id = ?
+     GROUP BY fr.id`,
+    [req.user.id, req.params.id]
+  );
+
+  res.json({ reply: mapReply(rows[0]) });
+});
+
 const deletePost = asyncHandler(async (req, res) => {
   await ensureForumTables();
+  const [posts] = await query("SELECT user_id, status FROM forum_posts WHERE id = ?", [req.params.id]);
+  if (!posts.length || posts[0].status === "hidden") {
+    return res.status(404).json({ message: "Forum post not found" });
+  }
+
+  const isOwner = Number(posts[0].user_id) === Number(req.user.id);
+  const isModerator = ["admin", "hr_manager"].includes(req.user.role);
+  if (!isOwner && !isModerator) {
+    return res.status(403).json({ message: "You do not have permission to delete this post" });
+  }
+
   const [result] = await query("UPDATE forum_posts SET status = 'hidden' WHERE id = ?", [req.params.id]);
   if (!result.affectedRows) {
     return res.status(404).json({ message: "Forum post not found" });
@@ -336,6 +419,17 @@ const deletePost = asyncHandler(async (req, res) => {
 
 const deleteReply = asyncHandler(async (req, res) => {
   await ensureForumTables();
+  const [replies] = await query("SELECT user_id, status FROM forum_replies WHERE id = ?", [req.params.id]);
+  if (!replies.length || replies[0].status === "hidden") {
+    return res.status(404).json({ message: "Forum reply not found" });
+  }
+
+  const isOwner = Number(replies[0].user_id) === Number(req.user.id);
+  const isModerator = ["admin", "hr_manager"].includes(req.user.role);
+  if (!isOwner && !isModerator) {
+    return res.status(403).json({ message: "You do not have permission to delete this reply" });
+  }
+
   const [result] = await query("UPDATE forum_replies SET status = 'hidden' WHERE id = ?", [req.params.id]);
   if (!result.affectedRows) {
     return res.status(404).json({ message: "Forum reply not found" });
@@ -421,6 +515,8 @@ module.exports = {
   getPost,
   createPost,
   createReply,
+  updatePost,
+  updateReply,
   deletePost,
   deleteReply,
   toggleReaction,

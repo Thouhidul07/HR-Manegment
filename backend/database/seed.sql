@@ -18,7 +18,7 @@ VALUES
 INSERT INTO cv_candidates
   (name, email, phone, position, score, skills, experience, education, match_percentage, status, key_strengths, concerns, upload_date)
 VALUES
-  ('Mahmudul Karim', 'mahmudul.karim@hrspace.local', '+8801711122233', 'Senior Full Stack Developer', 94, JSON_ARRAY('React', 'Node.js', 'TypeScript', 'AWS', 'Docker', 'PostgreSQL'), 7, 'M.S. Computer Science - BUET', 94, 'shortlisted', JSON_ARRAY('Matched react', 'Matched node.js', 'Matched typescript'), JSON_ARRAY(), '2026-05-28');
+  ('Mahmudul Karim', 'mahmudul.karim@hrspace.local', '+8801711122233', 'Software Engineer', 94, JSON_ARRAY('React', 'Node.js', 'TypeScript', 'AWS', 'Docker', 'PostgreSQL'), 7, 'M.S. Computer Science - BUET', 94, 'shortlisted', JSON_ARRAY('Matched react', 'Matched node.js', 'Matched typescript'), JSON_ARRAY(), '2026-05-28');
 
 INSERT INTO forum_posts
   (user_id, title, body, category, is_anonymous, anonymous_alias, anonymous_color, tags, sentiment, views)

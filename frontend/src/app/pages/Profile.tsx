@@ -184,7 +184,7 @@ function ProfileSidebar({ user, roleInfo, tabs, activeTab, setActiveTab }: any) 
           {roleInfo[user.role].label}
         </span>
       </div>
-      <p className="text-xs text-[#9A77CF] text-center mt-1">Engineering Department</p>
+      <p className="text-xs text-[#9A77CF] text-center mt-1">Information Technology</p>
       <p className="text-xs text-muted-foreground text-center mt-0.5">Member since Jan 2024</p>
 
       {/* Profile Completion */}
@@ -440,8 +440,8 @@ function WorkInfoTab({ user }: any) {
         </div>
         <div className="relative border-l-2 border-[#543884]/20 pl-6 space-y-6">
           {[
-            { period: 'Jan 2024 - Present', role: 'Senior Software Engineer', dept: 'Engineering', desc: 'Leading frontend development team', current: true },
-            { period: 'Jun 2022 - Dec 2023', role: 'Software Engineer', dept: 'Engineering', desc: 'Full-stack development', current: false },
+            { period: 'Jan 2024 - Present', role: 'Senior Software Engineer', dept: 'Information Technology', desc: 'Leading frontend development team', current: true },
+            { period: 'Jun 2022 - Dec 2023', role: 'Software Engineer', dept: 'Information Technology', desc: 'Full-stack development', current: false },
             { period: 'Jan 2020 - May 2022', role: 'Junior Developer', dept: 'IT', desc: 'Supporting web applications', current: false }
           ].map((entry, i) => (
             <div key={i} className="relative pb-6 last:pb-0">
@@ -655,7 +655,7 @@ function PayrollTab() {
             <div key={i} className="flex items-center justify-between py-3 border-b border-[#543884]/8 last:border-0">
               <div>
                 <p className="text-sm font-medium text-[#262254] dark:text-white">{month}</p>
-                <p className="text-xs text-muted-foreground">BDT 75,000</p>
+                <p className="text-xs text-muted-foreground">৳75,000</p>
               </div>
               <div className="flex items-center gap-3">
                 <span className="px-2 py-1 rounded-full bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs">Processed</span>

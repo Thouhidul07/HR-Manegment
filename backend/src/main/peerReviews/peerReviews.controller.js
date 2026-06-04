@@ -230,6 +230,19 @@ const listTeammates = asyncHandler(async (req, res) => {
 
 const createReview = asyncHandler(async (req, res) => {
   await ensurePeerReviewTables();
+  if (Number(req.body.revieweeId) === Number(req.user.id)) {
+    return res.status(400).json({ message: "You cannot submit a peer review for yourself" });
+  }
+
+  const [reviewees] = await query(
+    "SELECT id FROM users WHERE id = ? AND role IN ('employee', 'hr_manager') LIMIT 1",
+    [req.body.revieweeId]
+  );
+
+  if (!reviewees.length) {
+    return res.status(404).json({ message: "Reviewee not found" });
+  }
+
   const strengths = normalizeList(req.body.strengths);
   const improvements = normalizeList(req.body.improvements);
 

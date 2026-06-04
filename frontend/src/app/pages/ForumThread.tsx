@@ -1,26 +1,28 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import {
   ArrowLeft, ThumbsUp, Heart, Lightbulb, MessageCircle, Flag,
-  Eye, Share2, Bookmark, MoreHorizontal, Send
+  Eye, Share2, Bookmark, Send, Pencil, Trash2
 } from "lucide-react";
 import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
+import { Modal } from "../components/ui/Modal";
 import { ReplyThread } from "../components/forum/ReplyThread";
 import { getAnonymousAvatarEmoji } from "../components/forum/anonymousAvatars";
+import { useAuth } from "../contexts/AuthContext";
 import api from "../services/api";
 
 const threadData = {
   id: 1,
   category: "Mental Wellness",
-  title: "How do you manage work-life balance with remote work?",
-  content: "I've been struggling to set boundaries between work and personal time since we went fully remote. My laptop is always nearby and I find myself checking emails late at night. Anyone else experiencing this?\n\nI've tried setting specific work hours, but it's hard to stick to them when deadlines approach. Would love to hear what strategies have worked for others.",
+  title: "How do you manage work-life balance with hybrid work?",
+  content: "I've been struggling to set boundaries between work and personal time while balancing office days in Dhaka and work-from-home days. My laptop is always nearby and I find myself checking emails late at night. Anyone else experiencing this?\n\nI've tried setting specific work hours, but it's hard to stick to them when deadlines approach. Would love to hear what strategies have worked for others.",
   author: { name: "Anonymous Panda", color: "#9A77CF" },
   timestamp: "2 hours ago",
   views: 234,
   reactions: { likes: 45, hearts: 12, helpful: 8 },
-  tags: ["remote-work", "wellness", "boundaries"],
+  tags: ["hybrid-work", "wellness", "boundaries"],
   sentiment: "concerned",
   replies: [
     {
@@ -86,9 +88,16 @@ const threadData = {
 };
 
 export function ForumThread() {
+  const { user } = useAuth();
   const { threadId } = useParams();
+  const navigate = useNavigate();
+  const canParticipate = user?.role === "employee" || user?.role === "hr_manager";
   const [thread, setThread] = useState(threadData);
   const [replyContent, setReplyContent] = useState("");
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ title: threadData.title, content: threadData.content, category: threadData.category });
+  const [threadError, setThreadError] = useState("");
+  const [savingThread, setSavingThread] = useState(false);
   const [userReactions, setUserReactions] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -99,6 +108,11 @@ export function ForumThread() {
       .then((response) => {
         if (isMounted && response.data.post) {
           setThread(response.data.post);
+          setEditForm({
+            title: response.data.post.title,
+            content: response.data.post.content,
+            category: response.data.post.category,
+          });
         }
       })
       .catch(() => {});
@@ -116,6 +130,7 @@ export function ForumThread() {
   };
 
   const handlePostReply = async () => {
+    if (!canParticipate) return;
     if (!replyContent.trim()) return;
     const response = await api.post(`/forum/posts/${thread.id}/replies`, {
       content: replyContent,
@@ -126,6 +141,38 @@ export function ForumThread() {
       replies: [...currentThread.replies, response.data.reply],
     }));
     setReplyContent("");
+  };
+
+  const handleUpdateThread = async () => {
+    if (!thread.isOwner) return;
+    if (!editForm.title.trim() || !editForm.content.trim()) {
+      setThreadError("Title and content are required.");
+      return;
+    }
+
+    setSavingThread(true);
+    setThreadError("");
+    try {
+      const response = await api.patch(`/forum/posts/${thread.id}`, editForm);
+      setThread((currentThread) => ({
+        ...currentThread,
+        ...response.data.post,
+        replies: currentThread.replies,
+      }));
+      setIsEditModalOpen(false);
+    } catch (error: any) {
+      setThreadError(error?.response?.data?.message || "Unable to update this post.");
+    } finally {
+      setSavingThread(false);
+    }
+  };
+
+  const handleDeleteThread = async () => {
+    if (!thread.isOwner) return;
+    if (!window.confirm("Delete this forum post?")) return;
+
+    await api.delete(`/forum/posts/${thread.id}`);
+    navigate("/dashboard/forum");
   };
 
   return (
@@ -161,9 +208,26 @@ export function ForumThread() {
               <Badge variant="secondary" className="bg-[var(--primary)]/10 text-[var(--primary)] border-[var(--primary)]/20">
                 {thread.category}
               </Badge>
-              <Button variant="ghost" size="sm">
-                <MoreHorizontal className="w-4 h-4" />
-              </Button>
+              {canParticipate && thread.isOwner && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-[var(--primary)]"
+                    onClick={() => setIsEditModalOpen(true)}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-destructive"
+                    onClick={handleDeleteThread}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </>
+              )}
             </div>
           </div>
 
@@ -205,31 +269,34 @@ export function ForumThread() {
           <div className="flex items-center justify-between pt-4 border-t border-border">
             <div className="flex items-center gap-2">
               <Button
-                variant={userReactions.like ? "primary" : "outline"}
+                variant={canParticipate && userReactions.like ? "primary" : "outline"}
                 size="sm"
                 className="gap-2"
-                onClick={() => toggleReaction('like')}
+                onClick={() => canParticipate && toggleReaction('like')}
+                disabled={!canParticipate}
               >
                 <ThumbsUp className="w-4 h-4" />
-                <span>{thread.reactions.likes + (userReactions.like ? 1 : 0)}</span>
+                <span>{thread.reactions.likes + (canParticipate && userReactions.like ? 1 : 0)}</span>
               </Button>
               <Button
-                variant={userReactions.heart ? "primary" : "outline"}
+                variant={canParticipate && userReactions.heart ? "primary" : "outline"}
                 size="sm"
                 className="gap-2"
-                onClick={() => toggleReaction('heart')}
+                onClick={() => canParticipate && toggleReaction('heart')}
+                disabled={!canParticipate}
               >
                 <Heart className="w-4 h-4" />
-                <span>{thread.reactions.hearts + (userReactions.heart ? 1 : 0)}</span>
+                <span>{thread.reactions.hearts + (canParticipate && userReactions.heart ? 1 : 0)}</span>
               </Button>
               <Button
-                variant={userReactions.helpful ? "primary" : "outline"}
+                variant={canParticipate && userReactions.helpful ? "primary" : "outline"}
                 size="sm"
                 className="gap-2"
-                onClick={() => toggleReaction('helpful')}
+                onClick={() => canParticipate && toggleReaction('helpful')}
+                disabled={!canParticipate}
               >
                 <Lightbulb className="w-4 h-4" />
-                <span>{thread.reactions.helpful + (userReactions.helpful ? 1 : 0)}</span>
+                <span>{thread.reactions.helpful + (canParticipate && userReactions.helpful ? 1 : 0)}</span>
               </Button>
             </div>
             <div className="flex items-center gap-2">
@@ -241,14 +308,69 @@ export function ForumThread() {
                 <Bookmark className="w-4 h-4" />
                 Save
               </Button>
-              <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-destructive">
-                <Flag className="w-4 h-4" />
-                Report
-              </Button>
+              {canParticipate && (
+                <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-destructive">
+                  <Flag className="w-4 h-4" />
+                  Report
+                </Button>
+              )}
             </div>
           </div>
         </div>
       </Card>
+
+      <Modal
+        isOpen={Boolean(thread.isOwner && isEditModalOpen)}
+        onClose={() => {
+          if (savingThread) return;
+          setIsEditModalOpen(false);
+          setThreadError("");
+        }}
+        title="Edit Forum Post"
+        size="lg"
+        footer={
+          <>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (savingThread) return;
+                setIsEditModalOpen(false);
+                setThreadError("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={handleUpdateThread} disabled={savingThread}>
+              {savingThread ? "Saving..." : "Save Changes"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          {threadError && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {threadError}
+            </div>
+          )}
+          <div>
+            <label className="block text-sm mb-1.5 text-foreground">Title</label>
+            <input
+              value={editForm.title}
+              onChange={(event) => setEditForm((form) => ({ ...form, title: event.target.value }))}
+              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+            />
+          </div>
+          <div>
+            <label className="block text-sm mb-1.5 text-foreground">Content</label>
+            <textarea
+              value={editForm.content}
+              onChange={(event) => setEditForm((form) => ({ ...form, content: event.target.value }))}
+              rows={6}
+              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all resize-none"
+            />
+          </div>
+        </div>
+      </Modal>
 
       {/* Replies Section */}
       <Card>
@@ -258,6 +380,7 @@ export function ForumThread() {
           </h3>
 
           {/* Reply Input */}
+          {canParticipate && (
           <div className="mb-6 p-4 rounded-xl border border-border bg-card">
             <div className="flex gap-3 mb-3">
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[var(--primary)] to-[var(--info)] flex items-center justify-center shadow-md text-xl">
@@ -286,11 +409,12 @@ export function ForumThread() {
               </Button>
             </div>
           </div>
+          )}
 
           {/* Replies Thread */}
           <div className="space-y-4">
             {thread.replies.map((reply) => (
-              <ReplyThread key={reply.id} reply={reply} level={0} />
+              <ReplyThread key={reply.id} reply={reply} level={0} canParticipate={canParticipate} />
             ))}
           </div>
         </div>

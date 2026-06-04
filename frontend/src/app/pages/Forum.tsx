@@ -8,6 +8,7 @@ import { Link } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
+import { Modal } from "../components/ui/Modal";
 import { TrendingTopics } from "../components/forum/TrendingTopics";
 import { CreatePostModal } from "../components/forum/CreatePostModal";
 import { DiscussionCard } from "../components/forum/DiscussionCard";
@@ -29,14 +30,14 @@ const discussions = [
   {
     id: 1,
     category: "Mental Wellness",
-    title: "How do you manage work-life balance with remote work?",
-    content: "I've been struggling to set boundaries between work and personal time since we went fully remote. My laptop is always nearby and I find myself checking emails late at night. Anyone else experiencing this?",
+    title: "How do you manage work-life balance with hybrid work?",
+    content: "I've been struggling to set boundaries between work and personal time while balancing office days in Dhaka and work-from-home days. My laptop is always nearby and I find myself checking emails late at night. Anyone else experiencing this?",
     author: { name: "Anonymous Panda", color: "#9A77CF" },
     timestamp: "2 hours ago",
     views: 234,
     replies: 18,
     reactions: { likes: 45, hearts: 12, helpful: 8 },
-    tags: ["remote-work", "wellness", "boundaries"],
+    tags: ["hybrid-work", "wellness", "boundaries"],
     sentiment: "concerned",
     isPoll: false,
     hasModeration: false
@@ -135,6 +136,11 @@ export function Forum() {
   const [discussionList, setDiscussionList] = useState(discussions);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [editingPost, setEditingPost] = useState<any | null>(null);
+  const [editPostForm, setEditPostForm] = useState({ title: "", content: "", category: "General" });
+  const [forumMessage, setForumMessage] = useState("");
+  const [forumError, setForumError] = useState("");
+  const [savingPost, setSavingPost] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("recent");
 
@@ -171,6 +177,75 @@ export function Forum() {
     setDiscussionList((currentDiscussions) => [response.data.post, ...currentDiscussions]);
   };
 
+  const showForumFeedback = (message: string, isError = false) => {
+    if (isError) {
+      setForumError(message);
+      setForumMessage("");
+    } else {
+      setForumMessage(message);
+      setForumError("");
+    }
+
+    window.setTimeout(() => {
+      setForumMessage("");
+      setForumError("");
+    }, 3000);
+  };
+
+  const openEditPost = (post: any) => {
+    setEditingPost(post);
+    setEditPostForm({
+      title: post.title,
+      content: post.content,
+      category: post.category || "General",
+    });
+    setForumError("");
+  };
+
+  const handleUpdatePost = async () => {
+    if (!editingPost?.isOwner) return;
+    if (!editPostForm.title.trim() || !editPostForm.content.trim()) {
+      setForumError("Title and content are required.");
+      return;
+    }
+
+    setSavingPost(true);
+    setForumError("");
+    try {
+      const response = await api.patch(`/forum/posts/${editingPost.id}`, {
+        title: editPostForm.title,
+        content: editPostForm.content,
+        category: editPostForm.category,
+      });
+      setDiscussionList((currentDiscussions) =>
+        currentDiscussions.map((discussion) =>
+          discussion.id === editingPost.id ? response.data.post : discussion,
+        ),
+      );
+      setEditingPost(null);
+      showForumFeedback("Forum post updated.");
+    } catch (error: any) {
+      showForumFeedback(error?.response?.data?.message || "Unable to update forum post.", true);
+    } finally {
+      setSavingPost(false);
+    }
+  };
+
+  const handleDeletePost = async (post: any) => {
+    if (!post.isOwner) return;
+    if (!window.confirm("Delete this forum post?")) return;
+
+    try {
+      await api.delete(`/forum/posts/${post.id}`);
+      setDiscussionList((currentDiscussions) =>
+        currentDiscussions.filter((discussion) => discussion.id !== post.id),
+      );
+      showForumFeedback("Forum post deleted.");
+    } catch (error: any) {
+      showForumFeedback(error?.response?.data?.message || "Unable to delete forum post.", true);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -202,6 +277,18 @@ export function Forum() {
           )}
         </div>
       </div>
+
+      {forumMessage && (
+        <div className="rounded-lg border border-[var(--success)]/30 bg-[var(--success)]/10 px-4 py-3 text-sm text-[var(--success)]">
+          {forumMessage}
+        </div>
+      )}
+
+      {forumError && !editingPost && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {forumError}
+        </div>
+      )}
 
       {/* Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -311,7 +398,12 @@ export function Forum() {
           {/* Discussion Feed */}
           <div className="space-y-4">
             {filteredDiscussions.map((discussion) => (
-              <DiscussionCard key={discussion.id} discussion={discussion} />
+              <DiscussionCard
+                key={discussion.id}
+                discussion={discussion}
+                onEdit={openEditPost}
+                onDelete={handleDeletePost}
+              />
             ))}
           </div>
 
@@ -403,6 +495,75 @@ export function Forum() {
         onClose={() => setIsCreateModalOpen(false)}
         onCreate={handleCreatePost}
       />
+
+      <Modal
+        isOpen={Boolean(editingPost?.isOwner)}
+        onClose={() => {
+          if (savingPost) return;
+          setEditingPost(null);
+          setForumError("");
+        }}
+        title="Edit Forum Post"
+        size="lg"
+        footer={
+          <>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (savingPost) return;
+                setEditingPost(null);
+                setForumError("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleUpdatePost}
+              disabled={savingPost}
+            >
+              {savingPost ? "Saving..." : "Save Changes"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          {forumError && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {forumError}
+            </div>
+          )}
+          <div>
+            <label className="block text-sm mb-1.5 text-foreground">Title</label>
+            <input
+              value={editPostForm.title}
+              onChange={(event) => setEditPostForm((form) => ({ ...form, title: event.target.value }))}
+              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+            />
+          </div>
+          <div>
+            <label className="block text-sm mb-1.5 text-foreground">Category</label>
+            <select
+              value={editPostForm.category}
+              onChange={(event) => setEditPostForm((form) => ({ ...form, category: event.target.value }))}
+              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+            >
+              {categories.filter((category) => category.id !== "all").map((category) => (
+                <option key={category.id}>{category.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm mb-1.5 text-foreground">Content</label>
+            <textarea
+              value={editPostForm.content}
+              onChange={(event) => setEditPostForm((form) => ({ ...form, content: event.target.value }))}
+              rows={6}
+              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all resize-none"
+            />
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

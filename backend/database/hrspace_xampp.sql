@@ -586,16 +586,16 @@ VALUES
 INSERT INTO cv_candidates
   (name, email, phone, position, score, skills, experience, education, match_percentage, status, key_strengths, concerns, upload_date)
 VALUES
-  ('Mahmudul Karim', 'mahmudul.karim@hrspace.local', '+8801711122233', 'Senior Full Stack Developer', 94, JSON_ARRAY('React', 'Node.js', 'TypeScript', 'AWS', 'Docker', 'PostgreSQL'), 7, 'M.S. Computer Science - BUET', 94, 'shortlisted', JSON_ARRAY('Matched react', 'Matched node.js', 'Matched typescript'), JSON_ARRAY(), '2026-05-28'),
-  ('Jannatul Ferdous', 'jannatul.ferdous@hrspace.local', '+8801811122233', 'Senior Full Stack Developer', 73, JSON_ARRAY('React', 'Python', 'Django', 'MySQL', 'Redis', 'Git'), 6, 'B.S. Software Engineering - University of Dhaka', 73, 'pending', JSON_ARRAY('Matched react'), JSON_ARRAY('Missing preferred skills: node.js, typescript, aws'), '2026-05-27'),
-  ('Rafi Ahmed', 'rafi.ahmed@hrspace.local', '+8801911122233', 'Senior Full Stack Developer', 68, JSON_ARRAY('Vue.js', 'Node.js', 'MongoDB', 'Express', 'GraphQL'), 5, 'B.S. Computer Science - North South University', 68, 'rejected', JSON_ARRAY('Matched node.js'), JSON_ARRAY('Missing preferred skills: react, typescript, aws'), '2026-05-26');
+  ('Mahmudul Karim', 'mahmudul.karim@hrspace.local', '+8801711122233', 'Software Engineer', 94, JSON_ARRAY('React', 'Node.js', 'TypeScript', 'AWS', 'Docker', 'PostgreSQL'), 7, 'M.S. Computer Science - BUET', 94, 'shortlisted', JSON_ARRAY('Matched react', 'Matched node.js', 'Matched typescript'), JSON_ARRAY(), '2026-05-28'),
+  ('Jannatul Ferdous', 'jannatul.ferdous@hrspace.local', '+8801811122233', 'Software Engineer', 73, JSON_ARRAY('React', 'Python', 'Django', 'MySQL', 'Redis', 'Git'), 6, 'B.S. Software Engineering - University of Dhaka', 73, 'pending', JSON_ARRAY('Matched react'), JSON_ARRAY('Missing preferred skills: node.js, typescript, aws'), '2026-05-27'),
+  ('Rafi Ahmed', 'rafi.ahmed@hrspace.local', '+8801911122233', 'Software Engineer', 68, JSON_ARRAY('Vue.js', 'Node.js', 'MongoDB', 'Express', 'GraphQL'), 5, 'B.S. Computer Science - North South University', 68, 'rejected', JSON_ARRAY('Matched node.js'), JSON_ARRAY('Missing preferred skills: react, typescript, aws'), '2026-05-26');
 
 INSERT INTO expenses
   (user_id, category, amount, expense_date, description, status, reviewed_by)
 VALUES
   (3, 'Travel', 2500.00, DATE_SUB(CURDATE(), INTERVAL 5 DAY), 'Client visit transport', 'pending', NULL),
   (4, 'Office Supplies', 1800.00, DATE_SUB(CURDATE(), INTERVAL 3 DAY), 'Stationery purchase', 'approved', 2),
-  (5, 'Internet', 1200.00, DATE_SUB(CURDATE(), INTERVAL 8 DAY), 'Remote work internet allowance', 'paid', 2);
+  (5, 'Internet', 1200.00, DATE_SUB(CURDATE(), INTERVAL 8 DAY), 'Hybrid work internet allowance', 'paid', 2);
 
 INSERT INTO expense_payments
   (expense_id, amount, payment_date, method, reference, paid_by)
@@ -624,7 +624,7 @@ INSERT INTO forum_posts
   (user_id, title, body, category, is_anonymous, anonymous_alias, anonymous_color, tags, sentiment, views)
 VALUES
   (2, 'Welcome to HRSpace', 'Use this forum for HR questions, announcements, and team discussions.', 'Announcement', FALSE, 'Owl', '#7C5FB5', JSON_ARRAY('announcement', 'hr'), 'positive', 124),
-  (3, 'Remote work equipment request', 'What is the process for requesting an extra monitor?', 'General', TRUE, 'Panda', '#9A77CF', JSON_ARRAY('equipment', 'remote-work'), 'neutral', 57);
+  (3, 'Office equipment request', 'What is the process for requesting an extra monitor at the Dhaka office?', 'General', TRUE, 'Panda', '#9A77CF', JSON_ARRAY('equipment', 'office-support'), 'neutral', 57);
 
 INSERT INTO forum_replies
   (post_id, user_id, body, is_anonymous, anonymous_alias, anonymous_color)

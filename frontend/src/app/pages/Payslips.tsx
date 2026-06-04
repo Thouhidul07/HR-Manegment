@@ -4,6 +4,7 @@ import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/Card";
 import api from "../services/api";
+import { formatCurrencyBDT } from "../utils/formatters";
 
 type PayrollRecord = {
   id: number;
@@ -14,14 +15,6 @@ type PayrollRecord = {
   net_pay: string | number;
   status: string;
 };
-
-function money(value: string | number) {
-  return Number(value || 0).toLocaleString("en-BD", {
-    style: "currency",
-    currency: "BDT",
-    maximumFractionDigits: 0,
-  });
-}
 
 function monthLabel(value: string) {
   return new Date(value).toLocaleDateString("en-US", { month: "long", year: "numeric" });
@@ -125,7 +118,7 @@ export function Payslips() {
             </div>
             <p className="text-sm text-muted-foreground">Latest Net Pay</p>
           </div>
-          <p className="text-2xl text-foreground">{money(latest.net_pay)}</p>
+          <p className="text-2xl text-foreground">{formatCurrencyBDT(latest.net_pay)}</p>
           <p className="text-xs text-muted-foreground mt-1">{monthLabel(latest.pay_period)}</p>
         </Card>
 
@@ -147,7 +140,7 @@ export function Payslips() {
             </div>
             <p className="text-sm text-muted-foreground">Year-to-Date Net</p>
           </div>
-          <p className="text-2xl text-foreground">{money(yearToDate)}</p>
+          <p className="text-2xl text-foreground">{formatCurrencyBDT(yearToDate)}</p>
           <p className="text-xs text-muted-foreground mt-1">Visible payslips</p>
         </Card>
       </div>
@@ -171,7 +164,7 @@ export function Payslips() {
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="hidden sm:block text-right">
-                    <p className="text-sm font-medium text-foreground">{money(payslip.net_pay)}</p>
+                    <p className="text-sm font-medium text-foreground">{formatCurrencyBDT(payslip.net_pay)}</p>
                     <p className="text-xs text-muted-foreground">Net pay</p>
                   </div>
                   <Badge variant="secondary">{statusLabel(payslip.status)}</Badge>

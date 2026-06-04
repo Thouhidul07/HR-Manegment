@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Star, Plus, Send, User, Briefcase, Clock, Calendar, Award, TrendingUp, MessageSquare } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
+import { Modal } from "../components/ui/Modal";
 import { motion } from "motion/react";
 import api from "../services/api";
 
@@ -83,20 +84,24 @@ const mockReceivedReviews: ReceivedReview[] = [
 ];
 
 const mockTeammates: Teammate[] = [
-  { id: "1", name: "Sadia Rahman", avatar: "SR", role: "Senior Developer", department: "Information Technology" },
-  { id: "2", name: "Mahmudul Karim", avatar: "MK", role: "Product Manager", department: "Product" },
-  { id: "3", name: "Jannatul Ferdous", avatar: "JF", role: "Data Engineer", department: "Information Technology" },
-  { id: "4", name: "Rafi Ahmed", avatar: "RA", role: "Marketing Analyst", department: "Marketing" },
-  { id: "5", name: "Tasmia Noor", avatar: "TN", role: "Security Engineer", department: "Information Technology" },
+  { id: "1", name: "Sadia Rahman", avatar: "SR", role: "Software Engineer", department: "Information Technology" },
+  { id: "2", name: "Mahmudul Karim", avatar: "MK", role: "Operations Executive", department: "Operations" },
+  { id: "3", name: "Jannatul Ferdous", avatar: "JF", role: "Software Engineer", department: "Information Technology" },
+  { id: "4", name: "Rafi Ahmed", avatar: "RA", role: "Marketing Executive", department: "Marketing" },
+  { id: "5", name: "Tasmia Noor", avatar: "TN", role: "Support Executive", department: "Customer Support" },
 ];
 
 export function EmployeePeerReview() {
   const [activeTab, setActiveTab] = useState<'received' | 'submit'>('received');
   const [showSubmitForm, setShowSubmitForm] = useState(false);
+  const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [selectedTeammate, setSelectedTeammate] = useState<Teammate | null>(null);
   const [receivedReviews, setReceivedReviews] = useState<ReceivedReview[]>(mockReceivedReviews);
   const [teammates, setTeammates] = useState<Teammate[]>(mockTeammates);
   const [givenCount, setGivenCount] = useState(5);
+  const [savingReview, setSavingReview] = useState(false);
+  const [peerReviewMessage, setPeerReviewMessage] = useState("");
+  const [peerReviewError, setPeerReviewError] = useState("");
   const [formData, setFormData] = useState({
     project: '',
     duration: '',
@@ -109,56 +114,7 @@ export function EmployeePeerReview() {
     improvements: ''
   });
 
-  useEffect(() => {
-    let isMounted = true;
-
-    Promise.all([
-      api.get("/peer-reviews/mine"),
-      api.get("/peer-reviews/teammates"),
-    ])
-      .then(([mineResponse, teammatesResponse]) => {
-        if (!isMounted) return;
-
-        if (mineResponse.data.reviews?.length) {
-          setReceivedReviews(mineResponse.data.reviews);
-        }
-
-        setGivenCount(Number(mineResponse.data.givenCount || 0));
-
-        if (teammatesResponse.data.teammates?.length) {
-          setTeammates(teammatesResponse.data.teammates);
-        }
-      })
-      .catch(() => undefined);
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  const avgRating = receivedReviews.length
-    ? (receivedReviews.reduce((sum, r) => sum + r.rating, 0) / receivedReviews.length).toFixed(1)
-    : "0.0";
-  const totalReviews = receivedReviews.length;
-
-  const handleSubmitReview = async () => {
-    if (!selectedTeammate) {
-      return;
-    }
-
-    await api.post("/peer-reviews", {
-      revieweeId: selectedTeammate.id,
-      project: formData.project,
-      duration: formData.duration,
-      review: formData.review,
-      communication: formData.communication,
-      technical: formData.technical,
-      teamwork: formData.teamwork,
-      leadership: formData.leadership,
-      strengths: formData.strengths,
-      improvements: formData.improvements,
-    });
-
+  const resetForm = () => {
     setFormData({
       project: '',
       duration: '',
@@ -170,10 +126,98 @@ export function EmployeePeerReview() {
       strengths: '',
       improvements: ''
     });
-    setSelectedTeammate(null);
-    setShowSubmitForm(false);
-    setActiveTab('received');
-    setGivenCount((count) => count + 1);
+  };
+
+  const loadPeerReviewData = useCallback(async () => {
+    const [mineResponse, teammatesResponse] = await Promise.all([
+      api.get("/peer-reviews/mine"),
+      api.get("/peer-reviews/teammates"),
+    ]);
+
+    setReceivedReviews(mineResponse.data.reviews || []);
+    setGivenCount(Number(mineResponse.data.givenCount || 0));
+    setTeammates(teammatesResponse.data.teammates || []);
+  }, []);
+
+  useEffect(() => {
+    loadPeerReviewData().catch(() => undefined);
+  }, [loadPeerReviewData]);
+
+  const showPeerReviewFeedback = (message: string, isError = false) => {
+    if (isError) {
+      setPeerReviewError(message);
+      setPeerReviewMessage("");
+    } else {
+      setPeerReviewMessage(message);
+      setPeerReviewError("");
+    }
+
+    window.setTimeout(() => {
+      setPeerReviewMessage("");
+      setPeerReviewError("");
+    }, 3000);
+  };
+
+  const getApiErrorMessage = (error: any, fallback: string) =>
+    error?.response?.data?.message || fallback;
+
+  const avgRating = receivedReviews.length
+    ? (receivedReviews.reduce((sum, r) => sum + r.rating, 0) / receivedReviews.length).toFixed(1)
+    : "0.0";
+  const totalReviews = receivedReviews.length;
+
+  const handleSubmitReview = async () => {
+    if (!selectedTeammate) {
+      setPeerReviewError("Select a teammate to review.");
+      return;
+    }
+
+    if (!formData.project.trim() || !formData.duration.trim() || !formData.review.trim()) {
+      setPeerReviewError("Project, duration, and review comments are required.");
+      return;
+    }
+
+    if (
+      formData.communication === 0 ||
+      formData.technical === 0 ||
+      formData.teamwork === 0 ||
+      formData.leadership === 0
+    ) {
+      setPeerReviewError("Please rate all review categories.");
+      return;
+    }
+
+    setSavingReview(true);
+    setPeerReviewError("");
+
+    try {
+      await api.post("/peer-reviews", {
+        revieweeId: selectedTeammate.id,
+        project: formData.project,
+        duration: formData.duration,
+        review: formData.review,
+        communication: formData.communication,
+        technical: formData.technical,
+        teamwork: formData.teamwork,
+        leadership: formData.leadership,
+        strengths: formData.strengths,
+        improvements: formData.improvements,
+      });
+
+      resetForm();
+      setSelectedTeammate(null);
+      setIsSubmitModalOpen(false);
+      setShowSubmitForm(false);
+      setActiveTab('received');
+      await loadPeerReviewData();
+      showPeerReviewFeedback("Peer review submitted successfully.");
+    } catch (error) {
+      setPeerReviewError(
+        getApiErrorMessage(error, "Unable to submit peer review right now."),
+      );
+    } finally {
+      setSavingReview(false);
+    }
   };
 
   const StarRating = ({ value, onChange, readonly = false }: { value: number; onChange?: (val: number) => void; readonly?: boolean }) => {
@@ -209,6 +253,18 @@ export function EmployeePeerReview() {
           <p className="text-muted-foreground">Give and receive anonymous feedback from your teammates</p>
         </div>
       </div>
+
+      {peerReviewMessage && (
+        <div className="rounded-lg border border-[var(--success)]/30 bg-[var(--success)]/10 px-4 py-3 text-sm text-[var(--success)]">
+          {peerReviewMessage}
+        </div>
+      )}
+
+      {peerReviewError && !isSubmitModalOpen && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {peerReviewError}
+        </div>
+      )}
 
       {/* Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -390,7 +446,9 @@ export function EmployeePeerReview() {
                         key={teammate.id}
                         onClick={() => {
                           setSelectedTeammate(teammate);
-                          setShowSubmitForm(true);
+                          resetForm();
+                          setPeerReviewError("");
+                          setIsSubmitModalOpen(true);
                         }}
                         className="p-4 rounded-xl border-2 border-border hover:border-[#543884] transition-all text-left hover:bg-secondary/50"
                       >
@@ -539,6 +597,138 @@ export function EmployeePeerReview() {
           )}
         </div>
       )}
+
+      <Modal
+        isOpen={isSubmitModalOpen}
+        onClose={() => {
+          if (savingReview) return;
+          setIsSubmitModalOpen(false);
+          setSelectedTeammate(null);
+          setPeerReviewError("");
+        }}
+        title={`Review for ${selectedTeammate?.name || "Teammate"}`}
+        size="lg"
+        footer={
+          <>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (savingReview) return;
+                setIsSubmitModalOpen(false);
+                setSelectedTeammate(null);
+                setPeerReviewError("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmitReview}
+              disabled={savingReview}
+              className="gap-2"
+            >
+              <Send className="w-4 h-4" />
+              {savingReview ? "Submitting..." : "Submit Review"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-6">
+          {peerReviewError && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {peerReviewError}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">Project Name *</label>
+              <input
+                type="text"
+                value={formData.project}
+                onChange={(e) => setFormData({ ...formData, project: e.target.value })}
+                placeholder="e.g., HR Portal Enhancement"
+                className="w-full px-4 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#9A77CF]"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">Duration *</label>
+              <input
+                type="text"
+                value={formData.duration}
+                onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
+                placeholder="e.g., 3 months"
+                className="w-full px-4 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#9A77CF]"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-3">Rate Your Teammate *</label>
+            <div className="space-y-3">
+              {[
+                { key: 'communication', label: 'Communication' },
+                { key: 'technical', label: 'Technical Skills' },
+                { key: 'teamwork', label: 'Teamwork' },
+                { key: 'leadership', label: 'Leadership' }
+              ].map(({ key, label }) => (
+                <div key={key} className="flex items-center justify-between p-3 bg-secondary rounded-lg">
+                  <span className="text-sm text-foreground">{label}</span>
+                  <StarRating
+                    value={formData[key as keyof typeof formData] as number}
+                    onChange={(val) => setFormData({ ...formData, [key]: val })}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-2">Your Review *</label>
+            <textarea
+              value={formData.review}
+              onChange={(e) => setFormData({ ...formData, review: e.target.value })}
+              placeholder="Share your honest feedback about working with this teammate..."
+              rows={5}
+              className="w-full px-4 py-3 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#9A77CF] resize-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">Strengths</label>
+              <textarea
+                value={formData.strengths}
+                onChange={(e) => setFormData({ ...formData, strengths: e.target.value })}
+                placeholder="e.g., Great communicator, Problem solver"
+                rows={3}
+                className="w-full px-4 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#9A77CF] resize-none text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">Areas for Growth</label>
+              <textarea
+                value={formData.improvements}
+                onChange={(e) => setFormData({ ...formData, improvements: e.target.value })}
+                placeholder="e.g., Time management, Documentation"
+                rows={3}
+                className="w-full px-4 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-[#9A77CF] resize-none text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="p-4 bg-[#543884]/10 border border-[#543884]/20 rounded-lg">
+            <div className="flex items-start gap-3">
+              <MessageSquare className="w-5 h-5 text-[#543884] flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-foreground mb-1">Anonymous Feedback</p>
+                <p className="text-xs text-muted-foreground">
+                  Your identity will remain anonymous in employee-facing review summaries.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

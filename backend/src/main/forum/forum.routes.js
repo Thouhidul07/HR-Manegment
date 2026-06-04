@@ -5,6 +5,8 @@ const {
   getPost,
   createPost,
   createReply,
+  updatePost,
+  updateReply,
   deletePost,
   deleteReply,
   toggleReaction,
@@ -53,17 +55,39 @@ router.post(
   createReply
 );
 
+router.patch(
+  "/posts/:id",
+  authorize("employee", "admin", "hr_manager"),
+  [
+    param("id").isInt({ min: 1 }),
+    body("title").optional().trim().notEmpty(),
+    body("content").optional().trim().notEmpty(),
+    body("category").optional().trim().notEmpty(),
+    body("tags").optional().isArray(),
+  ],
+  validate,
+  updatePost
+);
+
 router.delete(
   "/posts/:id",
-  authorize("admin", "hr_manager"),
+  authorize("employee", "admin", "hr_manager"),
   [param("id").isInt({ min: 1 })],
   validate,
   deletePost
 );
 
+router.patch(
+  "/replies/:id",
+  authorize("employee", "admin", "hr_manager"),
+  [param("id").isInt({ min: 1 }), body("content").trim().notEmpty()],
+  validate,
+  updateReply
+);
+
 router.delete(
   "/replies/:id",
-  authorize("admin", "hr_manager"),
+  authorize("employee", "admin", "hr_manager"),
   [param("id").isInt({ min: 1 })],
   validate,
   deleteReply

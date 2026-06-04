@@ -31,7 +31,7 @@ router.post(
 
 router.patch(
   "/:id",
-  authorize("employee"),
+  authorize("employee", "admin", "hr_manager"),
   upload.single("receipt"),
   [
     param("id").isInt({ min: 1 }),
@@ -58,6 +58,12 @@ router.patch(
   updateExpenseStatus
 );
 
-router.delete("/:id", [param("id").isInt({ min: 1 })], validate, deleteExpense);
+router.delete(
+  "/:id",
+  authorize("employee", "admin", "hr_manager"),
+  [param("id").isInt({ min: 1 })],
+  validate,
+  deleteExpense
+);
 
 module.exports = router;

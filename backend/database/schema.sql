@@ -11,7 +11,9 @@ CREATE TABLE IF NOT EXISTS users (
   department VARCHAR(100),
   designation VARCHAR(100),
   hire_date DATE,
+  salary DECIMAL(12, 2) DEFAULT 0,
   avatar VARCHAR(255),
+  status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -63,6 +65,21 @@ CREATE TABLE IF NOT EXISTS training_sessions (
   description TEXT,
   starts_at DATETIME NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS performance_reviews (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  reviewer_id INT,
+  review_period VARCHAR(50) NOT NULL,
+  score DECIMAL(4, 2),
+  goals TEXT,
+  feedback TEXT,
+  status ENUM('draft', 'submitted', 'approved') NOT NULL DEFAULT 'draft',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (reviewer_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS peer_reviews (

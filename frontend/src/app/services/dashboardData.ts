@@ -1,4 +1,5 @@
 import api from "./api";
+import { formatCurrencyBDT } from "../utils/formatters";
 
 /**
  * dashboardData.ts — Mock data service for dashboard pages.
@@ -82,13 +83,7 @@ export async function getRoleDashboardSummary(role: DashboardRole): Promise<Role
 }
 
 export function formatDashboardCurrency(value: number | string | undefined | null): string {
-  const numericValue = Number(value ?? 0);
-
-  return new Intl.NumberFormat("en-BD", {
-    style: "currency",
-    currency: "BDT",
-    maximumFractionDigits: 0,
-  }).format(Number.isFinite(numericValue) ? numericValue : 0);
+  return formatCurrencyBDT(value);
 }
 
 // ─── Admin Data ──────────────────────────────────────────────────────────────
@@ -140,9 +135,9 @@ export function getDepartmentBreakdown() {
 export function getPayrollSummary() {
   // TODO: return await fetch('/api/v1/dashboard/admin/payroll-summary').then(r => r.json());
   return {
-    totalDisbursed: 'BDT 2,847,000',
-    pending: 'BDT 124,500',
-    deductions: 'BDT 389,200',
+    totalDisbursed: formatCurrencyBDT(2847000),
+    pending: formatCurrencyBDT(124500),
+    deductions: formatCurrencyBDT(389200),
     trend: [2600, 2700, 2750, 2800, 2820, 2847],
   };
 }
@@ -227,9 +222,9 @@ export function getPendingLeaveRequests() {
 export function getOnboardingPipeline() {
   // TODO: return await fetch('/api/v1/onboarding/pipeline').then(r => r.json());
   return [
-    { name: 'Sadia Rahman', role: 'UX Designer',        progress: 92, initials: 'SR', startDate: 'May 1' },
+    { name: 'Sadia Rahman', role: 'Junior Software Engineer', progress: 92, initials: 'SR', startDate: 'May 1' },
     { name: 'Mehedi Hasan', role: 'Backend Engineer',   progress: 68, initials: 'MH', startDate: 'May 8' },
-    { name: 'Tasmia Noor',  role: 'Product Manager',    progress: 45, initials: 'TN', startDate: 'May 15' },
+    { name: 'Tasmia Noor',  role: 'Operations Executive', progress: 45, initials: 'TN', startDate: 'May 15' },
     { name: 'Rakibul Islam', role: 'Sales Representative',progress: 20, initials: 'RI', startDate: 'May 20' },
   ];
 }
@@ -315,9 +310,9 @@ export function getMyTraining() {
 export function getMyRecentPayslips() {
   // TODO: return await fetch('/api/v1/payroll/slips/me?limit=3').then(r => r.json());
   return [
-    { id: 1, period: 'May 2026',      amount: 'BDT 75,000', status: 'Processed' },
-    { id: 2, period: 'April 2026',    amount: 'BDT 75,000', status: 'Processed' },
-    { id: 3, period: 'March 2026',    amount: 'BDT 73,500', status: 'Processed' },
+    { id: 1, period: 'May 2026',      amount: formatCurrencyBDT(75000), status: 'Processed' },
+    { id: 2, period: 'April 2026',    amount: formatCurrencyBDT(75000), status: 'Processed' },
+    { id: 3, period: 'March 2026',    amount: formatCurrencyBDT(73500), status: 'Processed' },
   ];
 }
 
