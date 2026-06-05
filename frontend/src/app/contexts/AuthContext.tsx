@@ -78,7 +78,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(authenticatedUser));
       localStorage.setItem(TOKEN_KEY, response.data.token);
       return;
-    } catch (apiError) {
+    } catch (apiError: any) {
+      if (apiError?.response) {
+        throw new Error(apiError.response.data?.message || 'Invalid email or password');
+      }
+
       if (import.meta.env.PROD) {
         throw new Error('Invalid email or password');
       }

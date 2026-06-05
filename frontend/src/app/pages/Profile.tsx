@@ -184,7 +184,7 @@ function ProfileSidebar({ user, roleInfo, tabs, activeTab, setActiveTab }: any) 
           {roleInfo[user.role].label}
         </span>
       </div>
-      <p className="text-xs text-[#9A77CF] text-center mt-1">Engineering Department</p>
+      <p className="text-xs text-[#9A77CF] text-center mt-1">Information Technology</p>
       <p className="text-xs text-muted-foreground text-center mt-0.5">Member since Jan 2024</p>
 
       {/* Profile Completion */}
@@ -300,7 +300,7 @@ function PersonalInfoTab({ user }: any) {
       fullName: user.name,
       displayName: user.name.split(' ')[0],
       email: user.email,
-      phone: '+880 1234-567890',
+      phone: '+8801712345678',
       dob: '1995-06-15',
       gender: 'male',
       nationality: 'Bangladeshi',
@@ -308,10 +308,10 @@ function PersonalInfoTab({ user }: any) {
       city: 'Dhaka',
       country: 'Bangladesh',
       bio: '',
-      emergencyContactName: 'Jane Doe',
-      emergencyContactPhone: '+880 9876-543210',
+      emergencyContactName: 'Tasmia Noor',
+      emergencyContactPhone: '+8801811122233',
       bloodGroup: 'O+',
-      linkedIn: 'https://linkedin.com/in/johndoe'
+      linkedIn: 'https://linkedin.com/in/tanvirhasan'
     }
   });
 
@@ -346,17 +346,17 @@ function PersonalInfoTab({ user }: any) {
             <InfoField label="Full Name" value={user.name} />
             <InfoField label="Display Name" value={user.name.split(' ')[0]} />
             <InfoField label="Email Address" value={user.email} />
-            <InfoField label="Phone Number" value="+880 1234-567890" />
+            <InfoField label="Phone Number" value="+8801712345678" />
             <InfoField label="Date of Birth" value="June 15, 1995" />
             <InfoField label="Gender" value="Male" badge />
             <InfoField label="Nationality" value="Bangladeshi" />
             <InfoField label="Marital Status" value="Single" />
             <InfoField label="City" value="Dhaka" />
             <InfoField label="Country" value="Bangladesh" />
-            <InfoField label="Emergency Contact Name" value="Jane Doe" />
-            <InfoField label="Emergency Contact Phone" value="+880 9876-543210" />
+            <InfoField label="Emergency Contact Name" value="Tasmia Noor" />
+            <InfoField label="Emergency Contact Phone" value="+8801811122233" />
             <InfoField label="Blood Group" value="O+" badge />
-            <InfoField label="LinkedIn URL" value="linkedin.com/in/johndoe" />
+            <InfoField label="LinkedIn URL" value="linkedin.com/in/tanvirhasan" />
             <div className="md:col-span-2">
               <p className="text-xs uppercase tracking-wider text-[#9A77CF] font-medium">Bio</p>
               <p className="text-sm text-muted-foreground italic mt-0.5">No bio added</p>
@@ -421,11 +421,11 @@ function WorkInfoTab({ user }: any) {
         <div className="grid md:grid-cols-2 gap-6">
           <InfoField label="Employee ID" value="EMP-2024-001" />
           <InfoField label="Job Title" value="Senior Software Engineer" />
-          <InfoField label="Department" value="Engineering" />
-          <InfoField label="Reporting Manager" value="John Doe" />
+          <InfoField label="Department" value="Information Technology" />
+          <InfoField label="Reporting Manager" value="Nusrat Jahan" />
           <InfoField label="Employment Type" value="Full-time" badge />
           <InfoField label="Joining Date" value="January 15, 2024" />
-          <InfoField label="Work Location" value="Dhaka Office" />
+          <InfoField label="Work Location" value="HRSpace Head Office, Gulshan, Dhaka" />
           <InfoField label="Shift Schedule" value="9 AM - 5 PM" />
           <InfoField label="Employee Status" value="Active" badge color="green" />
           <InfoField label="Notice Period" value="30 days" />
@@ -440,8 +440,8 @@ function WorkInfoTab({ user }: any) {
         </div>
         <div className="relative border-l-2 border-[#543884]/20 pl-6 space-y-6">
           {[
-            { period: 'Jan 2024 - Present', role: 'Senior Software Engineer', dept: 'Engineering', desc: 'Leading frontend development team', current: true },
-            { period: 'Jun 2022 - Dec 2023', role: 'Software Engineer', dept: 'Engineering', desc: 'Full-stack development', current: false },
+            { period: 'Jan 2024 - Present', role: 'Senior Software Engineer', dept: 'Information Technology', desc: 'Leading frontend development team', current: true },
+            { period: 'Jun 2022 - Dec 2023', role: 'Software Engineer', dept: 'Information Technology', desc: 'Full-stack development', current: false },
             { period: 'Jan 2020 - May 2022', role: 'Junior Developer', dept: 'IT', desc: 'Supporting web applications', current: false }
           ].map((entry, i) => (
             <div key={i} className="relative pb-6 last:pb-0">
@@ -622,8 +622,6 @@ function AttendanceTab() {
           <label className="text-xs font-medium text-[#262254]/70 dark:text-white/60 uppercase tracking-wider mb-1 block">Timezone</label>
           <select className="w-full px-4 py-2.5 text-sm rounded-xl border border-[#543884]/20 bg-white dark:bg-[#1a0f2e] text-[#262254] dark:text-white focus:ring-2 focus:ring-[#9A77CF] focus:border-transparent outline-none">
             <option>Asia/Dhaka</option>
-            <option>America/New_York</option>
-            <option>Europe/London</option>
           </select>
         </div>
       </div>
@@ -638,7 +636,7 @@ function PayrollTab() {
         <h2 className="text-xl font-semibold text-[#262254] dark:text-white mb-6">Payroll & Financial</h2>
         <div className="grid md:grid-cols-2 gap-6">
           <InfoField label="Bank Account" value="••••••1234" />
-          <InfoField label="Account Holder Name" value="John Doe" />
+          <InfoField label="Account Holder Name" value="Tanvir Hasan" />
           <InfoField label="Bank Name" value="Standard Bank" />
           <InfoField label="Branch" value="Gulshan Branch" />
           <InfoField label="Payment Method" value="Bank Transfer" badge />
@@ -657,7 +655,7 @@ function PayrollTab() {
             <div key={i} className="flex items-center justify-between py-3 border-b border-[#543884]/8 last:border-0">
               <div>
                 <p className="text-sm font-medium text-[#262254] dark:text-white">{month}</p>
-                <p className="text-xs text-muted-foreground">BDT 75,000</p>
+                <p className="text-xs text-muted-foreground">৳75,000</p>
               </div>
               <div className="flex items-center gap-3">
                 <span className="px-2 py-1 rounded-full bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs">Processed</span>
@@ -748,7 +746,7 @@ function ForumPreferencesTab() {
           <UserX className="w-5 h-5 text-[#A13670] mt-1" />
           <div className="flex-1">
             <h3 className="text-sm font-medium text-[#262254] dark:text-white">Anonymous Mode</h3>
-            <p className="text-xs text-muted-foreground mt-1">Your name appears as 'HR Space User' in non-critical systems</p>
+            <p className="text-xs text-muted-foreground mt-1">Your name appears as 'HRSpace User' in non-critical systems</p>
           </div>
           <label className="relative inline-flex items-center cursor-pointer">
             <input type="checkbox" checked={anonymousMode} onChange={(e) => setAnonymousMode(e.target.checked)} className="sr-only peer" />
@@ -827,8 +825,7 @@ function AppearanceTab({ theme, setTheme }: any) {
           <div>
             <label className="text-xs font-medium text-[#262254]/70 dark:text-white/60 uppercase tracking-wider mb-1 block">Language</label>
             <select className="w-full px-4 py-2.5 text-sm rounded-xl border border-[#543884]/20 bg-white dark:bg-[#1a0f2e] text-[#262254] dark:text-white focus:ring-2 focus:ring-[#9A77CF] focus:border-transparent outline-none">
-              <option>English (US)</option>
-              <option>English (UK)</option>
+              <option>English</option>
               <option>Bengali</option>
             </select>
           </div>
@@ -836,7 +833,6 @@ function AppearanceTab({ theme, setTheme }: any) {
             <label className="text-xs font-medium text-[#262254]/70 dark:text-white/60 uppercase tracking-wider mb-1 block">Timezone</label>
             <select className="w-full px-4 py-2.5 text-sm rounded-xl border border-[#543884]/20 bg-white dark:bg-[#1a0f2e] text-[#262254] dark:text-white focus:ring-2 focus:ring-[#9A77CF] focus:border-transparent outline-none">
               <option>Asia/Dhaka</option>
-              <option>America/New_York</option>
             </select>
           </div>
         </div>
@@ -976,9 +972,9 @@ function SystemSettingsTab() {
     <div className="bg-card border border-[#543884]/10 rounded-2xl p-6 md:p-8 shadow-sm">
       <h2 className="text-xl font-semibold text-[#262254] dark:text-white mb-6">System Settings</h2>
       <div className="grid md:grid-cols-2 gap-6">
-        <InputField label="Company Name" defaultValue="HR Space Inc." />
-        <InputField label="Company Email" defaultValue="contact@hrspace.com" />
-        <InputField label="Company Phone" defaultValue="+880 1234-567890" />
+        <InputField label="Company Name" defaultValue="HRSpace Inc." />
+        <InputField label="Company Email" defaultValue="contact@hrspace.local" />
+        <InputField label="Company Phone" defaultValue="+8801712345678" />
         <InputField label="Industry" defaultValue="Technology" />
       </div>
     </div>

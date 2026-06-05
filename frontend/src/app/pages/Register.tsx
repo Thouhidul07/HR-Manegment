@@ -4,6 +4,7 @@ import { User, Mail, Lock, Eye, EyeOff, CheckCircle2, Sun, Moon, ArrowLeft } fro
 import { motion } from "motion/react";
 import { useForm } from "react-hook-form";
 import { useTheme } from "../contexts/ThemeContext";
+import api from "../services/api";
 
 interface RegisterFormData {
   fullName: string;
@@ -11,22 +12,22 @@ interface RegisterFormData {
   password: string;
   confirmPassword: string;
   department: string;
-  role: 'employee' | 'hr_manager';
   agreeToTerms: boolean;
 }
 
-const departments = ['Engineering', 'HR', 'Finance', 'Marketing', 'Sales', 'Operations'];
+const departments = ['Information Technology', 'Human Resources', 'Finance', 'Marketing', 'Sales', 'Operations', 'Administration', 'Customer Support'];
 
 export function Register() {
-  const { resolvedTheme, toggleTheme } = useTheme();
+  const { theme, toggleTheme } = useTheme();
   const [currentStep, setCurrentStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [registerError, setRegisterError] = useState("");
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm<RegisterFormData>({
-    defaultValues: { role: 'employee', department: '' }
+    defaultValues: { department: '' }
   });
 
   const password = watch("password") || "";
@@ -34,10 +35,20 @@ export function Register() {
 
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1200));
-    console.log("Registration data:", data);
-    setIsLoading(false);
-    setIsSuccess(true);
+    setRegisterError("");
+    try {
+      await api.post("/auth/register", {
+        name: data.fullName,
+        email: data.email,
+        password: data.password,
+        department: data.department,
+      });
+      setIsSuccess(true);
+    } catch (error: any) {
+      setRegisterError(error?.response?.data?.message || "Unable to create your account request.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (isSuccess) {
@@ -94,13 +105,13 @@ export function Register() {
               <span className="text-[#EC4176]">HR</span>
               <span className="text-white"> Space</span>
             </h1>
-            <p className="text-white/80 text-lg">Join your team on HR Space.</p>
+            <p className="text-white/80 text-lg">Join your team on HRSpace.</p>
           </div>
 
           <div className="flex flex-col gap-3 mt-8">
             <div className="flex items-center gap-3 bg-white/10 rounded-full px-4 py-2">
               <span className="text-[#9A77CF] text-sm">✦</span>
-              <span className="text-sm text-white/90">Instant Access</span>
+              <span className="text-sm text-white/90">Admin Approval</span>
             </div>
             <div className="flex items-center gap-3 bg-white/10 rounded-full px-4 py-2">
               <span className="text-[#FFA45E] text-sm">✦</span>
@@ -116,11 +127,20 @@ export function Register() {
 
       {/* Right Panel */}
       <div className="flex-1 lg:w-[60%] flex items-center justify-center p-8 bg-white dark:bg-[#1a0f2e] relative">
+        <Link
+          to="/"
+          className="absolute top-6 left-6 z-20 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-[#9A77CF]/40"
+          style={{ background: 'linear-gradient(135deg, #543884 0%, #9A77CF 52%, #EC4176 100%)' }}
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back
+        </Link>
+
         <button
           onClick={toggleTheme}
           className="absolute top-6 right-6 p-2 rounded-lg hover:bg-[#9A77CF]/10 transition-colors"
         >
-          {resolvedTheme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
         </button>
 
         <motion.div
@@ -144,7 +164,7 @@ export function Register() {
 
           <motion.div variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }}>
             <h2 className="text-2xl font-bold text-[#262254] dark:text-white mb-1">Create your account</h2>
-            <p className="text-sm text-[#7c6b9e] dark:text-[#b5a3d1] mb-8">Set up your HR Space profile</p>
+            <p className="text-sm text-[#7c6b9e] dark:text-[#b5a3d1] mb-8">Set up your HRSpace profile</p>
           </motion.div>
 
           {/* Step Indicator */}
@@ -184,6 +204,11 @@ export function Register() {
           </motion.div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            {registerError && (
+              <div className="rounded-lg border border-[#EC4176]/30 bg-[#EC4176]/10 px-4 py-3 text-sm text-[#EC4176]">
+                {registerError}
+              </div>
+            )}
             {currentStep === 1 ? (
               <>
                 <motion.div variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }}>
@@ -192,7 +217,7 @@ export function Register() {
                     <User className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-[#9A77CF]" />
                     <input
                       {...register("fullName", { required: "Full name is required", minLength: 2 })}
-                      placeholder="John Doe"
+                      placeholder="Tanvir Hasan"
                       className="w-full pl-10 pr-4 py-3 rounded-xl border bg-white dark:bg-[#251942] text-[#262254] dark:text-white placeholder:text-[#7c6b9e] focus:outline-none focus:ring-2 focus:ring-[#9A77CF] focus:border-transparent"
                       style={{ borderColor: 'rgba(84, 56, 132, 0.2)' }}
                     />
@@ -311,24 +336,12 @@ export function Register() {
 
                 <motion.div variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }}>
                   <label className="block text-sm font-medium text-[#262254] dark:text-white mb-2">Role</label>
-                  <div className="flex gap-3">
-                    {['employee', 'hr_manager'].map((roleType) => (
-                      <label
-                        key={roleType}
-                        className={`flex-1 px-4 py-3 rounded-xl border-2 text-center cursor-pointer transition-all ${
-                          watch('role') === roleType
-                            ? 'text-white shadow-md'
-                            : 'text-[#543884] dark:text-[#9A77CF]'
-                        }`}
-                        style={watch('role') === roleType
-                          ? { background: 'linear-gradient(135deg, #543884 0%, #A13670 50%, #EC4176 100%)', borderColor: 'transparent' }
-                          : { background: 'rgba(84, 56, 132, 0.05)', borderColor: 'rgba(84, 56, 132, 0.2)' }
-                        }
-                      >
-                        <input type="radio" {...register("role")} value={roleType} className="hidden" />
-                        <span className="text-sm font-medium">{roleType === 'employee' ? 'Employee' : 'HR Manager'}</span>
-                      </label>
-                    ))}
+                  <div
+                    className="px-4 py-3 rounded-xl border-2 text-center text-white shadow-md"
+                    style={{ background: 'linear-gradient(135deg, #543884 0%, #A13670 50%, #EC4176 100%)', borderColor: 'transparent' }}
+                  >
+                    <span className="text-sm font-medium">Employee</span>
+                    <p className="text-xs text-white/75 mt-1">Admin approval is required before sign in.</p>
                   </div>
                 </motion.div>
 
@@ -337,8 +350,8 @@ export function Register() {
                     <input
                       type="checkbox"
                       {...register("agreeToTerms", { required: "You must agree to the terms" })}
-                      className="w-4 h-4 mt-0.5 rounded border-[#543884]/30 text-[#543884] focus:ring-2 focus:ring-[#9A77CF]"
-                      style={{ accentColor: '#543884' }}
+                      className="w-4 h-4 mt-0.5 rounded border-white text-white focus:ring-2 focus:ring-white"
+                      style={{ accentColor: '#ffffff' }}
                     />
                     <span className="text-sm text-[#262254] dark:text-white">
                       I agree to the{" "}

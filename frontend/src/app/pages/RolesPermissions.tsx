@@ -80,46 +80,46 @@ const permissions = [
 const roleUsers = [
   {
     id: 1,
-    name: "Sarah Johnson",
-    email: "sarah.j@company.com",
+    name: "Farhana Akter",
+    email: "farhana.akter@hrspace.local",
     role: "HR Manager",
-    avatar: "SJ",
+    avatar: "FA",
     lastActive: "2 hours ago",
     status: "active"
   },
   {
     id: 2,
-    name: "Michael Chen",
-    email: "michael.c@company.com",
+    name: "Mahmudul Karim",
+    email: "mahmudul.karim@hrspace.local",
     role: "Employee Manager",
-    avatar: "MC",
+    avatar: "MK",
     lastActive: "5 hours ago",
     status: "active"
   },
   {
     id: 3,
-    name: "Emily Davis",
-    email: "emily.d@company.com",
+    name: "Nusrat Jahan",
+    email: "nusrat.jahan@hrspace.local",
     role: "Finance Officer",
-    avatar: "ED",
+    avatar: "NJ",
     lastActive: "1 day ago",
     status: "active"
   },
   {
     id: 4,
-    name: "Robert Wilson",
-    email: "robert.w@company.com",
+    name: "Rafi Ahmed",
+    email: "rafi.ahmed@hrspace.local",
     role: "Recruiter",
-    avatar: "RW",
+    avatar: "RA",
     lastActive: "3 hours ago",
     status: "active"
   },
   {
     id: 5,
-    name: "Jessica Martinez",
-    email: "jessica.m@company.com",
+    name: "Sharmin Sultana",
+    email: "sharmin.sultana@hrspace.local",
     role: "Employee Manager",
-    avatar: "JM",
+    avatar: "SS",
     lastActive: "30 mins ago",
     status: "active"
   },
@@ -267,7 +267,7 @@ export function RolesPermissions() {
                 {roles.map((role) => (
                   <div
                     key={role.id}
-                    className="group p-6 rounded-xl border border-border hover:border-[var(--primary)]/50 transition-all hover:shadow-lg cursor-pointer bg-gradient-to-br from-white to-[var(--accent)]/30"
+                    className="group p-6 rounded-xl border border-border hover:border-[var(--primary)]/50 transition-all hover:shadow-lg cursor-pointer bg-card hover:bg-accent/20"
                   >
                     <div className="flex items-start justify-between mb-4">
                       <div className="p-3 rounded-lg bg-gradient-to-br from-[var(--primary)] to-[var(--primary)]/80 shadow-md">

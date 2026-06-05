@@ -1,13 +1,14 @@
 const router = require("express").Router();
-const { body } = require("express-validator");
-const { listLeaveRequests, createLeaveRequest } = require("./leave.controller");
+const { body, param } = require("express-validator");
+const { listLeaveRequests, createLeaveRequest, updateLeaveStatus } = require("./leave.controller");
 const validate = require("../../utils/validation");
-const { protect } = require("../../middleware/authMiddleware");
+const { protect, authorize } = require("../../middleware/authMiddleware");
 
 router.use(protect);
 router.get("/", listLeaveRequests);
 router.post(
   "/",
+  authorize("employee"),
   [
     body("leaveType").trim().notEmpty(),
     body("startDate").isISO8601(),
@@ -16,6 +17,16 @@ router.post(
   ],
   validate,
   createLeaveRequest
+);
+router.patch(
+  "/:id/status",
+  authorize("admin", "hr_manager"),
+  [
+    param("id").isInt({ min: 1 }),
+    body("status").isIn(["approved", "rejected"]),
+  ],
+  validate,
+  updateLeaveStatus
 );
 
 module.exports = router;

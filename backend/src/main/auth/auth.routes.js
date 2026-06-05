@@ -2,7 +2,7 @@ const router = require("express").Router();
 const { body } = require("express-validator");
 const { register, login, me } = require("./auth.controller");
 const validate = require("../../utils/validation");
-const { protect, authorize } = require("../../middleware/authMiddleware");
+const { protect } = require("../../middleware/authMiddleware");
 
 router.post(
   "/register",
@@ -10,11 +10,10 @@ router.post(
     body("name").trim().notEmpty(),
     body("email").isEmail().normalizeEmail(),
     body("password").isLength({ min: 8 }),
-    body("role").optional().isIn(["admin", "hr_manager", "employee"]),
+    body("department").optional({ nullable: true }).trim(),
+    body("phone").optional({ nullable: true }).trim(),
   ],
   validate,
-  protect,
-  authorize("admin", "hr_manager"),
   register
 );
 

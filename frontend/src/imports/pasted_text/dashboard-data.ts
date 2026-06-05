@@ -89,10 +89,10 @@ export function getAdminAttendanceTrend(): ChartPoint[] {
 export function getDepartmentBreakdown() {
   // TODO: return await fetch('/api/v1/dashboard/admin/departments').then(r => r.json());
   return [
-    { name: 'Engineering', value: 450, color: '#543884' },
+    { name: 'Information Technology', value: 450, color: '#543884' },
     { name: 'Sales',       value: 280, color: '#9A77CF' },
     { name: 'Marketing',   value: 180, color: '#EC4176' },
-    { name: 'HR',          value: 120, color: '#FFA45E' },
+    { name: 'Human Resources', value: 120, color: '#FFA45E' },
     { name: 'Finance',     value: 204, color: '#A13670' },
   ];
 }
@@ -101,9 +101,9 @@ export function getDepartmentBreakdown() {
 export function getPayrollSummary() {
   // TODO: return await fetch('/api/v1/dashboard/admin/payroll-summary').then(r => r.json());
   return {
-    totalDisbursed: '$2,847,000',
-    pending: '$124,500',
-    deductions: '$389,200',
+    totalDisbursed: 'BDT 2,847,000',
+    pending: 'BDT 124,500',
+    deductions: 'BDT 389,200',
     trend: [2600, 2700, 2750, 2800, 2820, 2847],
   };
 }
@@ -276,9 +276,9 @@ export function getMyTraining() {
 export function getMyRecentPayslips() {
   // TODO: return await fetch('/api/v1/payroll/slips/me?limit=3').then(r => r.json());
   return [
-    { id: 1, period: 'May 2026',      amount: '$3,450', status: 'Processed' },
-    { id: 2, period: 'April 2026',    amount: '$3,450', status: 'Processed' },
-    { id: 3, period: 'March 2026',    amount: '$3,380', status: 'Processed' },
+    { id: 1, period: 'May 2026',      amount: 'BDT 75,000', status: 'Processed' },
+    { id: 2, period: 'April 2026',    amount: 'BDT 75,000', status: 'Processed' },
+    { id: 3, period: 'March 2026',    amount: 'BDT 73,500', status: 'Processed' },
   ];
 }
 

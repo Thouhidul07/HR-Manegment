@@ -7,10 +7,21 @@ USE hrspace;
 SET FOREIGN_KEY_CHECKS = 0;
 
 DROP VIEW IF EXISTS user_permissions;
+DROP TABLE IF EXISTS forum_reports;
+DROP TABLE IF EXISTS forum_reactions;
 DROP TABLE IF EXISTS forum_replies;
 DROP TABLE IF EXISTS forum_posts;
+DROP TABLE IF EXISTS project_comments;
+DROP TABLE IF EXISTS project_milestones;
+DROP TABLE IF EXISTS project_members;
+DROP TABLE IF EXISTS projects;
+DROP TABLE IF EXISTS project_tasks;
+DROP TABLE IF EXISTS expense_payments;
 DROP TABLE IF EXISTS expenses;
+DROP TABLE IF EXISTS cv_candidates;
+DROP TABLE IF EXISTS peer_reviews;
 DROP TABLE IF EXISTS performance_reviews;
+DROP TABLE IF EXISTS training_certificates;
 DROP TABLE IF EXISTS training_enrollments;
 DROP TABLE IF EXISTS training_sessions;
 DROP TABLE IF EXISTS payroll;
@@ -36,7 +47,7 @@ CREATE TABLE users (
   hire_date DATE,
   salary DECIMAL(12, 2) DEFAULT 0,
   avatar VARCHAR(255),
-  status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
+  status ENUM('pending', 'active', 'rejected', 'inactive') NOT NULL DEFAULT 'active',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -147,6 +158,17 @@ CREATE TABLE training_enrollments (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE training_certificates (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  enrollment_id INT NOT NULL,
+  certificate_code VARCHAR(80) NOT NULL UNIQUE,
+  issued_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  issued_by INT,
+  UNIQUE KEY unique_enrollment_certificate (enrollment_id),
+  FOREIGN KEY (enrollment_id) REFERENCES training_enrollments(id) ON DELETE CASCADE,
+  FOREIGN KEY (issued_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
 CREATE TABLE performance_reviews (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
@@ -160,6 +182,50 @@ CREATE TABLE performance_reviews (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (reviewer_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE peer_reviews (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  reviewee_id INT NOT NULL,
+  reviewer_id INT,
+  project VARCHAR(160) NOT NULL,
+  duration VARCHAR(80) NOT NULL,
+  review_text TEXT NOT NULL,
+  communication_rating TINYINT NOT NULL,
+  technical_rating TINYINT NOT NULL,
+  teamwork_rating TINYINT NOT NULL,
+  leadership_rating TINYINT NOT NULL,
+  strengths TEXT,
+  improvements TEXT,
+  is_anonymous BOOLEAN NOT NULL DEFAULT TRUE,
+  status ENUM('submitted', 'approved', 'archived') NOT NULL DEFAULT 'submitted',
+  review_date DATE NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (reviewee_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (reviewer_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE cv_candidates (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(140) NOT NULL,
+  email VARCHAR(160) NOT NULL,
+  phone VARCHAR(60),
+  position VARCHAR(160) NOT NULL,
+  score INT NOT NULL DEFAULT 0,
+  skills JSON,
+  experience DECIMAL(4, 1) NOT NULL DEFAULT 0,
+  education VARCHAR(255),
+  match_percentage INT NOT NULL DEFAULT 0,
+  status ENUM('pending', 'shortlisted', 'rejected') NOT NULL DEFAULT 'pending',
+  key_strengths JSON,
+  concerns JSON,
+  cv_file_path VARCHAR(255),
+  uploaded_by INT,
+  upload_date DATE NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE TABLE expenses (
@@ -178,6 +244,82 @@ CREATE TABLE expenses (
   FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
+CREATE TABLE expense_payments (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  expense_id INT NOT NULL,
+  amount DECIMAL(12, 2) NOT NULL,
+  payment_date DATE NOT NULL,
+  method VARCHAR(80) NOT NULL DEFAULT 'Bank Transfer',
+  reference VARCHAR(120),
+  paid_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_expense_payment (expense_id),
+  FOREIGN KEY (expense_id) REFERENCES expenses(id) ON DELETE CASCADE,
+  FOREIGN KEY (paid_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE project_tasks (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(180) NOT NULL,
+  description TEXT NOT NULL,
+  status ENUM('todo', 'in-progress', 'in-review', 'completed') NOT NULL DEFAULT 'todo',
+  priority ENUM('low', 'medium', 'high', 'urgent') NOT NULL DEFAULT 'medium',
+  assignee VARCHAR(120) NOT NULL,
+  assignee_avatar VARCHAR(8),
+  deadline DATE NOT NULL,
+  project VARCHAR(120) NOT NULL,
+  tags TEXT,
+  estimated_hours DECIMAL(6, 2),
+  comments INT NOT NULL DEFAULT 0,
+  attachments INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE projects (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(120) NOT NULL UNIQUE,
+  description TEXT,
+  owner_id INT,
+  status ENUM('planning', 'active', 'on-hold', 'completed') NOT NULL DEFAULT 'active',
+  start_date DATE,
+  end_date DATE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE project_members (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  project_id INT NOT NULL,
+  user_id INT NOT NULL,
+  role VARCHAR(80) NOT NULL DEFAULT 'Member',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_project_member (project_id, user_id),
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE project_milestones (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  project_id INT NOT NULL,
+  title VARCHAR(160) NOT NULL,
+  due_date DATE NOT NULL,
+  status ENUM('pending', 'in-progress', 'completed') NOT NULL DEFAULT 'pending',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+
+CREATE TABLE project_comments (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  task_id INT NOT NULL,
+  user_id INT,
+  body TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (task_id) REFERENCES project_tasks(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
 CREATE TABLE forum_posts (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT,
@@ -185,7 +327,15 @@ CREATE TABLE forum_posts (
   body TEXT NOT NULL,
   category VARCHAR(80) DEFAULT 'General',
   is_anonymous BOOLEAN NOT NULL DEFAULT FALSE,
+  anonymous_alias VARCHAR(40),
+  anonymous_color VARCHAR(20),
+  tags JSON,
+  sentiment VARCHAR(40) NOT NULL DEFAULT 'neutral',
+  is_poll BOOLEAN NOT NULL DEFAULT FALSE,
+  poll_data JSON,
+  views INT NOT NULL DEFAULT 0,
   status ENUM('published', 'hidden', 'flagged') NOT NULL DEFAULT 'published',
+  moderation_note VARCHAR(120),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
@@ -194,22 +344,54 @@ CREATE TABLE forum_posts (
 CREATE TABLE forum_replies (
   id INT AUTO_INCREMENT PRIMARY KEY,
   post_id INT NOT NULL,
+  parent_reply_id INT,
   user_id INT,
   body TEXT NOT NULL,
   is_anonymous BOOLEAN NOT NULL DEFAULT FALSE,
+  anonymous_alias VARCHAR(40),
+  anonymous_color VARCHAR(20),
+  status ENUM('published', 'hidden', 'flagged') NOT NULL DEFAULT 'published',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (post_id) REFERENCES forum_posts(id) ON DELETE CASCADE,
+  FOREIGN KEY (parent_reply_id) REFERENCES forum_replies(id) ON DELETE CASCADE,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE forum_reactions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  target_type ENUM('post', 'reply') NOT NULL,
+  target_id INT NOT NULL,
+  user_id INT NOT NULL,
+  reaction ENUM('like', 'heart', 'helpful') NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_forum_reaction (target_type, target_id, user_id, reaction),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE forum_reports (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  target_type ENUM('post', 'reply') NOT NULL,
+  target_id INT NOT NULL,
+  reporter_id INT,
+  reason VARCHAR(180) NOT NULL,
+  notes TEXT,
+  status ENUM('pending', 'reviewed', 'dismissed') NOT NULL DEFAULT 'pending',
+  action_taken VARCHAR(80),
+  reviewed_by INT,
+  reviewed_at DATETIME,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (reporter_id) REFERENCES users(id) ON DELETE SET NULL,
+  FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
 INSERT INTO users
   (id, name, email, password, role, phone, department, designation, hire_date, salary)
 VALUES
-  (1, 'Admin User', 'admin@hrms.com', '$2a$10$7IAQrKRQwkIHv2eZSIRDj.S1O0ove29.KjCkCXD3369iJk9dTKngi', 'admin', '+880 1700-000001', 'Operations', 'System Admin', '2024-01-01', 120000.00),
-  (2, 'HR Manager', 'hr@hrms.com', '$2a$10$cteqOigYNxjG6l8d.G7tNOSlBprtlBiCUvj03ljajfV.0CMwhd.Uq', 'hr_manager', '+880 1700-000002', 'Human Resources', 'HR Manager', '2024-02-01', 95000.00),
-  (3, 'Employee User', 'employee@hrms.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+880 1700-000003', 'Engineering', 'Software Engineer', '2024-03-01', 75000.00),
-  (4, 'Ayesha Rahman', 'ayesha@hrms.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+880 1700-000004', 'Finance', 'Accountant', '2024-04-15', 68000.00),
-  (5, 'Tanvir Hasan', 'tanvir@hrms.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+880 1700-000005', 'Marketing', 'Marketing Executive', '2024-05-10', 62000.00);
+  (1, 'Mahmudul Karim', 'admin@hrms.com', '$2a$10$7IAQrKRQwkIHv2eZSIRDj.S1O0ove29.KjCkCXD3369iJk9dTKngi', 'admin', '+8801712345601', 'Administration', 'System Administrator', '2024-01-01', 120000.00),
+  (2, 'Farhana Akter', 'hr@hrms.com', '$2a$10$cteqOigYNxjG6l8d.G7tNOSlBprtlBiCUvj03ljajfV.0CMwhd.Uq', 'hr_manager', '+8801712345602', 'Human Resources', 'HR Manager', '2024-02-01', 95000.00),
+  (3, 'Tanvir Hasan', 'employee@hrms.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801712345603', 'Information Technology', 'Software Engineer', '2024-03-01', 75000.00),
+  (4, 'Nusrat Jahan', 'nusrat.jahan@hrspace.local', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801712345604', 'Finance', 'Accounts Officer', '2024-04-15', 68000.00),
+  (5, 'Rakibul Islam', 'rakibul.islam@hrspace.local', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801712345605', 'Marketing', 'Marketing Executive', '2024-05-10', 62000.00);
 
 INSERT INTO roles (id, code, name, description)
 VALUES
@@ -382,26 +564,77 @@ VALUES
   (1, 4, 'completed', 100),
   (2, 5, 'enrolled', 10);
 
+INSERT INTO training_certificates
+  (enrollment_id, certificate_code, issued_by)
+VALUES
+  (2, 'CERT-DEMO-0002', 2);
+
 INSERT INTO performance_reviews
   (user_id, reviewer_id, review_period, score, goals, feedback, status)
 VALUES
   (3, 2, 'Q2 2026', 4.40, 'Improve delivery predictability and mentor junior staff.', 'Strong technical contribution.', 'submitted'),
   (4, 2, 'Q2 2026', 4.10, 'Automate monthly expense reconciliation.', 'Reliable ownership of finance operations.', 'approved');
 
+INSERT INTO peer_reviews
+  (reviewee_id, reviewer_id, project, duration, review_text, communication_rating, technical_rating, teamwork_rating, leadership_rating, strengths, improvements, review_date)
+VALUES
+  (3, 2, 'HR Portal Enhancement', '3 months', 'Excellent collaboration throughout the project. The code reviews were thorough, practical, and easy for the team to act on.', 4, 5, 5, 4, JSON_ARRAY('Strong technical skills', 'Great team player', 'Helpful code reviews'), JSON_ARRAY('Share knowledge more in team meetings'), '2026-05-15'),
+  (3, 4, 'Customer Portal V2', '4 months', 'Good work on frontend components with strong attention to detail. Communication could be a little more proactive, but the contribution was solid.', 3, 4, 4, 3, JSON_ARRAY('Detail-oriented', 'Clean code', 'Good problem solver'), JSON_ARRAY('More proactive communication'), '2026-05-10'),
+  (4, 3, 'Data Pipeline Migration', '3 months', 'Outstanding work identifying issues early and documenting the migration clearly. The handoff was smooth and reliable.', 5, 5, 5, 5, JSON_ARRAY('Proactive problem-solving', 'Excellent documentation', 'Mentorship'), JSON_ARRAY(), '2026-04-28'),
+  (5, 4, 'Marketing Campaign Analytics', '2 months', 'Useful insights and a positive attitude throughout. The next step is deeper analysis and sharper prioritization.', 4, 3, 4, 2, JSON_ARRAY('Good team player', 'Quick learner', 'Positive attitude'), JSON_ARRAY('Deeper analysis', 'More initiative'), '2026-05-05');
+
+INSERT INTO cv_candidates
+  (name, email, phone, position, score, skills, experience, education, match_percentage, status, key_strengths, concerns, upload_date)
+VALUES
+  ('Mahmudul Karim', 'mahmudul.karim@hrspace.local', '+8801711122233', 'Software Engineer', 94, JSON_ARRAY('React', 'Node.js', 'TypeScript', 'AWS', 'Docker', 'PostgreSQL'), 7, 'M.S. Computer Science - BUET', 94, 'shortlisted', JSON_ARRAY('Matched react', 'Matched node.js', 'Matched typescript'), JSON_ARRAY(), '2026-05-28'),
+  ('Jannatul Ferdous', 'jannatul.ferdous@hrspace.local', '+8801811122233', 'Software Engineer', 73, JSON_ARRAY('React', 'Python', 'Django', 'MySQL', 'Redis', 'Git'), 6, 'B.S. Software Engineering - University of Dhaka', 73, 'pending', JSON_ARRAY('Matched react'), JSON_ARRAY('Missing preferred skills: node.js, typescript, aws'), '2026-05-27'),
+  ('Rafi Ahmed', 'rafi.ahmed@hrspace.local', '+8801911122233', 'Software Engineer', 68, JSON_ARRAY('Vue.js', 'Node.js', 'MongoDB', 'Express', 'GraphQL'), 5, 'B.S. Computer Science - North South University', 68, 'rejected', JSON_ARRAY('Matched node.js'), JSON_ARRAY('Missing preferred skills: react, typescript, aws'), '2026-05-26');
+
 INSERT INTO expenses
   (user_id, category, amount, expense_date, description, status, reviewed_by)
 VALUES
   (3, 'Travel', 2500.00, DATE_SUB(CURDATE(), INTERVAL 5 DAY), 'Client visit transport', 'pending', NULL),
   (4, 'Office Supplies', 1800.00, DATE_SUB(CURDATE(), INTERVAL 3 DAY), 'Stationery purchase', 'approved', 2),
-  (5, 'Internet', 1200.00, DATE_SUB(CURDATE(), INTERVAL 8 DAY), 'Remote work internet allowance', 'paid', 2);
+  (5, 'Internet', 1200.00, DATE_SUB(CURDATE(), INTERVAL 8 DAY), 'Hybrid work internet allowance', 'paid', 2);
+
+INSERT INTO expense_payments
+  (expense_id, amount, payment_date, method, reference, paid_by)
+VALUES
+  (3, 1200.00, CURDATE(), 'Bank Transfer', 'PAY-EXP-0003', 2);
+
+INSERT INTO project_tasks
+  (title, description, status, priority, assignee, assignee_avatar, deadline, project, tags, estimated_hours, comments, attachments)
+VALUES
+  ('Design Homepage Mockup', 'Create high-fidelity mockups for the new homepage design', 'in-progress', 'high', 'Emily Rodriguez', 'ER', '2026-06-05', 'Website Redesign', '["Design","UI/UX"]', NULL, 3, 2),
+  ('Implement Authentication API', 'Build JWT-based authentication endpoints with refresh token support', 'in-progress', 'urgent', 'Michael Chen', 'MC', '2026-06-03', 'User Portal', '["Backend","Security"]', NULL, 5, 1),
+  ('Create Component Library', 'Build reusable React components following design system', 'todo', 'medium', 'Sarah Johnson', 'SJ', '2026-06-10', 'Website Redesign', '["Frontend","React"]', NULL, 1, 0),
+  ('Database Schema Migration', 'Update database schema for new user role permissions', 'in-review', 'high', 'David Kim', 'DK', '2026-06-02', 'User Portal', '["Database","Backend"]', NULL, 2, 1),
+  ('E2E Testing Suite', 'Set up end-to-end testing with Cypress for critical user flows', 'todo', 'medium', 'Jessica Martinez', 'JM', '2026-06-12', 'User Portal', '["Testing","QA"]', NULL, 0, 0),
+  ('Landing Page Optimization', 'Improve performance and SEO for landing page', 'completed', 'low', 'Sarah Johnson', 'SJ', '2026-05-30', 'Website Redesign', '["Frontend","Performance"]', NULL, 4, 3),
+  ('Mobile Responsive Design', 'Ensure all pages are mobile-friendly and responsive', 'in-progress', 'high', 'Emily Rodriguez', 'ER', '2026-06-07', 'Website Redesign', '["Design","Mobile"]', NULL, 2, 1),
+  ('API Documentation', 'Write comprehensive API documentation with examples', 'todo', 'low', 'Michael Chen', 'MC', '2026-06-15', 'User Portal', '["Documentation","Backend"]', NULL, 0, 0);
+
+INSERT INTO projects
+  (name, description, owner_id, status)
+VALUES
+  ('Website Redesign', 'Website Redesign delivery workspace', NULL, 'active'),
+  ('User Portal', 'User Portal delivery workspace', NULL, 'active');
 
 INSERT INTO forum_posts
-  (user_id, title, body, category, is_anonymous)
+  (user_id, title, body, category, is_anonymous, anonymous_alias, anonymous_color, tags, sentiment, views)
 VALUES
-  (2, 'Welcome to HRSpace', 'Use this forum for HR questions, announcements, and team discussions.', 'Announcement', FALSE),
-  (3, 'Remote work equipment request', 'What is the process for requesting an extra monitor?', 'General', FALSE);
+  (2, 'Welcome to HRSpace', 'Use this forum for HR questions, announcements, and team discussions.', 'Announcement', FALSE, 'Owl', '#7C5FB5', JSON_ARRAY('announcement', 'hr'), 'positive', 124),
+  (3, 'Office equipment request', 'What is the process for requesting an extra monitor at the Dhaka office?', 'General', TRUE, 'Panda', '#9A77CF', JSON_ARRAY('equipment', 'office-support'), 'neutral', 57);
 
 INSERT INTO forum_replies
-  (post_id, user_id, body, is_anonymous)
+  (post_id, user_id, body, is_anonymous, anonymous_alias, anonymous_color)
 VALUES
-  (2, 2, 'Please submit an expense request with the quotation attached.', FALSE);
+  (2, 2, 'Please submit an expense request with the quotation attached.', FALSE, 'Owl', '#7C5FB5');
+
+INSERT INTO forum_reactions
+  (target_type, target_id, user_id, reaction)
+VALUES
+  ('post', 1, 3, 'like'),
+  ('post', 1, 4, 'heart'),
+  ('post', 2, 2, 'helpful'),
+  ('reply', 1, 3, 'like');
