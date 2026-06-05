@@ -4,6 +4,7 @@ import { User, Mail, Lock, Eye, EyeOff, CheckCircle2, Sun, Moon, ArrowLeft } fro
 import { motion } from "motion/react";
 import { useForm } from "react-hook-form";
 import { useTheme } from "../contexts/ThemeContext";
+import api from "../services/api";
 
 interface RegisterFormData {
   fullName: string;
@@ -11,7 +12,6 @@ interface RegisterFormData {
   password: string;
   confirmPassword: string;
   department: string;
-  role: 'employee' | 'hr_manager' | 'admin' | 'project_manager';
   agreeToTerms: boolean;
 }
 
@@ -24,9 +24,10 @@ export function Register() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [registerError, setRegisterError] = useState("");
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm<RegisterFormData>({
-    defaultValues: { role: 'employee', department: '' }
+    defaultValues: { department: '' }
   });
 
   const password = watch("password") || "";
@@ -34,10 +35,20 @@ export function Register() {
 
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1200));
-    console.log("Registration data:", data);
-    setIsLoading(false);
-    setIsSuccess(true);
+    setRegisterError("");
+    try {
+      await api.post("/auth/register", {
+        name: data.fullName,
+        email: data.email,
+        password: data.password,
+        department: data.department,
+      });
+      setIsSuccess(true);
+    } catch (error: any) {
+      setRegisterError(error?.response?.data?.message || "Unable to create your account request.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (isSuccess) {
@@ -100,7 +111,7 @@ export function Register() {
           <div className="flex flex-col gap-3 mt-8">
             <div className="flex items-center gap-3 bg-white/10 rounded-full px-4 py-2">
               <span className="text-[#9A77CF] text-sm">✦</span>
-              <span className="text-sm text-white/90">Instant Access</span>
+              <span className="text-sm text-white/90">Admin Approval</span>
             </div>
             <div className="flex items-center gap-3 bg-white/10 rounded-full px-4 py-2">
               <span className="text-[#FFA45E] text-sm">✦</span>
@@ -193,6 +204,11 @@ export function Register() {
           </motion.div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            {registerError && (
+              <div className="rounded-lg border border-[#EC4176]/30 bg-[#EC4176]/10 px-4 py-3 text-sm text-[#EC4176]">
+                {registerError}
+              </div>
+            )}
             {currentStep === 1 ? (
               <>
                 <motion.div variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }}>
@@ -320,29 +336,12 @@ export function Register() {
 
                 <motion.div variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }}>
                   <label className="block text-sm font-medium text-[#262254] dark:text-white mb-2">Role</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { value: 'employee', label: 'Employee' },
-                      { value: 'hr_manager', label: 'HR Manager' },
-                      { value: 'project_manager', label: 'Project Manager' },
-                      { value: 'admin', label: 'Admin' }
-                    ].map((roleOption) => (
-                      <label
-                        key={roleOption.value}
-                        className={`px-4 py-3 rounded-xl border-2 text-center cursor-pointer transition-all ${
-                          watch('role') === roleOption.value
-                            ? 'text-white shadow-md'
-                            : 'text-[#543884] dark:text-[#9A77CF]'
-                        }`}
-                        style={watch('role') === roleOption.value
-                          ? { background: 'linear-gradient(135deg, #543884 0%, #A13670 50%, #EC4176 100%)', borderColor: 'transparent' }
-                          : { background: 'rgba(84, 56, 132, 0.05)', borderColor: 'rgba(84, 56, 132, 0.2)' }
-                        }
-                      >
-                        <input type="radio" {...register("role")} value={roleOption.value} className="hidden" />
-                        <span className="text-sm font-medium">{roleOption.label}</span>
-                      </label>
-                    ))}
+                  <div
+                    className="px-4 py-3 rounded-xl border-2 text-center text-white shadow-md"
+                    style={{ background: 'linear-gradient(135deg, #543884 0%, #A13670 50%, #EC4176 100%)', borderColor: 'transparent' }}
+                  >
+                    <span className="text-sm font-medium">Employee</span>
+                    <p className="text-xs text-white/75 mt-1">Admin approval is required before sign in.</p>
                   </div>
                 </motion.div>
 

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ThumbsUp, Heart, Lightbulb, MessageCircle, Flag, Pencil, Trash2 } from "lucide-react";
 import { Button } from "../ui/Button";
+import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { getAnonymousAvatarEmoji } from "./anonymousAvatars";
 import api from "../../services/api";
 
@@ -27,6 +28,10 @@ export function ReplyThread({ reply, level, canParticipate = true }: ReplyThread
   const [editedContent, setEditedContent] = useState(reply.content);
   const [currentContent, setCurrentContent] = useState(reply.content);
   const [isHidden, setIsHidden] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deletingReply, setDeletingReply] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  const [deleteMessage, setDeleteMessage] = useState("");
   const [userReactions, setUserReactions] = useState<Record<string, boolean>>({});
 
   if (isHidden) {
@@ -43,9 +48,29 @@ export function ReplyThread({ reply, level, canParticipate = true }: ReplyThread
   const maxNestingLevel = 3;
   const canNest = level < maxNestingLevel;
 
+  const handleDeleteReply = async () => {
+    setDeletingReply(true);
+    setDeleteError("");
+    try {
+      await api.delete(`/forum/replies/${reply.id}`);
+      setIsDeleteDialogOpen(false);
+      setDeleteMessage("Reply deleted.");
+      window.setTimeout(() => setIsHidden(true), 900);
+    } catch (error: any) {
+      setDeleteError(error?.response?.data?.message || "Unable to delete this reply.");
+    } finally {
+      setDeletingReply(false);
+    }
+  };
+
   return (
     <div className={level > 0 ? "ml-12 mt-4" : ""}>
       <div className="p-4 rounded-xl border border-border bg-card hover:bg-accent/20 hover:border-[var(--primary)]/30 transition-all">
+        {deleteMessage && (
+          <div className="mb-3 rounded-lg border border-[var(--success)]/30 bg-[var(--success)]/10 px-3 py-2 text-sm text-[var(--success)]">
+            {deleteMessage}
+          </div>
+        )}
         {/* Reply Header */}
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-3">
@@ -74,10 +99,9 @@ export function ReplyThread({ reply, level, canParticipate = true }: ReplyThread
                 variant="ghost"
                 size="sm"
                 className="text-muted-foreground hover:text-destructive"
-                onClick={async () => {
-                  if (!window.confirm("Delete this reply?")) return;
-                  await api.delete(`/forum/replies/${reply.id}`);
-                  setIsHidden(true);
+                onClick={() => {
+                  setDeleteError("");
+                  setIsDeleteDialogOpen(true);
                 }}
               >
                 <Trash2 className="w-4 h-4" />
@@ -216,6 +240,20 @@ export function ReplyThread({ reply, level, canParticipate = true }: ReplyThread
           ))}
         </div>
       )}
+      <ConfirmDialog
+        isOpen={Boolean(reply.isOwner && isDeleteDialogOpen)}
+        title="Delete Reply"
+        message="Delete this reply? It will be removed from the thread."
+        confirmLabel="Delete Reply"
+        loading={deletingReply}
+        error={deleteError}
+        onClose={() => {
+          if (deletingReply) return;
+          setIsDeleteDialogOpen(false);
+          setDeleteError("");
+        }}
+        onConfirm={handleDeleteReply}
+      />
     </div>
   );
 }

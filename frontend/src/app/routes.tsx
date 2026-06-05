@@ -10,6 +10,7 @@ import { Register } from "./pages/Register";
 import { Dashboard } from "./pages/Dashboard";
 import { EmployeeManagement } from "./pages/EmployeeManagement";
 import { EmployeeProfile } from "./pages/EmployeeProfile";
+import { AccountApprovals } from "./pages/AccountApprovals";
 import { Onboarding } from "./pages/Onboarding";
 import { Attendance } from "./pages/Attendance";
 import { LeaveManagement } from "./pages/LeaveManagement";
@@ -102,6 +103,7 @@ export const router = createBrowserRouter([
         Component: Layout,
         children: [
           { index: true, Component: Dashboard },
+          { path: "account-approvals", element: <RoleRoute allowed={["admin"]}><AccountApprovals /></RoleRoute> },
           { path: "employees", element: <RoleRoute allowed={adminHr}><EmployeeManagement /></RoleRoute> },
           { path: "employees/:id", element: <RoleRoute allowed={adminHr}><EmployeeProfile /></RoleRoute> },
           { path: "onboarding", element: <RoleRoute allowed={adminHr}><Onboarding /></RoleRoute> },

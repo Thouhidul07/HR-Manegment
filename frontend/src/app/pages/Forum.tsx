@@ -4,11 +4,12 @@ import {
   ThumbsUp, MessageCircle, Eye, BarChart3, AlertTriangle,
   Heart, Smile, Flag, Shield
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Modal } from "../components/ui/Modal";
+import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { TrendingTopics } from "../components/forum/TrendingTopics";
 import { CreatePostModal } from "../components/forum/CreatePostModal";
 import { DiscussionCard } from "../components/forum/DiscussionCard";
@@ -131,6 +132,7 @@ const discussions = [
 
 export function Forum() {
   const { user } = useAuth();
+  const location = useLocation();
   const canModerateForum = user?.role === "hr_manager";
   const canCreatePost = user?.role === "employee" || user?.role === "hr_manager";
   const [discussionList, setDiscussionList] = useState(discussions);
@@ -141,6 +143,9 @@ export function Forum() {
   const [forumMessage, setForumMessage] = useState("");
   const [forumError, setForumError] = useState("");
   const [savingPost, setSavingPost] = useState(false);
+  const [postToDelete, setPostToDelete] = useState<any | null>(null);
+  const [deletingPost, setDeletingPost] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("recent");
 
@@ -192,6 +197,14 @@ export function Forum() {
     }, 3000);
   };
 
+  useEffect(() => {
+    const state = location.state as { forumMessage?: string } | null;
+    if (!state?.forumMessage) return;
+
+    showForumFeedback(state.forumMessage);
+    window.history.replaceState({}, document.title);
+  }, [location.state]);
+
   const openEditPost = (post: any) => {
     setEditingPost(post);
     setEditPostForm({
@@ -231,18 +244,36 @@ export function Forum() {
     }
   };
 
-  const handleDeletePost = async (post: any) => {
+  const openDeletePostDialog = (post: any) => {
     if (!post.isOwner) return;
-    if (!window.confirm("Delete this forum post?")) return;
+    setPostToDelete(post);
+    setDeleteError("");
+    setForumError("");
+    setForumMessage("");
+  };
 
+  const closeDeletePostDialog = () => {
+    if (deletingPost) return;
+    setPostToDelete(null);
+    setDeleteError("");
+  };
+
+  const handleDeletePost = async () => {
+    if (!postToDelete?.isOwner) return;
+
+    setDeletingPost(true);
+    setDeleteError("");
     try {
-      await api.delete(`/forum/posts/${post.id}`);
+      await api.delete(`/forum/posts/${postToDelete.id}`);
       setDiscussionList((currentDiscussions) =>
-        currentDiscussions.filter((discussion) => discussion.id !== post.id),
+        currentDiscussions.filter((discussion) => discussion.id !== postToDelete.id),
       );
+      setPostToDelete(null);
       showForumFeedback("Forum post deleted.");
     } catch (error: any) {
-      showForumFeedback(error?.response?.data?.message || "Unable to delete forum post.", true);
+      setDeleteError(error?.response?.data?.message || "Unable to delete forum post.");
+    } finally {
+      setDeletingPost(false);
     }
   };
 
@@ -402,7 +433,7 @@ export function Forum() {
                 key={discussion.id}
                 discussion={discussion}
                 onEdit={openEditPost}
-                onDelete={handleDeletePost}
+                onDelete={openDeletePostDialog}
               />
             ))}
           </div>
@@ -564,6 +595,16 @@ export function Forum() {
           </div>
         </div>
       </Modal>
+      <ConfirmDialog
+        isOpen={Boolean(postToDelete)}
+        title="Delete Forum Post"
+        message="Delete this forum post? It will be removed from the discussion feed."
+        confirmLabel="Delete Post"
+        loading={deletingPost}
+        error={deleteError}
+        onClose={closeDeletePostDialog}
+        onConfirm={handleDeletePost}
+      />
     </div>
   );
 }

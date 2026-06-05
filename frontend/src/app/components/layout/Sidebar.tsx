@@ -22,6 +22,7 @@ import {
   FolderGit2,
   Network,
   ListChecks,
+  UserCheck,
 } from "lucide-react";
 import { useAuth } from "../../contexts/AuthContext";
 import { HRSpaceLogo } from "../brand/HRSpaceLogo";
@@ -34,6 +35,7 @@ interface SidebarProps {
 const navConfig = {
   admin: [
     { path: '/dashboard',              label: 'Dashboard',                 icon: LayoutDashboard },
+    { path: '/dashboard/account-approvals', label: 'Account Approvals',     icon: UserCheck },
     { path: '/dashboard/employees',    label: 'Employee Management',       icon: Users },
     { path: '/dashboard/onboarding',   label: 'Onboarding & Offboarding',  icon: Calendar },
     { path: '/dashboard/attendance',   label: 'Attendance & Time',         icon: Clock },

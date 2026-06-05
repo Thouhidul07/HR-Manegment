@@ -31,6 +31,17 @@ npm run dev
 
 The backend runs at `http://localhost:5000` and the frontend expects API calls at `http://localhost:5173/api`.
 
+## Backend Authorization Tests
+
+Import `backend/database/hrspace_xampp.sql` first so the demo users exist, then run:
+
+```bash
+cd backend
+npm test
+```
+
+These tests use Node's built-in test runner and verify that restricted APIs return `403` for the wrong role and `401` without a token.
+
 ## Login Credentials
 
 Demo logins from `backend/database/hrspace_xampp.sql`:
@@ -59,5 +70,6 @@ The XAMPP database seed includes role-based access control tables:
 Default access:
 
 - Admin has every permission.
+- Admin approves or rejects public account registrations from `Account Approvals`.
 - HR Manager can manage HR operations, employees, attendance, leave approvals, training, performance, expenses, forum moderation, and reports.
 - Employee can only access self-service actions like own profile, own attendance, own leave requests, own payroll, own expenses, own training, own performance, and forum posting.

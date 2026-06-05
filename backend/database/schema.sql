@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
   hire_date DATE,
   salary DECIMAL(12, 2) DEFAULT 0,
   avatar VARCHAR(255),
-  status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
+  status ENUM('pending', 'active', 'rejected', 'inactive') NOT NULL DEFAULT 'active',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );

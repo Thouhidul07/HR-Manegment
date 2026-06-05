@@ -8,6 +8,7 @@ import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Modal } from "../components/ui/Modal";
+import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { ReplyThread } from "../components/forum/ReplyThread";
 import { getAnonymousAvatarEmoji } from "../components/forum/anonymousAvatars";
 import { useAuth } from "../contexts/AuthContext";
@@ -98,6 +99,9 @@ export function ForumThread() {
   const [editForm, setEditForm] = useState({ title: threadData.title, content: threadData.content, category: threadData.category });
   const [threadError, setThreadError] = useState("");
   const [savingThread, setSavingThread] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deletingThread, setDeletingThread] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const [userReactions, setUserReactions] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
@@ -169,10 +173,18 @@ export function ForumThread() {
 
   const handleDeleteThread = async () => {
     if (!thread.isOwner) return;
-    if (!window.confirm("Delete this forum post?")) return;
 
-    await api.delete(`/forum/posts/${thread.id}`);
-    navigate("/dashboard/forum");
+    setDeletingThread(true);
+    setDeleteError("");
+    try {
+      await api.delete(`/forum/posts/${thread.id}`);
+      setIsDeleteDialogOpen(false);
+      navigate("/dashboard/forum", { state: { forumMessage: "Forum post deleted." } });
+    } catch (error: any) {
+      setDeleteError(error?.response?.data?.message || "Unable to delete this post.");
+    } finally {
+      setDeletingThread(false);
+    }
   };
 
   return (
@@ -222,7 +234,10 @@ export function ForumThread() {
                     variant="ghost"
                     size="sm"
                     className="text-muted-foreground hover:text-destructive"
-                    onClick={handleDeleteThread}
+                    onClick={() => {
+                      setDeleteError("");
+                      setIsDeleteDialogOpen(true);
+                    }}
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
@@ -371,6 +386,20 @@ export function ForumThread() {
           </div>
         </div>
       </Modal>
+      <ConfirmDialog
+        isOpen={Boolean(thread.isOwner && isDeleteDialogOpen)}
+        title="Delete Forum Post"
+        message="Delete this forum post? It will be removed from the discussion feed."
+        confirmLabel="Delete Post"
+        loading={deletingThread}
+        error={deleteError}
+        onClose={() => {
+          if (deletingThread) return;
+          setIsDeleteDialogOpen(false);
+          setDeleteError("");
+        }}
+        onConfirm={handleDeleteThread}
+      />
 
       {/* Replies Section */}
       <Card>

@@ -2,6 +2,7 @@ const router = require("express").Router();
 
 router.use("/auth", require("../main/auth/auth.routes"));
 router.use("/employees", require("../main/employees/employees.routes"));
+router.use("/account-approvals", require("../main/accountApprovals/accountApprovals.routes"));
 router.use("/attendance", require("../main/attendance/attendance.routes"));
 router.use("/leave", require("../main/leave/leave.routes"));
 router.use("/payroll", require("../main/payroll/payroll.routes"));

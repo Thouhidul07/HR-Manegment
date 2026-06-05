@@ -1,6 +1,7 @@
 const { query } = require("../../config/database");
 const asyncHandler = require("../../utils/asyncHandler");
 const bcrypt = require("bcryptjs");
+const { ensureUserStatusWorkflow } = require("../../utils/userStatus");
 
 const DEFAULT_EMPLOYEE_PASSWORD = "Emp@1234";
 
@@ -22,7 +23,7 @@ async function addColumnIfMissing(table, column, definition) {
 
 async function ensureEmployeeColumns() {
   await addColumnIfMissing("users", "salary", "DECIMAL(12, 2) DEFAULT 0");
-  await addColumnIfMissing("users", "status", "ENUM('active', 'inactive') NOT NULL DEFAULT 'active'");
+  await ensureUserStatusWorkflow();
 }
 
 function initials(name = "") {
@@ -64,8 +65,8 @@ async function getEmployeeById(id) {
 const listEmployees = asyncHandler(async (req, res) => {
   await ensureEmployeeColumns();
   const roleFilter = req.user.role === "hr_manager"
-    ? "WHERE role IN ('employee', 'hr_manager')"
-    : "WHERE role IN ('employee', 'hr_manager', 'admin')";
+    ? "WHERE role IN ('employee', 'hr_manager') AND status IN ('active', 'inactive')"
+    : "WHERE role IN ('employee', 'hr_manager', 'admin') AND status IN ('active', 'inactive')";
   const [employees] = await query(
     `SELECT id, name, email, role, phone, department, designation, hire_date, salary, status, avatar
      FROM users

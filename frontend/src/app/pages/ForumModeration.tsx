@@ -362,10 +362,6 @@ export function ForumModeration() {
                             <CheckCircle className="w-4 h-4" />
                             Approve
                           </Button>
-                          <Button variant="outline" className="gap-2 text-[var(--warning)] hover:bg-[var(--warning)]/10">
-                            <Shield className="w-4 h-4" />
-                            Edit
-                          </Button>
                           <Button variant="outline" className="gap-2 text-destructive hover:bg-destructive/10" onClick={() => handleModerationAction(item.id, "remove")}>
                             <Trash2 className="w-4 h-4" />
                             Remove

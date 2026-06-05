@@ -7,6 +7,7 @@ import { Badge } from "../components/ui/Badge";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "../components/ui/Table";
 import { Card } from "../components/ui/Card";
 import { Modal } from "../components/ui/Modal";
+import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { useAuth } from "../contexts/AuthContext";
 import api from "../services/api";
 import { formatCurrencyBDT } from "../utils/formatters";
@@ -130,6 +131,9 @@ export function EmployeeManagement() {
   const [selectedDepartment, setSelectedDepartment] = useState("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
+  const [deletingEmployee, setDeletingEmployee] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const [form, setForm] = useState<EmployeeFormState>(emptyForm);
 
   const canManageEmployees = user?.role === "admin" || user?.role === "hr_manager";
@@ -231,19 +235,36 @@ export function EmployeeManagement() {
     }
   };
 
-  const handleDeleteEmployee = async (employee: Employee) => {
+  const openDeleteEmployeeDialog = (employee: Employee) => {
     if (!canDeleteEmployees) return;
-    const confirmed = window.confirm(`Deactivate ${employee.name}? They will remain in records but will no longer be active.`);
-    if (!confirmed) return;
-
+    setEmployeeToDelete(employee);
+    setDeleteError("");
     setError("");
     setMessage("");
+  };
+
+  const closeDeleteEmployeeDialog = () => {
+    if (deletingEmployee) return;
+    setEmployeeToDelete(null);
+    setDeleteError("");
+  };
+
+  const handleDeleteEmployee = async () => {
+    if (!canDeleteEmployees || !employeeToDelete) return;
+
+    setDeletingEmployee(true);
+    setError("");
+    setMessage("");
+    setDeleteError("");
     try {
-      await api.delete(`/employees/${employee.id}`);
+      await api.delete(`/employees/${employeeToDelete.id}`);
       setMessage("Employee deactivated successfully.");
       await loadEmployees();
+      setEmployeeToDelete(null);
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Unable to deactivate employee.");
+      setDeleteError(err?.response?.data?.message || "Unable to deactivate employee.");
+    } finally {
+      setDeletingEmployee(false);
     }
   };
 
@@ -418,7 +439,7 @@ export function EmployeeManagement() {
                       {canDeleteEmployees && employee.status !== "inactive" && (
                         <Button variant="ghost" size="sm" className="gap-1 text-destructive" onClick={(event) => {
                           event.stopPropagation();
-                          handleDeleteEmployee(employee);
+                          openDeleteEmployeeDialog(employee);
                         }}>
                           <Trash2 className="w-3.5 h-3.5" />
                           Delete
@@ -514,6 +535,21 @@ export function EmployeeManagement() {
           )}
         </div>
       </Modal>
+      <ConfirmDialog
+        isOpen={Boolean(employeeToDelete)}
+        title="Deactivate Employee"
+        message={
+          <>
+            Deactivate <span className="text-foreground">{employeeToDelete?.name}</span>? They will remain in records
+            but will no longer be active.
+          </>
+        }
+        confirmLabel="Deactivate"
+        loading={deletingEmployee}
+        error={deleteError}
+        onClose={closeDeleteEmployeeDialog}
+        onConfirm={handleDeleteEmployee}
+      />
     </div>
   );
 }
