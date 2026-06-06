@@ -428,56 +428,51 @@ export function Training() {
 
       {/* My Trainings & Schedule */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* My Current Trainings */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>
-              {canUseTrainingSelfService
-                ? "My Current Trainings"
-                : "Employee Training Progress"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {myTrainings.map((training) => (
-                <div
-                  key={training.id}
-                  className="p-4 rounded-lg border border-border hover:border-primary/50 transition-colors"
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <h3 className="text-foreground mb-1">
-                        {training.course}
-                      </h3>
-                      <p className="text-sm text-muted-foreground">
-                        Due: {training.dueDate}
-                      </p>
+        {canUseTrainingSelfService && (
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>My Current Trainings</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {myTrainings.map((training) => (
+                  <div
+                    key={training.id}
+                    className="p-4 rounded-lg border border-border hover:border-primary/50 transition-colors"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h3 className="text-foreground mb-1">
+                          {training.course}
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                          Due: {training.dueDate}
+                        </p>
+                      </div>
+                      <Badge
+                        variant={
+                          training.status === "Completed" ? "success" : "info"
+                        }
+                        size="sm"
+                      >
+                        {training.status}
+                      </Badge>
                     </div>
-                    <Badge
-                      variant={
-                        training.status === "Completed" ? "success" : "info"
-                      }
-                      size="sm"
-                    >
-                      {training.status}
-                    </Badge>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-foreground">Progress</span>
-                      <span className="text-muted-foreground">
-                        {training.progress}%
-                      </span>
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-foreground">Progress</span>
+                        <span className="text-muted-foreground">
+                          {training.progress}%
+                        </span>
+                      </div>
+                      <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-primary transition-all"
+                          style={{ width: `${training.progress}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-primary transition-all"
-                        style={{ width: `${training.progress}%` }}
-                      />
-                    </div>
-                  </div>
-                  {canUseTrainingSelfService &&
-                    training.status === "In Progress" && (
+                    {training.status === "In Progress" && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -488,16 +483,17 @@ export function Training() {
                         Continue Learning
                       </Button>
                     )}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Upcoming Schedule */}
-        <Card>
+        <Card className={canManageTraining ? "lg:col-span-3" : ""}>
           <CardHeader>
-            <CardTitle>Upcoming Schedule</CardTitle>
+            <CardTitle>{canManageTraining ? "Program Schedule" : "Upcoming Schedule"}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
@@ -529,7 +525,7 @@ export function Training() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Available Courses</CardTitle>
+            <CardTitle>{canManageTraining ? "Training Programs" : "Available Courses"}</CardTitle>
             <div className="flex gap-2">
               <select
                 className="px-4 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Users, UserCheck, UserX, Briefcase,
   FileText, UserPlus, Calendar, Receipt,
@@ -29,7 +30,9 @@ const activityConfig: Record<ActivityItem['type'], { icon: React.ElementType; co
 };
 
 export function AdminDashboard({ userName }: { userName: string }) {
+  const navigate = useNavigate();
   const [summary, setSummary] = useState<RoleDashboardSummary | null>(null);
+  const [reporting, setReporting] = useState(false);
   const stats    = getAdminStats();
   const trend    = getAdminAttendanceTrend();
   const depts    = getDepartmentBreakdown();
@@ -85,6 +88,31 @@ export function AdminDashboard({ userName }: { userName: string }) {
       : approval
   );
 
+  const downloadDashboardReport = () => {
+    setReporting(true);
+
+    const rows = [
+      ['Metric', 'Value'],
+      ['Total Employees', liveStats.totalEmployees.value],
+      ['Present Today', liveStats.presentToday.value],
+      ['Pending Leave', liveStats.onLeave.value],
+      ['Open Positions', liveStats.openPositions.value],
+      ['Monthly Payroll', livePayroll.totalDisbursed],
+    ];
+    const csv = rows
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `hrspace-admin-dashboard-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+
+    window.setTimeout(() => setReporting(false), 400);
+  };
+
   return (
     <div className="space-y-6">
       <DashboardHeader
@@ -92,18 +120,31 @@ export function AdminDashboard({ userName }: { userName: string }) {
         subtitle="Here's your organisation overview for today."
         actions={
           <>
-            <OutlineButton><FileText className="w-4 h-4" /> Generate Report</OutlineButton>
-            <CTAButton><UserPlus className="w-4 h-4" /> Add Employee</CTAButton>
+            <OutlineButton onClick={downloadDashboardReport}>
+              <FileText className="w-4 h-4" />
+              {reporting ? 'Preparing...' : 'Generate Report'}
+            </OutlineButton>
+            <CTAButton onClick={() => navigate('/dashboard/employees')}>
+              <UserPlus className="w-4 h-4" /> Add Employee
+            </CTAButton>
           </>
         }
       />
 
       {/* ── Row 1: KPI Stats ─────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard {...liveStats.totalEmployees} icon={Users}     iconColor={C.primary} iconBg={`${C.primary}18`} />
-        <StatCard {...liveStats.presentToday}   icon={UserCheck} iconColor={C.mid}     iconBg={`${C.mid}18`} />
-        <StatCard {...liveStats.onLeave}        icon={UserX}     iconColor={C.warm}    iconBg={`${C.warm}20`} />
-        <StatCard {...liveStats.openPositions}  icon={Briefcase} iconColor={C.action}  iconBg={`${C.action}15`} />
+        <button type="button" onClick={() => navigate('/dashboard/employees')} className="text-left">
+          <StatCard {...liveStats.totalEmployees} icon={Users}     iconColor={C.primary} iconBg={`${C.primary}18`} />
+        </button>
+        <button type="button" onClick={() => navigate('/dashboard/attendance')} className="text-left">
+          <StatCard {...liveStats.presentToday}   icon={UserCheck} iconColor={C.mid}     iconBg={`${C.mid}18`} />
+        </button>
+        <button type="button" onClick={() => navigate('/dashboard/leave')} className="text-left">
+          <StatCard {...liveStats.onLeave}        icon={UserX}     iconColor={C.warm}    iconBg={`${C.warm}20`} />
+        </button>
+        <button type="button" onClick={() => navigate('/dashboard/cv-filter')} className="text-left">
+          <StatCard {...liveStats.openPositions}  icon={Briefcase} iconColor={C.action}  iconBg={`${C.action}15`} />
+        </button>
       </div>
 
       {/* ── Row 2: Attendance Chart + Department Pie ─────────────────────── */}
@@ -169,7 +210,7 @@ export function AdminDashboard({ userName }: { userName: string }) {
 
       {/* ── Row 3: Payroll + Approvals + Pipeline ────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <SectionCard title="Payroll Summary" action={<GhostLink>View Details →</GhostLink>}>
+        <SectionCard title="Payroll Summary" action={<GhostLink onClick={() => navigate('/dashboard/payroll')}>View Details →</GhostLink>}>
           <div className="space-y-0">
             {[
               { label: 'Total Disbursed', value: livePayroll.totalDisbursed, color: 'text-foreground' },
@@ -192,7 +233,7 @@ export function AdminDashboard({ userName }: { userName: string }) {
           </div>
         </SectionCard>
 
-        <SectionCard title="Pending Approvals" action={<GhostLink>View All →</GhostLink>}>
+        <SectionCard title="Pending Approvals" action={<GhostLink onClick={() => navigate('/dashboard/leave')}>View All →</GhostLink>}>
           <div className="space-y-0">
             {liveApprovals.map(a => (
               <div key={a.type} className="flex items-center gap-3 py-3 border-b border-border last:border-0">
@@ -210,7 +251,7 @@ export function AdminDashboard({ userName }: { userName: string }) {
           </div>
         </SectionCard>
 
-        <SectionCard title="Hiring Pipeline" action={<GhostLink>Manage →</GhostLink>}>
+        <SectionCard title="Hiring Pipeline" action={<GhostLink onClick={() => navigate('/dashboard/cv-filter')}>Manage →</GhostLink>}>
           {[
             { stage: 'Applied',   count: 142, pct: 100 },
             { stage: 'Screening', count: 89,  pct: 63 },
@@ -234,7 +275,7 @@ export function AdminDashboard({ userName }: { userName: string }) {
 
       {/* ── Row 4: Activity + Events ─────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <SectionCard title="Recent Activity" action={<GhostLink>View All →</GhostLink>}>
+        <SectionCard title="Recent Activity" action={<GhostLink onClick={() => navigate('/dashboard/profile')}>View All →</GhostLink>}>
           <div className="space-y-0">
             {activity.map(a => {
               const cfg = activityConfig[a.type];
@@ -257,7 +298,7 @@ export function AdminDashboard({ userName }: { userName: string }) {
           </div>
         </SectionCard>
 
-        <SectionCard title="Upcoming Events" action={<GhostLink>Add Event →</GhostLink>}>
+        <SectionCard title="Upcoming Events">
           <div className="space-y-2">
             {events.map(ev => (
               <div key={ev.id}

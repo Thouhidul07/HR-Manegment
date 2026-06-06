@@ -22,12 +22,21 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const STORAGE_KEY = 'hrms-auth';
 const TOKEN_KEY = 'hrspace-token';
 
+function normalizeUser(user: User): User {
+  if (user.role !== 'admin') return user;
+
+  return {
+    ...user,
+    name: 'System Admin',
+  };
+}
+
 const MOCK_USERS: Record<string, { password: string; user: User }> = {
   'admin@hrms.com': {
     password: 'Admin@1234',
     user: {
       id: '1',
-      name: 'Admin User',
+      name: 'System Admin',
       email: 'admin@hrms.com',
       role: 'admin'
     }
@@ -60,8 +69,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const storedAuth = localStorage.getItem(STORAGE_KEY);
     if (storedAuth) {
       try {
-        const parsedUser = JSON.parse(storedAuth);
+        const parsedUser = normalizeUser(JSON.parse(storedAuth));
         setUser(parsedUser);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedUser));
       } catch (error) {
         localStorage.removeItem(STORAGE_KEY);
       }
@@ -72,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string): Promise<void> => {
     try {
       const response = await api.post("/auth/login", { email, password });
-      const authenticatedUser = response.data.user;
+      const authenticatedUser = normalizeUser(response.data.user);
 
       setUser(authenticatedUser);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(authenticatedUser));

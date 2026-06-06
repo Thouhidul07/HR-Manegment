@@ -12,6 +12,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
   const navigate = useNavigate();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [searchValue, setSearchValue] = useState("");
   const { theme, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
 
@@ -20,6 +21,21 @@ export function Header({ onToggleSidebar }: HeaderProps) {
     { id: 2, title: "Payroll processing completed", time: "1 hour ago" },
     { id: 3, title: "3 employees on leave today", time: "2 hours ago" },
   ];
+
+  const runSearch = () => {
+    const query = searchValue.trim().toLowerCase();
+    if (!query) return;
+
+    if (query.includes("leave")) navigate("/dashboard/leave");
+    else if (query.includes("attendance") || query.includes("clock")) navigate("/dashboard/attendance");
+    else if (query.includes("payroll") || query.includes("payslip")) navigate(user?.role === "employee" ? "/dashboard/payslips" : "/dashboard/payroll");
+    else if (query.includes("expense")) navigate("/dashboard/expense");
+    else if (query.includes("training") || query.includes("course")) navigate("/dashboard/training");
+    else if (query.includes("role") || query.includes("permission")) navigate(user?.role === "admin" ? "/dashboard/roles" : "/dashboard");
+    else if (query.includes("approval") || query.includes("account")) navigate(user?.role === "admin" ? "/dashboard/account-approvals" : "/dashboard");
+    else if (query.includes("cv") || query.includes("candidate")) navigate(user?.role === "employee" ? "/dashboard/circular-apply" : "/dashboard/cv-filter");
+    else navigate(user?.role === "employee" ? "/dashboard/profile" : "/dashboard/employees");
+  };
 
   return (
     <header className="h-16 bg-card border-b border-border flex items-center justify-between px-6 flex-shrink-0">
@@ -40,6 +56,11 @@ export function Header({ onToggleSidebar }: HeaderProps) {
           <input
             type="text"
             placeholder="Search employees, documents..."
+            value={searchValue}
+            onChange={(event) => setSearchValue(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") runSearch();
+            }}
             className="w-full pl-10 pr-4 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
           />
         </div>

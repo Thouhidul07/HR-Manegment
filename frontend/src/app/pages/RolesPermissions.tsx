@@ -1,8 +1,7 @@
 import { useState } from "react";
 import {
-  Shield, Users, Lock, Plus, Search, Filter, Download,
-  Edit2, Trash2, CheckCircle, XCircle, Clock, AlertCircle,
-  ChevronRight, TrendingUp, UserCheck, History, Bell
+  Shield, Users, Lock, Search, Filter, Download,
+  CheckCircle, XCircle, TrendingUp, UserCheck, History, Bell
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
@@ -10,16 +9,14 @@ import { Button } from "../components/ui/Button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "../components/ui/Table";
 import { Switch } from "../components/ui/switch";
 import { RoleHierarchy } from "../components/roles/RoleHierarchy";
-import { CreateRoleModal } from "../components/roles/CreateRoleModal";
-import { AccessRequestApproval } from "../components/roles/AccessRequestApproval";
-import { AuditTimeline } from "../components/roles/AuditTimeline";
+import { AccountApprovals } from "./AccountApprovals";
 
 const roles = [
   {
     id: 1,
-    name: "Super Admin",
-    users: 3,
-    description: "Full system access and control",
+    name: "System Admin",
+    users: 1,
+    description: "Company authority and system control",
     color: "destructive",
     status: "active",
     level: 1
@@ -35,28 +32,10 @@ const roles = [
   },
   {
     id: 3,
-    name: "Recruiter",
-    users: 12,
-    description: "Manage recruitment and onboarding",
-    color: "success",
-    status: "active",
-    level: 3
-  },
-  {
-    id: 4,
-    name: "Finance Officer",
-    users: 5,
-    description: "Process payroll and manage compensation",
-    color: "warning",
-    status: "active",
-    level: 3
-  },
-  {
-    id: 5,
-    name: "Employee Manager",
+    name: "Employee",
     users: 42,
-    description: "Manage team members and approve requests",
-    color: "secondary",
+    description: "Self-service access for assigned employee flows",
+    color: "success",
     status: "active",
     level: 3
   },
@@ -65,7 +44,7 @@ const roles = [
 const permissions = [
   { module: "Dashboard", view: true, create: true, edit: true, delete: true, restricted: false },
   { module: "Employee Management", view: true, create: true, edit: true, delete: false, restricted: false },
-  { module: "Recruitment", view: true, create: true, edit: true, delete: false, restricted: false },
+  { module: "CV Filtration", view: true, create: true, edit: true, delete: false, restricted: false },
   { module: "Attendance", view: true, create: true, edit: true, delete: false, restricted: false },
   { module: "Leave Management", view: true, create: true, edit: true, delete: false, restricted: false },
   { module: "Payroll", view: true, create: false, edit: false, delete: false, restricted: true },
@@ -80,6 +59,15 @@ const permissions = [
 const roleUsers = [
   {
     id: 1,
+    name: "System Admin",
+    email: "admin@hrms.com",
+    role: "System Admin",
+    avatar: "SA",
+    lastActive: "Active now",
+    status: "active"
+  },
+  {
+    id: 2,
     name: "Farhana Akter",
     email: "farhana.akter@hrspace.local",
     role: "HR Manager",
@@ -88,39 +76,12 @@ const roleUsers = [
     status: "active"
   },
   {
-    id: 2,
-    name: "Mahmudul Karim",
-    email: "mahmudul.karim@hrspace.local",
-    role: "Employee Manager",
-    avatar: "MK",
-    lastActive: "5 hours ago",
-    status: "active"
-  },
-  {
     id: 3,
-    name: "Nusrat Jahan",
-    email: "nusrat.jahan@hrspace.local",
-    role: "Finance Officer",
-    avatar: "NJ",
-    lastActive: "1 day ago",
-    status: "active"
-  },
-  {
-    id: 4,
-    name: "Rafi Ahmed",
-    email: "rafi.ahmed@hrspace.local",
-    role: "Recruiter",
-    avatar: "RA",
-    lastActive: "3 hours ago",
-    status: "active"
-  },
-  {
-    id: 5,
-    name: "Sharmin Sultana",
-    email: "sharmin.sultana@hrspace.local",
-    role: "Employee Manager",
-    avatar: "SS",
-    lastActive: "30 mins ago",
+    name: "Tanvir Hasan",
+    email: "tanvir.hasan@hrspace.local",
+    role: "Employee",
+    avatar: "TH",
+    lastActive: "5 hours ago",
     status: "active"
   },
 ];
@@ -128,8 +89,36 @@ const roleUsers = [
 export function RolesPermissions() {
   const [activeTab, setActiveTab] = useState<'overview' | 'permissions' | 'assignments' | 'approvals' | 'audit'>('overview');
   const [selectedRole, setSelectedRole] = useState("HR Manager");
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const filteredRoles = roles.filter((role) =>
+    role.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const exportRoles = () => {
+    const rows = [
+      ['Role', 'Users', 'Description', 'Status'],
+      ...roles.map((role) => [role.name, role.users, role.description, role.status]),
+      [],
+      ['Permission Role', selectedRole],
+      ['Module', 'View', 'Create', 'Edit', 'Delete', 'Restricted'],
+      ...permissions.map((permission) => [
+        permission.module,
+        permission.view ? 'Yes' : 'No',
+        permission.create ? 'Yes' : 'No',
+        permission.edit ? 'Yes' : 'No',
+        permission.delete ? 'Yes' : 'No',
+        permission.restricted ? 'Yes' : 'No',
+      ]),
+    ];
+    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `hrspace-roles-permissions-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="space-y-6">
@@ -140,19 +129,15 @@ export function RolesPermissions() {
           <p className="text-sm text-muted-foreground">Manage user roles, permissions, and access control across your organization</p>
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" className="gap-2">
+          <Button variant="outline" className="gap-2" onClick={exportRoles}>
             <Download className="w-4 h-4" />
             Export
           </Button>
-          <Button
-            variant="primary"
-            className="gap-2 bg-[var(--action)] hover:bg-[var(--action)]/90"
-            onClick={() => setIsCreateModalOpen(true)}
-          >
-            <Plus className="w-4 h-4" />
-            Create Role
-          </Button>
         </div>
+      </div>
+
+      <div className="rounded-lg border border-[var(--info)]/25 bg-[var(--info)]/10 px-4 py-3 text-sm text-muted-foreground">
+        Custom roles are not enabled in this version. HRSpace currently supports System Admin, HR Manager, and Employee authorization only.
       </div>
 
       {/* Stats Cards */}
@@ -175,7 +160,7 @@ export function RolesPermissions() {
             </div>
             <Badge variant="success" className="text-xs">+12%</Badge>
           </div>
-          <p className="text-2xl text-foreground mb-1">1,239</p>
+          <p className="text-2xl text-foreground mb-1">{roleUsers.length}</p>
           <p className="text-sm text-muted-foreground">Total Users</p>
         </Card>
 
@@ -185,7 +170,7 @@ export function RolesPermissions() {
               <Lock className="w-5 h-5 text-[var(--chart-3)]" />
             </div>
           </div>
-          <p className="text-2xl text-foreground mb-1">2</p>
+          <p className="text-2xl text-foreground mb-1">0</p>
           <p className="text-sm text-muted-foreground">Custom Roles</p>
         </Card>
 
@@ -195,7 +180,7 @@ export function RolesPermissions() {
               <Bell className="w-5 h-5 text-[var(--warning)]" />
             </div>
           </div>
-          <p className="text-2xl text-foreground mb-1">7</p>
+          <p className="text-2xl text-foreground mb-1">0</p>
           <p className="text-sm text-muted-foreground">Pending Requests</p>
         </Card>
 
@@ -205,7 +190,7 @@ export function RolesPermissions() {
               <UserCheck className="w-5 h-5 text-[var(--success)]" />
             </div>
           </div>
-          <p className="text-2xl text-foreground mb-1">856</p>
+          <p className="text-2xl text-foreground mb-1">1</p>
           <p className="text-sm text-muted-foreground">Active Sessions</p>
         </Card>
       </div>
@@ -264,10 +249,10 @@ export function RolesPermissions() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {roles.map((role) => (
+                {filteredRoles.map((role) => (
                   <div
                     key={role.id}
-                    className="group p-6 rounded-xl border border-border hover:border-[var(--primary)]/50 transition-all hover:shadow-lg cursor-pointer bg-card hover:bg-accent/20"
+                    className="group p-6 rounded-xl border border-border hover:border-[var(--primary)]/50 transition-all hover:shadow-lg bg-card hover:bg-accent/20"
                   >
                     <div className="flex items-start justify-between mb-4">
                       <div className="p-3 rounded-lg bg-gradient-to-br from-[var(--primary)] to-[var(--primary)]/80 shadow-md">
@@ -282,20 +267,16 @@ export function RolesPermissions() {
                     </div>
                     <h3 className="text-foreground mb-2">{role.name}</h3>
                     <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{role.description}</p>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 group-hover:bg-[var(--primary)] group-hover:text-white group-hover:border-[var(--primary)] transition-colors"
-                      >
-                        Manage
-                      </Button>
-                      <Button variant="ghost" size="sm" className="px-2">
-                        <Edit2 className="w-4 h-4" />
-                      </Button>
+                    <div className="rounded-lg bg-[var(--muted)]/50 px-3 py-2 text-xs text-muted-foreground">
+                      Role editing is disabled because custom role configuration is not enabled in the backend.
                     </div>
                   </div>
                 ))}
+                {!filteredRoles.length && (
+                  <div className="col-span-full rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+                    No supported roles match your search.
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -352,16 +333,16 @@ export function RolesPermissions() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <Switch checked={perm.view} disabled={perm.restricted} />
+                        <Switch checked={perm.view} disabled />
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <Switch checked={perm.create} disabled={perm.restricted} />
+                        <Switch checked={perm.create} disabled />
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <Switch checked={perm.edit} disabled={perm.restricted} />
+                        <Switch checked={perm.edit} disabled />
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <Switch checked={perm.delete} disabled={perm.restricted} />
+                        <Switch checked={perm.delete} disabled />
                       </td>
                       <td className="px-6 py-4 text-center">
                         {perm.view || perm.create || perm.edit || perm.delete ? (
@@ -379,12 +360,7 @@ export function RolesPermissions() {
               <p className="text-sm text-muted-foreground">
                 Last updated: <span className="text-foreground">May 17, 2026 at 2:30 PM</span>
               </p>
-              <div className="flex justify-end gap-3">
-                <Button variant="outline">Reset</Button>
-                <Button variant="primary" className="bg-[var(--action)] hover:bg-[var(--action)]/90">
-                  Save Changes
-                </Button>
-              </div>
+              <p className="text-sm text-muted-foreground">Permissions are read-only in this version.</p>
             </div>
           </CardContent>
         </Card>
@@ -430,7 +406,7 @@ export function RolesPermissions() {
                   <TableHead>Current Role</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Last Active</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead>Access</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -458,15 +434,7 @@ export function RolesPermissions() {
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">{user.lastActive}</TableCell>
                     <TableCell>
-                      <div className="flex gap-2">
-                        <Button variant="ghost" size="sm" className="gap-1">
-                          <Edit2 className="w-3.5 h-3.5" />
-                          Edit
-                        </Button>
-                        <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
+                      <Badge variant="secondary">Read-only</Badge>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -474,28 +442,28 @@ export function RolesPermissions() {
             </Table>
             <div className="p-4 border-t border-border flex items-center justify-between">
               <p className="text-sm text-muted-foreground">
-                Showing 5 of 1,239 employees
+                Showing {roleUsers.length} supported role assignments
               </p>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm">Previous</Button>
-                <Button variant="outline" size="sm">Next</Button>
-              </div>
             </div>
           </CardContent>
         </Card>
       )}
 
       {/* Access Requests Tab */}
-      {activeTab === 'approvals' && <AccessRequestApproval />}
+      {activeTab === 'approvals' && <AccountApprovals />}
 
       {/* Audit Log Tab */}
-      {activeTab === 'audit' && <AuditTimeline />}
-
-      {/* Create Role Modal */}
-      <CreateRoleModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-      />
+      {activeTab === 'audit' && (
+        <Card>
+          <CardContent>
+            <div className="py-12 text-center text-muted-foreground">
+              <History className="w-12 h-12 mx-auto mb-3 opacity-30" />
+              <p className="text-sm">No audit log records are available.</p>
+              <p className="text-xs mt-1">Backend audit logging is not enabled in this version.</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

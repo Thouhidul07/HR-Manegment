@@ -1,7 +1,6 @@
-import { CheckCircle2, Circle, Clock, User } from "lucide-react";
+import { CheckCircle2, Circle, Clock } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
-import { Button } from "../components/ui/Button";
 
 const onboardingCandidates = [
   {
@@ -63,7 +62,11 @@ export function Onboarding() {
           <h1 className="text-2xl text-foreground mb-2">Onboarding & Offboarding</h1>
           <p className="text-muted-foreground">Manage employee onboarding and offboarding processes</p>
         </div>
-        <Button variant="primary">Start New Onboarding</Button>
+        <Badge variant="secondary">Read-only workflow</Badge>
+      </div>
+
+      <div className="rounded-lg border border-[var(--info)]/25 bg-[var(--info)]/10 px-4 py-3 text-sm text-muted-foreground">
+        Onboarding records are displayed from the current demo workflow. Creating or updating onboarding steps is hidden until the backend onboarding module is enabled.
       </div>
 
       {/* Stats */}

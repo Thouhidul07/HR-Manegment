@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { motion } from "motion/react";
+import { useNavigate } from "react-router-dom";
 import {
   User, Lock, Bell, Moon, Shield, Activity, Settings, Briefcase,
   Camera, Eye, EyeOff, Check, X, CheckCircle2, Monitor, Smartphone,
   Mail, MessageSquare, Sun, AlertTriangle, Download, ExternalLink,
   UserX, MapPin, Phone, FileText, Calendar, Award, Users, UserMinus,
-  AlertCircle, Server, Database, Edit, Loader2, LogIn, Clock, DollarSign,
+  AlertCircle, Server, Edit, Loader2, LogIn, Clock, DollarSign,
   ShieldCheck, CalendarPlus, Upload, UserPlus, BarChart2, Edit3,
   Palmtree, Thermometer, Coffee, Minus, Image, VolumeX
 } from "lucide-react";
@@ -109,7 +110,9 @@ export function Profile() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.22 }}
             >
-              {activeTab === 'personal' && <PersonalInfoTab user={user} />}
+              {activeTab === 'personal' && (
+                isAdmin ? <AdminSystemProfileTab user={user} /> : <PersonalInfoTab user={user} />
+              )}
               {activeTab === 'work' && <WorkInfoTab user={user} />}
               {activeTab === 'security' && <SecurityTab user={user} />}
               {activeTab === 'notifications' && <NotificationsTab user={user} />}
@@ -135,8 +138,9 @@ export function Profile() {
 function ProfileSidebar({ user, roleInfo, tabs, activeTab, setActiveTab }: any) {
   const [avatarUploading, setAvatarUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isAdmin = user.role === 'admin';
 
-  const initials = user.name.split(' ').map((n: string) => n[0]).join('').toUpperCase();
+  const initials = isAdmin ? 'SA' : user.name.split(' ').map((n: string) => n[0]).join('').toUpperCase();
 
   return (
     <div className="bg-card border border-[#543884]/10 rounded-2xl p-6 shadow-sm">
@@ -147,11 +151,11 @@ function ProfileSidebar({ user, roleInfo, tabs, activeTab, setActiveTab }: any) 
           type="file"
           accept="image/*"
           className="hidden"
-          onChange={() => setAvatarUploading(true)}
+          onChange={() => !isAdmin && setAvatarUploading(true)}
         />
         <div
           className="w-full h-full rounded-full overflow-hidden cursor-pointer"
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => !isAdmin && fileInputRef.current?.click()}
           style={{ background: 'linear-gradient(135deg, #543884, #EC4176)' }}
         >
           {avatarUploading ? (
@@ -184,22 +188,31 @@ function ProfileSidebar({ user, roleInfo, tabs, activeTab, setActiveTab }: any) 
           {roleInfo[user.role].label}
         </span>
       </div>
-      <p className="text-xs text-[#9A77CF] text-center mt-1">Information Technology</p>
+      <p className="text-xs text-[#9A77CF] text-center mt-1">
+        {isAdmin ? 'System Administration' : 'Information Technology'}
+      </p>
       <p className="text-xs text-muted-foreground text-center mt-0.5">Member since Jan 2024</p>
 
       {/* Profile Completion */}
-      <div className="mt-4">
-        <div className="flex justify-between items-center mb-1">
-          <span className="text-xs text-muted-foreground">Profile Completion</span>
-          <span className="text-xs text-[#543884] font-medium">78%</span>
+      {isAdmin ? (
+        <div className="mt-4 rounded-xl bg-[#543884]/8 px-3 py-2 text-center">
+          <p className="text-xs text-muted-foreground">System account</p>
+          <p className="text-xs font-medium text-[#543884]">Active administrator access</p>
         </div>
-        <div className="h-1.5 bg-[#543884]/10 rounded-full overflow-hidden">
-          <div
-            className="h-full rounded-full"
-            style={{ width: '78%', background: 'linear-gradient(90deg, #543884, #EC4176)' }}
-          />
+      ) : (
+        <div className="mt-4">
+          <div className="flex justify-between items-center mb-1">
+            <span className="text-xs text-muted-foreground">Profile Completion</span>
+            <span className="text-xs text-[#543884] font-medium">78%</span>
+          </div>
+          <div className="h-1.5 bg-[#543884]/10 rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full"
+              style={{ width: '78%', background: 'linear-gradient(90deg, #543884, #EC4176)' }}
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="border-t border-[#543884]/10 my-5" />
 
@@ -239,8 +252,26 @@ function ProfileSidebar({ user, roleInfo, tabs, activeTab, setActiveTab }: any) 
 }
 
 function QuickActions({ user }: any) {
+  const navigate = useNavigate();
   const isAdmin = user.role === 'admin';
   const isEmployeeOrHR = user.role === 'employee' || user.role === 'hr_manager';
+
+  const downloadProfileReport = () => {
+    const rows = [
+      ['Area', 'Status'],
+      ['Account role', user.role],
+      ['Profile email', user.email],
+      ['System access', isAdmin ? 'Administrator' : 'Standard user'],
+    ];
+    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `hrspace-profile-actions-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="bg-card border border-[#543884]/10 rounded-2xl p-6 shadow-sm mb-6">
@@ -249,17 +280,24 @@ function QuickActions({ user }: any) {
         {isEmployeeOrHR && (
           <>
             <button
+              onClick={() => navigate('/dashboard/leave')}
               className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-white shadow-sm transition-all hover:shadow-md"
               style={{ background: 'linear-gradient(135deg, #543884, #A13670, #EC4176)' }}
             >
               <CalendarPlus className="w-4 h-4" />
               Apply Leave
             </button>
-            <button className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-[#543884] border border-[#543884]/20 hover:bg-[#543884]/5 transition-colors">
+            <button
+              onClick={() => navigate(user.role === 'employee' ? '/dashboard/payslips' : '/dashboard/payroll')}
+              className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-[#543884] border border-[#543884]/20 hover:bg-[#543884]/5 transition-colors"
+            >
               <Download className="w-4 h-4" />
               Download Payslip
             </button>
-            <button className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-[#543884] border border-[#543884]/20 hover:bg-[#543884]/5 transition-colors">
+            <button
+              onClick={() => navigate('/dashboard/profile')}
+              className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-[#543884] border border-[#543884]/20 hover:bg-[#543884]/5 transition-colors"
+            >
               <Upload className="w-4 h-4" />
               Update Documents
             </button>
@@ -268,19 +306,19 @@ function QuickActions({ user }: any) {
         {isAdmin && (
           <>
             <button
+              onClick={() => navigate('/dashboard/employees')}
               className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-white shadow-sm transition-all hover:shadow-md"
               style={{ background: 'linear-gradient(135deg, #543884, #A13670, #EC4176)' }}
             >
               <UserPlus className="w-4 h-4" />
               Add Employee
             </button>
-            <button className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-[#543884] border border-[#543884]/20 hover:bg-[#543884]/5 transition-colors">
+            <button
+              onClick={downloadProfileReport}
+              className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-[#543884] border border-[#543884]/20 hover:bg-[#543884]/5 transition-colors"
+            >
               <BarChart2 className="w-4 h-4" />
               Generate Report
-            </button>
-            <button className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-[#543884] border border-[#543884]/20 hover:bg-[#543884]/5 transition-colors">
-              <Database className="w-4 h-4" />
-              System Backup
             </button>
           </>
         )}
@@ -398,6 +436,73 @@ function PersonalInfoTab({ user }: any) {
         </div>
       )}
     </>
+  );
+}
+
+function AdminSystemProfileTab({ user }: any) {
+  const [isEditing, setIsEditing] = useState(false);
+  const adminFields = {
+    fullName: 'System Admin',
+    displayName: 'System Admin',
+    email: user.email,
+    role: 'Administrator',
+    department: 'System Administration',
+    accountType: 'System controller',
+    status: 'Active',
+  };
+
+  return (
+    <div className="bg-card border border-[#543884]/10 rounded-2xl p-6 md:p-8 shadow-sm mb-6">
+      <div className="flex justify-between items-start mb-6">
+        <div>
+          <h2 className="text-xl font-semibold text-[#262254] dark:text-white">System Account</h2>
+          <p className="text-sm text-[#9A77CF] mt-0.5">Administrator identity and access details</p>
+        </div>
+        {!isEditing && (
+          <button
+            onClick={() => setIsEditing(true)}
+            className="border border-[#543884]/20 text-[#543884] hover:bg-[#543884]/5 rounded-lg px-3 py-1.5 text-sm transition-colors"
+          >
+            Edit
+          </button>
+        )}
+      </div>
+
+      {!isEditing ? (
+        <div className="grid md:grid-cols-2 gap-6">
+          <InfoField label="Name" value={adminFields.fullName} />
+          <InfoField label="Display Name" value={adminFields.displayName} />
+          <InfoField label="Email Address" value={adminFields.email} />
+          <InfoField label="Role" value={adminFields.role} badge />
+          <InfoField label="Department" value={adminFields.department} />
+          <InfoField label="Account Type" value={adminFields.accountType} />
+          <InfoField label="Status" value={adminFields.status} badge color="green" />
+        </div>
+      ) : (
+        <div>
+          <div className="rounded-xl border border-[#543884]/15 bg-[#543884]/5 px-4 py-3 text-sm text-muted-foreground mb-6">
+            System administrator profile edits are managed through backend account configuration. The values below are kept read-only to avoid fake profile updates.
+          </div>
+          <div className="grid md:grid-cols-2 gap-6">
+            <InputField label="Name" value={adminFields.fullName} readOnly />
+            <InputField label="Display Name" value={adminFields.displayName} readOnly />
+            <InputField label="Email Address" value={adminFields.email} readOnly />
+            <InputField label="Role" value={adminFields.role} readOnly />
+            <InputField label="Department" value={adminFields.department} readOnly />
+            <InputField label="Account Type" value={adminFields.accountType} readOnly />
+          </div>
+          <div className="flex justify-end gap-3 mt-6">
+            <button
+              type="button"
+              onClick={() => setIsEditing(false)}
+              className="px-4 py-2 text-sm font-medium text-foreground/70 hover:text-foreground transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
