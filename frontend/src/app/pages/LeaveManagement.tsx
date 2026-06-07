@@ -285,28 +285,32 @@ export function LeaveManagement() {
 
   const handleSubmitLeaveRequest = async () => {
     if (!canRequestLeave) return;
-    const response = await api.post("/leave", {
-      leaveType: leaveForm.type,
-      startDate: leaveForm.from,
-      endDate: leaveForm.to,
-      reason: leaveForm.reason,
-    });
-    const createdRequest = mapApiLeaveRequest(response.data.request);
+    try {
+      const response = await api.post("/leave", {
+        leaveType: leaveForm.type,
+        startDate: leaveForm.from,
+        endDate: leaveForm.to,
+        reason: leaveForm.reason,
+      });
+      const createdRequest = mapApiLeaveRequest(response.data.request);
 
-    setRequestList((requests) => [createdRequest, ...requests]);
-    setUpcomingLeaveList((leaves) => [
-      {
-        date: formatUpcomingDate(leaveForm.from, leaveForm.to),
-        employee: user?.name || "Employee User",
-        type: leaveForm.type,
-        avatar: initials,
-      },
-      ...leaves,
-    ]);
-    resetLeaveForm();
-    setIsRequestModalOpen(false);
-    setShowSubmittedMessage(true);
-    window.setTimeout(() => setShowSubmittedMessage(false), 2500);
+      setRequestList((requests) => [createdRequest, ...requests]);
+      setUpcomingLeaveList((leaves) => [
+        {
+          date: formatUpcomingDate(leaveForm.from, leaveForm.to),
+          employee: user?.name || "Employee User",
+          type: leaveForm.type,
+          avatar: initials,
+        },
+        ...leaves,
+      ]);
+      resetLeaveForm();
+      setIsRequestModalOpen(false);
+      setShowSubmittedMessage(true);
+      window.setTimeout(() => setShowSubmittedMessage(false), 2500);
+    } catch (error: any) {
+      alert(error?.response?.data?.message || "Unable to submit leave request.");
+    }
   };
 
   const handleUpdateStatus = async (

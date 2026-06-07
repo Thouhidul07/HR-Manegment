@@ -1,5 +1,6 @@
 import { Plus, Receipt, Wallet, TrendingUp, Download } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import {
   Card,
   CardHeader,
@@ -156,12 +157,14 @@ const recentActivity = [
 
 export function Expense() {
   const { user } = useAuth();
+  const location = useLocation();
   const [expenseClaims, setExpenseClaims] =
     useState<ExpenseClaim[]>(fallbackExpenseClaims);
   const [activityList, setActivityList] =
     useState<ExpenseActivity[]>(recentActivity);
   const [activeFilter, setActiveFilter] = useState("All");
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
+  const [selectedClaim, setSelectedClaim] = useState<ExpenseClaim | null>(null);
   const [expenseForm, setExpenseForm] =
     useState<ExpenseFormState>(emptyExpenseForm());
   const [savingExpense, setSavingExpense] = useState(false);
@@ -189,6 +192,12 @@ export function Expense() {
   useEffect(() => {
     loadExpenses().catch(() => {});
   }, [loadExpenses]);
+
+  useEffect(() => {
+    if (location.state?.openSubmitExpense && canSubmitExpense) {
+      setIsSubmitModalOpen(true);
+    }
+  }, [location.state, canSubmitExpense]);
 
   const pageTitle =
     isEmployee && !isAdmin ? "My Expenses" : "Expense Management";
@@ -711,7 +720,7 @@ export function Expense() {
                       </div>
                     )}
                     {(!canReviewExpenses || claim.status !== "Pending") && (
-                      <Button variant="ghost" size="sm">
+                      <Button variant="ghost" size="sm" onClick={() => setSelectedClaim(claim)}>
                         View
                       </Button>
                     )}
@@ -824,6 +833,33 @@ export function Expense() {
             Upload a receipt image or PDF if available.
           </p>
         </div>
+      </Modal>
+
+      <Modal
+        isOpen={Boolean(selectedClaim)}
+        onClose={() => setSelectedClaim(null)}
+        title="Expense Claim Details"
+        footer={
+          <Button variant="outline" onClick={() => setSelectedClaim(null)}>
+            Close
+          </Button>
+        }
+      >
+        {selectedClaim && (
+          <div className="space-y-3 text-sm">
+            <p><strong>Employee:</strong> {selectedClaim.employee}</p>
+            <p><strong>Category:</strong> {selectedClaim.type}</p>
+            <p><strong>Amount:</strong> {formatCurrencyBDT(selectedClaim.amount)}</p>
+            <p><strong>Date:</strong> {selectedClaim.date}</p>
+            <p><strong>Status:</strong> {selectedClaim.status}</p>
+            <p><strong>Description:</strong> {selectedClaim.description || "—"}</p>
+            {selectedClaim.receiptUrl && (
+              <a href={selectedClaim.receiptUrl} target="_blank" rel="noreferrer" className="text-[var(--primary)] hover:underline">
+                Open receipt
+              </a>
+            )}
+          </div>
+        )}
       </Modal>
     </div>
   );

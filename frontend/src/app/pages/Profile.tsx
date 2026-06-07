@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
+import api from "../services/api";
+import { downloadCsv, downloadTextFile } from "../utils/download";
 
 export function Profile() {
   const { user } = useAuth();
@@ -102,7 +104,7 @@ export function Profile() {
           {/* Right Content */}
           <div className="flex-1 min-w-0">
             {/* Quick Actions Widget */}
-            <QuickActions user={user} />
+            <QuickActions user={user} setActiveTab={setActiveTab} />
 
             <motion.div
               key={activeTab}
@@ -121,7 +123,7 @@ export function Profile() {
               {activeTab === 'leave' && <LeaveDocumentsTab />}
               {activeTab === 'forum' && <ForumPreferencesTab />}
               {activeTab === 'appearance' && <AppearanceTab theme={theme} setTheme={setTheme} />}
-              {activeTab === 'privacy' && <PrivacyTab />}
+              {activeTab === 'privacy' && <PrivacyTab user={user} />}
               {activeTab === 'myactivity' && <MyActivityTab />}
               {activeTab === 'activitylog' && isAdmin && <ActivityLogTab />}
               {activeTab === 'roles' && isAdmin && <RolesPermissionsTab />}
@@ -251,7 +253,7 @@ function ProfileSidebar({ user, roleInfo, tabs, activeTab, setActiveTab }: any) 
   );
 }
 
-function QuickActions({ user }: any) {
+function QuickActions({ user, setActiveTab }: { user: any; setActiveTab: (tab: string) => void }) {
   const navigate = useNavigate();
   const isAdmin = user.role === 'admin';
   const isEmployeeOrHR = user.role === 'employee' || user.role === 'hr_manager';
@@ -295,7 +297,10 @@ function QuickActions({ user }: any) {
               Download Payslip
             </button>
             <button
-              onClick={() => navigate('/dashboard/profile')}
+              onClick={() => {
+                setActiveTab("leave");
+                sessionStorage.setItem("profile-active-tab", "leave");
+              }}
               className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-[#543884] border border-[#543884]/20 hover:bg-[#543884]/5 transition-colors"
             >
               <Upload className="w-4 h-4" />
@@ -333,6 +338,7 @@ function QuickActions({ user }: any) {
 function PersonalInfoTab({ user }: any) {
   const [isEditing, setIsEditing] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const { register, handleSubmit, reset } = useForm({
     defaultValues: {
       fullName: user.name,
@@ -353,12 +359,19 @@ function PersonalInfoTab({ user }: any) {
     }
   });
 
-  const onSubmit = (data: any) => {
-    setTimeout(() => {
+  const onSubmit = async (data: any) => {
+    setSaveError("");
+    try {
+      await api.patch("/auth/me", {
+        name: data.fullName,
+        phone: data.phone,
+      });
       setIsEditing(false);
       setShowToast(true);
-      setTimeout(() => setShowToast(false), 3000);
-    }, 800);
+      window.setTimeout(() => setShowToast(false), 3000);
+    } catch (error: any) {
+      setSaveError(error?.response?.data?.message || "Unable to save profile changes.");
+    }
   };
 
   return (
@@ -568,7 +581,27 @@ function WorkInfoTab({ user }: any) {
 function SecurityTab({ user }: any) {
   const [showPassword, setShowPassword] = useState({ current: false, new: false, confirm: false });
   const [password, setPassword] = useState('');
+  const [passwordMessage, setPasswordMessage] = useState("");
+  const [passwordError, setPasswordError] = useState("");
   const { register, handleSubmit } = useForm();
+
+  const onSubmitPassword = async (data: any) => {
+    setPasswordError("");
+    setPasswordMessage("");
+    if (data.new !== data.confirm) {
+      setPasswordError("New password and confirmation do not match.");
+      return;
+    }
+    try {
+      await api.post("/auth/change-password", {
+        currentPassword: data.current,
+        newPassword: data.new,
+      });
+      setPasswordMessage("Password updated successfully.");
+    } catch (error: any) {
+      setPasswordError(error?.response?.data?.message || "Unable to update password.");
+    }
+  };
 
   const passwordStrength = (pwd: string) => {
     let strength = 0;
@@ -587,7 +620,9 @@ function SecurityTab({ user }: any) {
     <>
       <div className="bg-card border border-[#543884]/10 rounded-2xl p-6 md:p-8 shadow-sm mb-6">
         <h2 className="text-xl font-semibold text-[#262254] dark:text-white mb-6">Change Password</h2>
-        <form onSubmit={handleSubmit(() => {})}>
+        <form onSubmit={handleSubmit(onSubmitPassword)}>
+          {passwordError && <p className="text-sm text-destructive mb-3">{passwordError}</p>}
+          {passwordMessage && <p className="text-sm text-[var(--success)] mb-3">{passwordMessage}</p>}
           <div className="space-y-4">
             {['current', 'new', 'confirm'].map(type => (
               <div key={type}>
@@ -735,6 +770,32 @@ function AttendanceTab() {
 }
 
 function PayrollTab() {
+  const [payslips, setPayslips] = useState<Array<{ id: number; month: string; amount: string }>>([]);
+
+  useEffect(() => {
+    api.get("/payroll")
+      .then((response) => {
+        setPayslips(
+          (response.data.payroll || []).slice(0, 3).map((record: { id: number; pay_period: string; net_pay: number }) => ({
+            id: record.id,
+            month: new Date(record.pay_period).toLocaleDateString("en-US", { month: "long", year: "numeric" }),
+            amount: `৳${Number(record.net_pay || 0).toLocaleString()}`,
+          }))
+        );
+      })
+      .catch(() => {});
+  }, []);
+
+  const downloadPayslip = async (id: number) => {
+    const response = await api.get(`/payroll/${id}/payslip`, { responseType: "blob" });
+    const url = URL.createObjectURL(response.data);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `payslip-${id}.txt`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <>
       <div className="bg-card border border-[#543884]/10 rounded-2xl p-6 md:p-8 shadow-sm mb-6">
@@ -756,17 +817,19 @@ function PayrollTab() {
       <div className="bg-card border border-[#543884]/10 rounded-2xl p-6 md:p-8 shadow-sm">
         <h2 className="text-xl font-semibold text-[#262254] dark:text-white mb-4">Recent Payslips</h2>
         <div className="space-y-3">
-          {['April 2024', 'March 2024', 'February 2024'].map((month, i) => (
-            <div key={i} className="flex items-center justify-between py-3 border-b border-[#543884]/8 last:border-0">
+          {(payslips.length ? payslips : [{ id: 0, month: "No payslips available", amount: "—" }]).map((month, i) => (
+            <div key={month.id || i} className="flex items-center justify-between py-3 border-b border-[#543884]/8 last:border-0">
               <div>
-                <p className="text-sm font-medium text-[#262254] dark:text-white">{month}</p>
-                <p className="text-xs text-muted-foreground">৳75,000</p>
+                <p className="text-sm font-medium text-[#262254] dark:text-white">{month.month}</p>
+                <p className="text-xs text-muted-foreground">{month.amount}</p>
               </div>
               <div className="flex items-center gap-3">
-                <span className="px-2 py-1 rounded-full bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs">Processed</span>
-                <button className="text-[#9A77CF] hover:text-[#EC4176]">
-                  <Download className="w-4 h-4" />
-                </button>
+                {month.id ? <span className="px-2 py-1 rounded-full bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs">Processed</span> : null}
+                {month.id ? (
+                  <button type="button" className="text-[#9A77CF] hover:text-[#EC4176]" onClick={() => downloadPayslip(month.id)}>
+                    <Download className="w-4 h-4" />
+                  </button>
+                ) : null}
               </div>
             </div>
           ))}
@@ -946,7 +1009,15 @@ function AppearanceTab({ theme, setTheme }: any) {
   );
 }
 
-function PrivacyTab() {
+function PrivacyTab({ user }: { user: any }) {
+  const exportUserData = () => {
+    downloadTextFile(
+      `hrspace-user-export-${new Date().toISOString().slice(0, 10)}.json`,
+      JSON.stringify({ name: user.name, email: user.email, role: user.role }, null, 2),
+      "application/json;charset=utf-8;"
+    );
+  };
+
   return (
     <>
       <div className="bg-card border border-[#543884]/10 rounded-2xl p-6 md:p-8 shadow-sm mb-6">
@@ -972,7 +1043,9 @@ function PrivacyTab() {
           ].map((item, i) => (
             <div key={i} className="flex justify-between items-center py-3 border-b border-[#543884]/8 last:border-0">
               <span className="text-sm font-medium text-[#262254] dark:text-white">{item.label}</span>
-              <button className="text-sm hover:underline" style={{ color: item.color }}>{item.action}</button>
+              <button type="button" className="text-sm hover:underline" style={{ color: item.color }} onClick={item.action === "Request Export" ? exportUserData : () => alert("Please contact HR to request account deletion.")}>
+                {item.action}
+              </button>
             </div>
           ))}
         </div>
@@ -983,6 +1056,7 @@ function PrivacyTab() {
 
 function MyActivityTab() {
   const [filter, setFilter] = useState('all');
+  const [visibleCount, setVisibleCount] = useState(3);
 
   const events = [
     { type: 'login', title: 'Logged in', detail: 'From Chrome browser', time: '2h ago', timestamp: 'May 24, 2026 14:32' },
@@ -1019,7 +1093,10 @@ function MyActivityTab() {
       </div>
 
       <div className="space-y-0">
-        {events.map((event, i) => {
+        {events
+          .filter((event) => filter === "all" || event.type === filter)
+          .slice(0, visibleCount)
+          .map((event, i) => {
           const Icon = iconMap[event.type].icon;
           return (
             <div key={i} className="flex items-start gap-4 py-4 border-b border-[#543884]/8 last:border-0">
@@ -1036,18 +1113,29 @@ function MyActivityTab() {
         })}
       </div>
 
-      <button className="mx-auto block mt-6 text-sm text-[#9A77CF] hover:text-[#EC4176]">Load more</button>
+      <button type="button" className="mx-auto block mt-6 text-sm text-[#9A77CF] hover:text-[#EC4176]" onClick={() => setVisibleCount((count) => count + 3)}>
+        Load more
+      </button>
     </div>
   );
 }
 
 function ActivityLogTab() {
+  const exportLog = () => {
+    downloadCsv(`hrspace-activity-log-${new Date().toISOString().slice(0, 10)}.csv`, [
+      ["Action", "User", "Time"],
+      ["Login", "System Admin", "May 24, 2:30 PM"],
+      ["Employee updated", "HR Manager", "May 24, 1:10 PM"],
+      ["Leave approved", "HR Manager", "May 23, 4:45 PM"],
+    ]);
+  };
+
   return (
     <div className="bg-card border border-[#543884]/10 rounded-2xl p-6 md:p-8 shadow-sm">
       <h2 className="text-xl font-semibold text-[#262254] dark:text-white mb-2">Activity Log</h2>
       <p className="text-sm text-[#9A77CF] mb-4">System-wide activity across all users</p>
       <div className="flex justify-end mb-4">
-        <button className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white shadow-md" style={{ background: 'linear-gradient(135deg, #543884, #A13670, #EC4176)' }}>
+        <button type="button" onClick={exportLog} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white shadow-md" style={{ background: 'linear-gradient(135deg, #543884, #A13670, #EC4176)' }}>
           <Download className="w-4 h-4" />
           Export Log
         </button>

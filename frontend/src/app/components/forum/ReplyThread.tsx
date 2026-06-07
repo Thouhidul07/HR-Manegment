@@ -19,9 +19,11 @@ interface ReplyThreadProps {
   reply: Reply;
   level: number;
   canParticipate?: boolean;
+  postId: number;
+  onReplyAdded?: (reply: Reply) => void;
 }
 
-export function ReplyThread({ reply, level, canParticipate = true }: ReplyThreadProps) {
+export function ReplyThread({ reply, level, canParticipate = true, postId, onReplyAdded }: ReplyThreadProps) {
   const [showReplyForm, setShowReplyForm] = useState(false);
   const [replyContent, setReplyContent] = useState("");
   const [isEditing, setIsEditing] = useState(false);
@@ -33,16 +35,64 @@ export function ReplyThread({ reply, level, canParticipate = true }: ReplyThread
   const [deleteError, setDeleteError] = useState("");
   const [deleteMessage, setDeleteMessage] = useState("");
   const [userReactions, setUserReactions] = useState<Record<string, boolean>>({});
+  const [submittingReply, setSubmittingReply] = useState(false);
+  const [nestedReplies, setNestedReplies] = useState(reply.replies || []);
+
+  const handleReaction = async (reaction: "like" | "heart" | "helpful") => {
+    if (!canParticipate) return;
+    try {
+      const response = await api.post("/forum/reactions", {
+        targetType: "reply",
+        targetId: reply.id,
+        reaction,
+      });
+      setUserReactions((prev) => ({ ...prev, [reaction]: response.data.active }));
+    } catch (error) {
+      console.warn("Unable to update reply reaction", error);
+    }
+  };
+
+  const handleReport = async () => {
+    if (!canParticipate) return;
+    try {
+      await api.post("/forum/reports", {
+        targetType: "reply",
+        targetId: reply.id,
+        reason: "Inappropriate or policy-violating reply",
+      });
+      setDeleteMessage("Reply reported for moderation.");
+      window.setTimeout(() => setDeleteMessage(""), 2500);
+    } catch (error: any) {
+      setDeleteError(error?.response?.data?.message || "Unable to report reply.");
+    }
+  };
+
+  const handleNestedReply = async () => {
+    if (!canParticipate || !replyContent.trim()) return;
+    setSubmittingReply(true);
+    try {
+      const response = await api.post(`/forum/posts/${postId}/replies`, {
+        content: replyContent,
+        parentReplyId: reply.id,
+        isAnonymous: true,
+      });
+      setNestedReplies((current) => [...current, response.data.reply]);
+      onReplyAdded?.(response.data.reply);
+      setReplyContent("");
+      setShowReplyForm(false);
+    } catch (error: any) {
+      setDeleteError(error?.response?.data?.message || "Unable to post reply.");
+    } finally {
+      setSubmittingReply(false);
+    }
+  };
 
   if (isHidden) {
     return null;
   }
 
   const toggleReaction = (type: string) => {
-    setUserReactions(prev => ({
-      ...prev,
-      [type]: !prev[type]
-    }));
+    void handleReaction(type as "like" | "heart" | "helpful");
   };
 
   const maxNestingLevel = 3;
@@ -194,6 +244,7 @@ export function ReplyThread({ reply, level, canParticipate = true }: ReplyThread
                 variant="ghost"
                 size="sm"
                 className="gap-1.5 text-muted-foreground hover:text-destructive"
+                onClick={handleReport}
               >
                 <Flag className="w-3.5 h-3.5" />
               </Button>
@@ -222,10 +273,11 @@ export function ReplyThread({ reply, level, canParticipate = true }: ReplyThread
               <Button
                 variant="primary"
                 size="sm"
-                disabled={!replyContent.trim()}
+                disabled={!replyContent.trim() || submittingReply}
                 className="bg-[var(--action)] hover:bg-[var(--action)]/90"
+                onClick={handleNestedReply}
               >
-                Reply
+                {submittingReply ? "Replying..." : "Reply"}
               </Button>
             </div>
           </div>
@@ -233,10 +285,10 @@ export function ReplyThread({ reply, level, canParticipate = true }: ReplyThread
       </div>
 
       {/* Nested Replies */}
-      {reply.replies && reply.replies.length > 0 && (
+      {nestedReplies.length > 0 && (
         <div className="mt-2">
-          {reply.replies.map((nestedReply) => (
-            <ReplyThread key={nestedReply.id} reply={nestedReply} level={level + 1} canParticipate={canParticipate} />
+          {nestedReplies.map((nestedReply) => (
+            <ReplyThread key={nestedReply.id} reply={nestedReply} level={level + 1} canParticipate={canParticipate} postId={postId} />
           ))}
         </div>
       )}

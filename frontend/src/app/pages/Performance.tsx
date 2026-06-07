@@ -198,6 +198,8 @@ export function Performance() {
   const [isStartModalOpen, setIsStartModalOpen] = useState(false);
   const [isSelfModalOpen, setIsSelfModalOpen] = useState(false);
   const [isFinalizeModalOpen, setIsFinalizeModalOpen] = useState(false);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [viewReview, setViewReview] = useState<PerformanceReview | null>(null);
   const [selectedReview, setSelectedReview] =
     useState<PerformanceReview | null>(null);
   const [startReviewForm, setStartReviewForm] = useState(
@@ -373,12 +375,19 @@ export function Performance() {
     setIsFinalizeModalOpen(true);
   };
 
+  const openViewModal = (review: PerformanceReview) => {
+    setViewReview(review);
+    setIsViewModalOpen(true);
+  };
+
   const closeReviewModals = () => {
     if (savingReview) return;
     setIsStartModalOpen(false);
     setIsSelfModalOpen(false);
     setIsFinalizeModalOpen(false);
+    setIsViewModalOpen(false);
     setSelectedReview(null);
+    setViewReview(null);
   };
 
   const handleStartReview = async () => {
@@ -829,7 +838,7 @@ export function Performance() {
                       )}
                       {(!review ||
                         (!canSubmitSelfAssessment && !canFinalizeReview)) && (
-                        <Button variant="ghost" size="sm">
+                        <Button variant="ghost" size="sm" onClick={() => review && openViewModal(review)}>
                           View
                         </Button>
                       )}
@@ -1054,6 +1063,29 @@ export function Performance() {
             />
           </div>
         </div>
+      </Modal>
+
+      <Modal
+        isOpen={isViewModalOpen}
+        onClose={closeReviewModals}
+        title="Performance Review Details"
+        footer={
+          <Button variant="outline" onClick={closeReviewModals}>
+            Close
+          </Button>
+        }
+      >
+        {viewReview && (
+          <div className="space-y-3 text-sm">
+            <p><strong>Employee:</strong> {viewReview.employee}</p>
+            <p><strong>Period:</strong> {viewReview.reviewPeriod}</p>
+            <p><strong>Reviewer:</strong> {viewReview.reviewer || "Not assigned"}</p>
+            <p><strong>Status:</strong> {viewReview.status}</p>
+            <p><strong>Score:</strong> {viewReview.score ?? "Pending"}</p>
+            <p><strong>Goals:</strong> {(viewReview.goals || []).join(", ") || "—"}</p>
+            <p><strong>Feedback:</strong> {viewReview.feedback || "—"}</p>
+          </div>
+        )}
       </Modal>
     </div>
   );

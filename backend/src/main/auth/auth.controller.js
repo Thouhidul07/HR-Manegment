@@ -67,7 +67,63 @@ const login = asyncHandler(async (req, res) => {
 });
 
 const me = asyncHandler(async (req, res) => {
-  res.json({ user: req.user });
+  const [users] = await query(
+    "SELECT id, name, email, role, avatar, status, phone, department, designation FROM users WHERE id = ? LIMIT 1",
+    [req.user.id]
+  );
+  res.json({ user: users[0] || req.user });
 });
 
-module.exports = { register, login, me };
+const updateProfile = asyncHandler(async (req, res) => {
+  const { name, phone, department } = req.body;
+  const updates = [];
+  const params = [];
+
+  if (name !== undefined && String(name).trim()) {
+    updates.push("name = ?");
+    params.push(String(name).trim());
+  }
+  if (phone !== undefined) {
+    updates.push("phone = ?");
+    params.push(phone ? String(phone).trim() : null);
+  }
+  if (department !== undefined) {
+    updates.push("department = ?");
+    params.push(department ? String(department).trim() : null);
+  }
+
+  if (!updates.length) {
+    return res.status(400).json({ message: "No valid fields to update" });
+  }
+
+  params.push(req.user.id);
+  await query(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`, params);
+
+  const [users] = await query(
+    "SELECT id, name, email, role, avatar, status, phone, department, designation FROM users WHERE id = ? LIMIT 1",
+    [req.user.id]
+  );
+
+  res.json({ message: "Profile updated successfully", user: users[0] });
+});
+
+const changePassword = asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+
+  const [users] = await query("SELECT password FROM users WHERE id = ? LIMIT 1", [req.user.id]);
+  if (!users.length) {
+    return res.status(404).json({ message: "User not found" });
+  }
+
+  const matches = await bcrypt.compare(currentPassword, users[0].password);
+  if (!matches) {
+    return res.status(400).json({ message: "Current password is incorrect" });
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  await query("UPDATE users SET password = ? WHERE id = ?", [hashedPassword, req.user.id]);
+
+  res.json({ message: "Password updated successfully" });
+});
+
+module.exports = { register, login, me, updateProfile, changePassword };

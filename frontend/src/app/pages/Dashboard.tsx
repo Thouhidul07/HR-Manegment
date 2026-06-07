@@ -18,6 +18,26 @@ import {
   getRoleDashboardSummary,
   RoleDashboardSummary,
 } from "../services/dashboardData";
+import api from "../services/api";
+
+function DashboardLink({
+  to,
+  state,
+  children,
+  className = "text-[#9A77CF] text-sm hover:text-[#EC4176]",
+}: {
+  to: string;
+  state?: Record<string, unknown>;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const navigate = useNavigate();
+  return (
+    <button type="button" onClick={() => navigate(to, state ? { state } : undefined)} className={className}>
+      {children}
+    </button>
+  );
+}
 
 export function Dashboard() {
   const { user } = useAuth();
@@ -112,7 +132,12 @@ const chartTheme = {
 
 // HR Manager Dashboard
 function HRManagerDashboard({ user }: any) {
+  const navigate = useNavigate();
   const [summary, setSummary] = useState<RoleDashboardSummary | null>(null);
+  const [pendingLeaveItems, setPendingLeaveItems] = useState<
+    Array<{ id: number; name: string; days: number; type: string; initial: string }>
+  >([]);
+  const [reviewingLeaveId, setReviewingLeaveId] = useState<number | null>(null);
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
@@ -127,10 +152,39 @@ function HRManagerDashboard({ user }: any) {
         console.warn("Unable to load HR manager dashboard summary", error);
       });
 
+    api.get("/leave")
+      .then((response) => {
+        if (!isMounted) return;
+        const pending = (response.data.requests || [])
+          .filter((request: { status: string }) => request.status === "Pending")
+          .slice(0, 3)
+          .map((request: { id: number; employee: string; days: number; type: string; avatar: string }) => ({
+            id: request.id,
+            name: request.employee,
+            days: request.days,
+            type: request.type,
+            initial: request.avatar,
+          }));
+        setPendingLeaveItems(pending);
+      })
+      .catch(() => {});
+
     return () => {
       isMounted = false;
     };
   }, []);
+
+  const handleLeaveStatus = async (id: number, status: "approved" | "rejected") => {
+    setReviewingLeaveId(id);
+    try {
+      await api.patch(`/leave/${id}/status`, { status });
+      setPendingLeaveItems((items) => items.filter((item) => item.id !== id));
+    } catch (error) {
+      console.warn("Unable to update leave request", error);
+    } finally {
+      setReviewingLeaveId(null);
+    }
+  };
 
   const activeEmployees = Number(summary?.activeEmployees ?? 247);
   const pendingLeave = Number(summary?.pendingLeave ?? 12);
@@ -157,11 +211,20 @@ function HRManagerDashboard({ user }: any) {
         subtitle={`You have ${pendingLeave} pending leave requests and ${upcomingTraining} upcoming training sessions.`}
         actions={
           <>
-            <button className="rounded-xl px-4 py-2 text-sm text-white flex items-center gap-2 shadow-sm" style={{ background: 'linear-gradient(135deg, #543884, #A13670, #EC4176)' }}>
+            <button
+              type="button"
+              onClick={() => navigate("/dashboard/leave")}
+              className="rounded-xl px-4 py-2 text-sm text-white flex items-center gap-2 shadow-sm"
+              style={{ background: 'linear-gradient(135deg, #543884, #A13670, #EC4176)' }}
+            >
               <CheckCircle className="w-4 h-4" />
               Approve Leaves
             </button>
-            <button className="border border-[#543884]/20 text-[#543884] rounded-xl px-4 py-2 text-sm flex items-center gap-2 hover:bg-[#543884]/5">
+            <button
+              type="button"
+              onClick={() => navigate("/dashboard/employees")}
+              className="border border-[#543884]/20 text-[#543884] rounded-xl px-4 py-2 text-sm flex items-center gap-2 hover:bg-[#543884]/5"
+            >
               <UserPlus className="w-4 h-4" />
               Add Employee
             </button>
@@ -203,25 +266,39 @@ function HRManagerDashboard({ user }: any) {
         </div>
 
         <div className="lg:col-span-2">
-          <SectionCard title="Leave Requests" action={<a href="#" className="text-[#9A77CF] text-sm hover:text-[#EC4176]">View All →</a>}>
+          <SectionCard title="Leave Requests" action={<DashboardLink to="/dashboard/leave">View All →</DashboardLink>}>
             <div className="space-y-3">
-              {[
-                { name: 'Rafi Ahmed', days: 3, type: 'Annual Leave', initial: 'RA' },
-                { name: 'Priya Sen', days: 1, type: 'Sick Leave', initial: 'PS' },
-                { name: 'Karim Hassan', days: 5, type: 'Annual Leave', initial: 'KH' }
-              ].map((req, i) => (
-                <div key={i} className="flex items-center gap-3 py-2 border-b border-[#543884]/8 last:border-0">
+              {(pendingLeaveItems.length ? pendingLeaveItems : [
+                { id: 0, name: 'No pending requests', days: 0, type: '—', initial: '—' }
+              ]).map((req, i) => (
+                <div key={req.id || i} className="flex items-center gap-3 py-2 border-b border-[#543884]/8 last:border-0">
                   <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-medium" style={{ background: `linear-gradient(135deg, ${chartTheme.colors[i % 5]}, ${chartTheme.colors[(i + 1) % 5]})` }}>
                     {req.initial}
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-medium text-[#262254] dark:text-white">{req.name}</p>
-                    <p className="text-xs text-muted-foreground">{req.days} days · {req.type}</p>
+                    <p className="text-xs text-muted-foreground">{req.days ? `${req.days} days · ${req.type}` : req.type}</p>
                   </div>
-                  <div className="flex gap-1">
-                    <button className="bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg px-2 py-1 text-xs">✓</button>
-                    <button className="bg-[#EC4176]/10 text-[#EC4176] rounded-lg px-2 py-1 text-xs">✗</button>
-                  </div>
+                  {req.id ? (
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        disabled={reviewingLeaveId === req.id}
+                        onClick={() => handleLeaveStatus(req.id, "approved")}
+                        className="bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg px-2 py-1 text-xs disabled:opacity-50"
+                      >
+                        ✓
+                      </button>
+                      <button
+                        type="button"
+                        disabled={reviewingLeaveId === req.id}
+                        onClick={() => handleLeaveStatus(req.id, "rejected")}
+                        className="bg-[#EC4176]/10 text-[#EC4176] rounded-lg px-2 py-1 text-xs disabled:opacity-50"
+                      >
+                        ✗
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -230,7 +307,7 @@ function HRManagerDashboard({ user }: any) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <SectionCard title="Onboarding Pipeline" action={<a href="#" className="text-[#9A77CF] text-sm hover:text-[#EC4176]">Manage →</a>}>
+        <SectionCard title="Onboarding Pipeline" action={<DashboardLink to="/dashboard/onboarding">Manage →</DashboardLink>}>
           <div className="space-y-4">
             {[
               { name: 'Sofia Rahman', progress: 92 },
@@ -528,10 +605,17 @@ function ProjectManagerDashboard({ user }: any) {
 
 // Employee Dashboard
 function EmployeeDashboard({ user }: any) {
+  const navigate = useNavigate();
   const [summary, setSummary] = useState<RoleDashboardSummary | null>(null);
+  const [attendanceDays, setAttendanceDays] = useState<Record<number, boolean>>({});
+  const [trainingItems, setTrainingItems] = useState<Array<{ name: string; progress: number; provider: string; color: string }>>([]);
+  const [payslipItems, setPayslipItems] = useState<Array<{ id: number; month: string; amount: string }>>([]);
+  const [trainingProgress, setTrainingProgress] = useState("0 / 0");
+  const [downloadingPayslipId, setDownloadingPayslipId] = useState<number | null>(null);
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Have a productive morning!' : hour < 17 ? 'Keep up the great work!' : 'Finish strong!';
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
 
   useEffect(() => {
     let isMounted = true;
@@ -544,12 +628,83 @@ function EmployeeDashboard({ user }: any) {
         console.warn("Unable to load employee dashboard summary", error);
       });
 
+    api.get("/attendance")
+      .then((response) => {
+        if (!isMounted) return;
+        const monthPrefix = new Date().toISOString().slice(0, 7);
+        const dayMap: Record<number, boolean> = {};
+        (response.data.records || []).forEach((record: { date?: string; status?: string }) => {
+          if (!record.date?.startsWith(monthPrefix)) return;
+          const day = Number(record.date.slice(8, 10));
+          dayMap[day] = record.status !== "Absent" && record.status !== "absent";
+        });
+        setAttendanceDays(dayMap);
+      })
+      .catch(() => {});
+
+    api.get("/training")
+      .then((response) => {
+        if (!isMounted) return;
+        const enrollments = response.data.enrollments || [];
+        const colors = ['#543884', '#9A77CF', '#EC4176'];
+        setTrainingItems(
+          enrollments.slice(0, 2).map((item: { title?: string; progress?: number; trainer?: string }, index: number) => ({
+            name: item.title || "Training course",
+            progress: Number(item.progress || 0),
+            provider: item.trainer || "HRSpace",
+            color: colors[index % colors.length],
+          }))
+        );
+        const completed = enrollments.filter((item: { progress?: number }) => Number(item.progress || 0) >= 100).length;
+        setTrainingProgress(`${completed} / ${enrollments.length || 0}`);
+      })
+      .catch(() => {});
+
+    api.get("/payroll")
+      .then((response) => {
+        if (!isMounted) return;
+        setPayslipItems(
+          (response.data.payroll || []).slice(0, 3).map((record: { id: number; pay_period: string; net_pay: number }) => ({
+            id: record.id,
+            month: new Date(record.pay_period).toLocaleDateString("en-US", { month: "long", year: "numeric" }),
+            amount: formatDashboardCurrency(record.net_pay),
+          }))
+        );
+      })
+      .catch(() => {});
+
     return () => {
       isMounted = false;
     };
   }, []);
 
-  const daysPresent = Number(summary?.daysPresent ?? 23);
+  const downloadPayslip = async (payslipId: number) => {
+    setDownloadingPayslipId(payslipId);
+    try {
+      const response = await api.get(`/payroll/${payslipId}/payslip`, { responseType: "blob" });
+      const url = URL.createObjectURL(response.data);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `payslip-${payslipId}.txt`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.warn("Unable to download payslip", error);
+    } finally {
+      setDownloadingPayslipId(null);
+    }
+  };
+
+  const quickActions = [
+    { icon: CalendarPlus, label: 'Apply Leave', to: '/dashboard/leave', state: { openRequestLeave: true } },
+    { icon: Clock, label: 'Log Attendance', to: '/dashboard/attendance', state: { openLogAttendance: true } },
+    { icon: Receipt, label: 'Submit Expense', to: '/dashboard/expense', state: { openSubmitExpense: true } },
+    { icon: FileText, label: 'Download Payslip', to: '/dashboard/payslips' },
+    { icon: MessageSquare, label: 'Go to Forum', to: '/dashboard/forum' },
+    { icon: User, label: 'Update Profile', to: '/dashboard/profile' },
+  ];
+
+  const daysPresent = Number(summary?.daysPresent ?? Object.values(attendanceDays).filter(Boolean).length);
   const pendingLeave = Number(summary?.pendingLeave ?? 0);
   const latestPayroll = summary?.latestPayroll?.net_pay;
 
@@ -566,11 +721,20 @@ function EmployeeDashboard({ user }: any) {
         subtitle={`${today} · ${greeting}`}
         actions={
           <>
-            <button className="rounded-xl px-4 py-2 text-sm text-white flex items-center gap-2 shadow-sm" style={{ background: 'linear-gradient(135deg, #543884, #A13670, #EC4176)' }}>
+            <button
+              type="button"
+              onClick={() => navigate('/dashboard/leave', { state: { openRequestLeave: true } })}
+              className="rounded-xl px-4 py-2 text-sm text-white flex items-center gap-2 shadow-sm"
+              style={{ background: 'linear-gradient(135deg, #543884, #A13670, #EC4176)' }}
+            >
               <CalendarPlus className="w-4 h-4" />
               Apply for Leave
             </button>
-            <button className="border border-[#543884]/20 text-[#543884] rounded-xl px-4 py-2 text-sm flex items-center gap-2 hover:bg-[#543884]/5">
+            <button
+              type="button"
+              onClick={() => navigate('/dashboard/attendance', { state: { openLogAttendance: true } })}
+              className="border border-[#543884]/20 text-[#543884] rounded-xl px-4 py-2 text-sm flex items-center gap-2 hover:bg-[#543884]/5"
+            >
               <Clock className="w-4 h-4" />
               Log Attendance
             </button>
@@ -579,26 +743,27 @@ function EmployeeDashboard({ user }: any) {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard label="My Attendance" value={`${daysPresent} / 25`} change={summary ? "Present days this month" : "92% this month"} trend="up" icon={Clock} iconBg="#5438841A" iconColor="#543884" index={0} subtitle="days" />
+        <StatCard label="My Attendance" value={`${daysPresent} / ${daysInMonth}`} change={summary ? "Present days this month" : "92% this month"} trend="up" icon={Clock} iconBg="#5438841A" iconColor="#543884" index={0} subtitle="days" />
         <StatCard label="Pending Leave" value={String(pendingLeave)} change={summary ? "Requests awaiting decision" : "6 used this year"} trend="neutral" icon={Palmtree} iconBg="#9A77CF1A" iconColor="#9A77CF" index={1} />
-        <StatCard label="Latest Payroll" value={latestPayroll ? formatDashboardCurrency(latestPayroll) : "N/A"} change={summary ? "Most recent payroll record" : "1 overdue"} trend="neutral" icon={CheckSquare} iconBg="#EC41761A" iconColor="#EC4176" index={2} />
-        <StatCard label="Training Progress" value="2 / 5" change="40% complete" trend="neutral" icon={BookOpen} iconBg="#FFA45E1A" iconColor="#FFA45E" index={3} />
+        <StatCard label="Latest Payroll" value={latestPayroll ? formatDashboardCurrency(latestPayroll) : payslipItems[0]?.amount || "N/A"} change={summary ? "Most recent payroll record" : "Latest payslip"} trend="neutral" icon={CheckSquare} iconBg="#EC41761A" iconColor="#EC4176" index={2} />
+        <StatCard label="Training Progress" value={trainingProgress} change="Enrolled courses completed" trend="neutral" icon={BookOpen} iconBg="#FFA45E1A" iconColor="#FFA45E" index={3} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <SectionCard title="My Attendance This Month">
           <div className="grid grid-cols-7 gap-2">
-            {Array.from({ length: 25 }, (_, i) => {
-              const isPresent = i % 6 !== 0;
-              const isToday = i === 23;
+            {Array.from({ length: daysInMonth }, (_, i) => {
+              const day = i + 1;
+              const isPresent = attendanceDays[day] ?? day % 6 !== 0;
+              const isToday = day === new Date().getDate();
               return (
                 <div
-                  key={i}
+                  key={day}
                   className={`w-8 h-8 rounded-lg text-xs flex items-center justify-center ${
                     isToday ? 'ring-2 ring-[#FFA45E]' : ''
                   } ${isPresent ? 'bg-[#543884] text-white' : 'bg-[#EC4176]/20 text-[#EC4176]'}`}
                 >
-                  {i + 1}
+                  {day}
                 </div>
               );
             })}
@@ -638,12 +803,12 @@ function EmployeeDashboard({ user }: any) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <SectionCard title="My Tasks" action={<a href="#" className="text-[#9A77CF] text-sm hover:text-[#EC4176]">View All →</a>}>
+        <SectionCard title="My Tasks" action={<DashboardLink to="/dashboard/tasks">View All →</DashboardLink>}>
           <div className="space-y-0">
             {[
               { task: 'Complete Q1 self-review', done: true, due: '' },
               { task: 'Submit expense report', done: false, due: 'Due today' },
-              { task: 'Complete Safety Training', done: false, due: 'Due Apr 8' }
+              { task: 'Complete Safety Training', done: false, due: 'Due soon' }
             ].map((item, i) => (
               <div key={i} className="flex items-center gap-3 py-2.5 border-b border-[#543884]/8 last:border-0">
                 <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
@@ -660,12 +825,9 @@ function EmployeeDashboard({ user }: any) {
           </div>
         </SectionCard>
 
-        <SectionCard title="My Training" action={<a href="#" className="text-[#9A77CF] text-sm hover:text-[#EC4176]">Browse Courses →</a>}>
+        <SectionCard title="My Training" action={<DashboardLink to="/dashboard/training">Browse Courses →</DashboardLink>}>
           <div className="space-y-3">
-            {[
-              { name: 'Leadership Essentials', progress: 78, provider: 'LinkedIn Learning', color: '#543884' },
-              { name: 'Data Privacy & GDPR', progress: 45, provider: 'Coursera', color: '#9A77CF' }
-            ].map((course, i) => (
+            {(trainingItems.length ? trainingItems : [{ name: 'No enrollments yet', progress: 0, provider: 'Browse training', color: '#543884' }]).map((course, i) => (
               <div key={i} className="border-b border-[#543884]/8 last:border-0 pb-3">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex-1">
@@ -705,28 +867,33 @@ function EmployeeDashboard({ user }: any) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <SectionCard title="Recent Payslips" action={<a href="#" className="text-[#9A77CF] text-sm hover:text-[#EC4176]">View All →</a>}>
+        <SectionCard title="Recent Payslips" action={<DashboardLink to="/dashboard/payslips">View All →</DashboardLink>}>
           <div className="space-y-0">
-            {[
-              { month: 'March 2026', amount: formatDashboardCurrency(75000) },
-              { month: 'February 2026', amount: formatDashboardCurrency(75000) },
-              { month: 'January 2026', amount: formatDashboardCurrency(73500) }
-            ].map((slip, i) => (
-              <div key={i} className="flex items-center justify-between py-3 border-b border-[#543884]/8 last:border-0">
+            {(payslipItems.length ? payslipItems : [{ id: 0, month: 'No payslips yet', amount: '—' }]).map((slip, i) => (
+              <div key={slip.id || i} className="flex items-center justify-between py-3 border-b border-[#543884]/8 last:border-0">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-[#543884]/10 flex items-center justify-center">
                     <FileText className="w-5 h-5 text-[#543884]" />
                   </div>
                   <div>
                     <p className="text-sm font-medium text-[#262254] dark:text-white">{slip.month}</p>
-                    <span className="px-2 py-0.5 rounded-full bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs">Processed</span>
+                    {slip.id ? (
+                      <span className="px-2 py-0.5 rounded-full bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs">Processed</span>
+                    ) : null}
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-sm font-semibold text-[#262254] dark:text-white">{slip.amount}</span>
-                  <button className="text-[#9A77CF] hover:text-[#EC4176]">
-                    <Download className="w-4 h-4" />
-                  </button>
+                  {slip.id ? (
+                    <button
+                      type="button"
+                      disabled={downloadingPayslipId === slip.id}
+                      onClick={() => downloadPayslip(slip.id)}
+                      className="text-[#9A77CF] hover:text-[#EC4176] disabled:opacity-50"
+                    >
+                      <Download className="w-4 h-4" />
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ))}
@@ -735,19 +902,14 @@ function EmployeeDashboard({ user }: any) {
 
         <SectionCard title="Quick Actions">
           <div className="grid grid-cols-2 gap-3">
-            {[
-              { icon: CalendarPlus, label: 'Apply Leave', colors: ['#543884', '#EC4176'] },
-              { icon: Clock, label: 'Log Attendance', colors: ['#9A77CF', '#543884'] },
-              { icon: Receipt, label: 'Submit Expense', colors: ['#EC4176', '#A13670'] },
-              { icon: FileText, label: 'Download Payslip', colors: ['#FFA45E', '#A13670'] },
-              { icon: MessageSquare, label: 'Go to Forum', colors: ['#9A77CF', '#EC4176'] },
-              { icon: User, label: 'Update Profile', colors: ['#543884', '#9A77CF'] }
-            ].map((action, i) => (
+            {quickActions.map((action, i) => (
               <button
                 key={i}
+                type="button"
+                onClick={() => navigate(action.to, action.state ? { state: action.state } : undefined)}
                 className="rounded-xl border border-[#543884]/10 p-4 flex flex-col items-center gap-2 hover:bg-[#543884]/5 hover:border-[#543884]/30 cursor-pointer transition-all"
               >
-                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${action.colors[0]}, ${action.colors[1]})` }}>
+                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #543884, #EC4176)' }}>
                   <action.icon className="w-5 h-5 text-white" />
                 </div>
                 <span className="text-xs text-center font-medium text-[#262254] dark:text-white">{action.label}</span>

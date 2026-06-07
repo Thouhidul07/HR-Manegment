@@ -665,7 +665,26 @@ export function CVFilter() {
             <div className="bg-card border border-border rounded-xl p-5 sticky top-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-foreground">Candidate Details</h3>
-                <button className="p-2 hover:bg-accent rounded-lg transition-colors">
+                <button type="button" className="p-2 hover:bg-accent rounded-lg transition-colors" onClick={() => {
+                  if (!selectedCandidate) return;
+                  const content = [
+                    `Candidate: ${selectedCandidate.name}`,
+                    `Position: ${selectedCandidate.position}`,
+                    `Score: ${selectedCandidate.score}`,
+                    `Email: ${selectedCandidate.email}`,
+                    `Phone: ${selectedCandidate.phone}`,
+                  ].join("\n");
+                  const blob = new Blob([content], { type: "text/plain;charset=utf-8;" });
+                  const url = URL.createObjectURL(blob);
+                  const anchor = document.createElement("a");
+                  anchor.href = selectedCandidate.cvUrl || url;
+                  anchor.download = `${selectedCandidate.name.replace(/\s+/g, "-").toLowerCase()}-cv.txt`;
+                  if (selectedCandidate.cvUrl) {
+                    anchor.target = "_blank";
+                  }
+                  anchor.click();
+                  if (!selectedCandidate.cvUrl) URL.revokeObjectURL(url);
+                }}>
                   <Download className="w-4 h-4" />
                 </button>
               </div>

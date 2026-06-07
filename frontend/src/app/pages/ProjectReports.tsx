@@ -10,6 +10,8 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from "recharts";
 
+import { downloadCsv } from "../utils/download";
+
 export function ProjectReports() {
   const navigate = useNavigate();
   const [dateRange, setDateRange] = useState('last-30-days');
@@ -105,9 +107,39 @@ export function ProjectReports() {
     }
   ];
 
-  const handleExport = (format: string) => {
-    console.log(`Exporting report as ${format}`);
-    // Implement export logic here
+  const handleExport = (format: "pdf" | "csv") => {
+    if (format === "csv") {
+      downloadCsv(`project-report-${new Date().toISOString().slice(0, 10)}.csv`, [
+        ["Metric", "Value"],
+        ...stats.map((stat) => [stat.label, stat.value]),
+        [],
+        ["Team Member", "Completed", "Pending", "Efficiency"],
+        ...teamPerformance.map((member) => [
+          member.name,
+          String(member.completed),
+          String(member.pending),
+          `${member.efficiency}%`,
+        ]),
+      ]);
+      return;
+    }
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+    printWindow.document.write(`
+      <html><head><title>Project Report</title></head><body>
+      <h1>HRSpace Project Report</h1>
+      <p>Generated: ${new Date().toLocaleString()}</p>
+      <h2>Summary</h2>
+      <ul>${stats.map((stat) => `<li>${stat.label}: ${stat.value}</li>`).join("")}</ul>
+      <h2>Team Performance</h2>
+      <table border="1" cellpadding="8"><tr><th>Name</th><th>Completed</th><th>Pending</th><th>Efficiency</th></tr>
+      ${teamPerformance.map((member) => `<tr><td>${member.name}</td><td>${member.completed}</td><td>${member.pending}</td><td>${member.efficiency}%</td></tr>`).join("")}
+      </table></body></html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
   };
 
   return (

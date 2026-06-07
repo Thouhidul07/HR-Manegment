@@ -24,12 +24,33 @@ interface JobCircular {
   applied: boolean;
 }
 
+const APPLICATIONS_STORAGE_KEY = "hrspace-job-applications";
+
 export function CircularApply() {
   const [selectedCircular, setSelectedCircular] = useState<JobCircular | null>(null);
   const [filterType, setFilterType] = useState<'all' | 'open' | 'applied'>('all');
   const [searchQuery, setSearchQuery] = useState("");
   const [showApplicationModal, setShowApplicationModal] = useState(false);
   const [applicationStep, setApplicationStep] = useState(1);
+  const [appliedIds, setAppliedIds] = useState<number[]>(() => {
+    try {
+      const stored = localStorage.getItem(APPLICATIONS_STORAGE_KEY);
+      return stored ? JSON.parse(stored).map((entry: { circularId: number }) => entry.circularId) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [applicationMessage, setApplicationMessage] = useState("");
+  const [applicationForm, setApplicationForm] = useState({
+    fullName: "",
+    email: "",
+    phone: "",
+    linkedIn: "",
+    portfolio: "",
+    source: "",
+    coverLetter: "",
+    additionalInfo: "",
+  });
 
   const circulars: JobCircular[] = [
     {
@@ -214,7 +235,12 @@ export function CircularApply() {
     }
   ];
 
-  const filteredCirculars = circulars
+  const circularsWithApplied = circulars.map((circular) => ({
+    ...circular,
+    applied: appliedIds.includes(circular.id) || circular.applied,
+  }));
+
+  const filteredCirculars = circularsWithApplied
     .filter(c => {
       if (filterType === 'open') return c.status === 'open';
       if (filterType === 'applied') return c.applied;
@@ -227,10 +253,10 @@ export function CircularApply() {
     );
 
   const stats = {
-    total: circulars.length,
-    open: circulars.filter(c => c.status === 'open').length,
-    applied: circulars.filter(c => c.applied).length,
-    closingSoon: circulars.filter(c => c.status === 'closing-soon').length
+    total: circularsWithApplied.length,
+    open: circularsWithApplied.filter(c => c.status === 'open').length,
+    applied: circularsWithApplied.filter(c => c.applied).length,
+    closingSoon: circularsWithApplied.filter(c => c.status === 'closing-soon').length
   };
 
   const handleApply = () => {
@@ -247,9 +273,38 @@ export function CircularApply() {
   };
 
   const submitApplication = () => {
+    if (!selectedCircular) return;
+    if (!applicationForm.fullName.trim() || !applicationForm.email.trim() || !applicationForm.coverLetter.trim()) {
+      setApplicationMessage("Please complete required fields before submitting.");
+      return;
+    }
+
+    const existing = JSON.parse(localStorage.getItem(APPLICATIONS_STORAGE_KEY) || "[]");
+    const nextApplications = [
+      {
+        circularId: selectedCircular.id,
+        title: selectedCircular.title,
+        submittedAt: new Date().toISOString(),
+        ...applicationForm,
+      },
+      ...existing.filter((entry: { circularId: number }) => entry.circularId !== selectedCircular.id),
+    ];
+    localStorage.setItem(APPLICATIONS_STORAGE_KEY, JSON.stringify(nextApplications));
+    setAppliedIds(nextApplications.map((entry: { circularId: number }) => entry.circularId));
     setShowApplicationModal(false);
     setApplicationStep(1);
-    // Handle application submission
+    setApplicationMessage(`Application submitted for ${selectedCircular.title}.`);
+    setApplicationForm({
+      fullName: "",
+      email: "",
+      phone: "",
+      linkedIn: "",
+      portfolio: "",
+      source: "",
+      coverLetter: "",
+      additionalInfo: "",
+    });
+    window.setTimeout(() => setApplicationMessage(""), 4000);
   };
 
   return (
@@ -260,6 +315,9 @@ export function CircularApply() {
         <p className="text-sm text-muted-foreground mt-1">
           Explore internal job opportunities and apply for positions
         </p>
+        {applicationMessage && (
+          <p className="text-sm text-[var(--success)] mt-2">{applicationMessage}</p>
+        )}
       </div>
 
       {/* Stats Cards */}

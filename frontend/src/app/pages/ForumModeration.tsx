@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Shield, AlertTriangle, CheckCircle, XCircle, Eye, Trash2,
   TrendingUp, Activity, BarChart3, Flag, MessageSquare,
@@ -100,10 +100,14 @@ const activityLog = [
 
 export function ForumModeration() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const backPath = user?.role === "admin" ? "/dashboard" : "/dashboard/forum";
   const [activeTab, setActiveTab] = useState<'pending' | 'reviewed' | 'activity'>('pending');
   const [selectedReport, setSelectedReport] = useState<number | null>(null);
   const [reports, setReports] = useState(reportedContent);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [detailReport, setDetailReport] = useState<(typeof reportedContent)[number] | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -151,6 +155,21 @@ export function ForumModeration() {
     return "text-destructive";
   };
 
+  const filteredReports = reports.filter((report) =>
+    !searchQuery ||
+    `${report.title} ${report.content} ${report.reportReason}`.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const openReportContext = (item: (typeof reportedContent)[number]) => {
+    const targetId = item.title.match(/#(\d+)/)?.[1];
+    if (!targetId) return;
+    if (item.type === "post") {
+      navigate(`/dashboard/forum/thread/${targetId}`);
+      return;
+    }
+    navigate("/dashboard/forum");
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -169,11 +188,27 @@ export function ForumModeration() {
             AI-powered content moderation and community safety tools
           </p>
         </div>
-        <Button variant="outline" className="gap-2">
+        <Button variant="outline" className="gap-2" onClick={() => setShowFilters((current) => !current)}>
           <Filter className="w-4 h-4" />
           Filters
         </Button>
       </div>
+
+      {showFilters && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="relative max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search reports..."
+                className="w-full pl-10 pr-4 py-2 rounded-lg border border-border bg-background text-foreground"
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -257,7 +292,7 @@ export function ForumModeration() {
           {/* Pending/Reviewed Content */}
           {(activeTab === 'pending' || activeTab === 'reviewed') && (
             <div className="space-y-4">
-              {reports
+              {filteredReports
                 .filter(item => activeTab === 'pending' ? item.status === 'pending' : item.status === 'reviewed')
                 .map((item) => (
                   <Card key={item.id} className="overflow-hidden">
@@ -354,7 +389,7 @@ export function ForumModeration() {
                       {/* Actions */}
                       {item.status === 'pending' ? (
                         <div className="flex gap-2">
-                          <Button variant="outline" className="flex-1 gap-2">
+                          <Button variant="outline" className="flex-1 gap-2" onClick={() => openReportContext(item)}>
                             <Eye className="w-4 h-4" />
                             View Full Context
                           </Button>
@@ -366,6 +401,9 @@ export function ForumModeration() {
                             <Trash2 className="w-4 h-4" />
                             Remove
                           </Button>
+                          <Button variant="outline" className="gap-2" onClick={() => handleModerationAction(item.id, "dismiss")}>
+                            Dismiss
+                          </Button>
                         </div>
                       ) : (
                         <div className="flex items-center justify-between p-3 rounded-lg bg-[var(--success)]/10 border border-[var(--success)]/20">
@@ -375,7 +413,7 @@ export function ForumModeration() {
                               Action taken: <strong>{item.action}</strong>
                             </span>
                           </div>
-                          <Button variant="ghost" size="sm">
+                          <Button variant="ghost" size="sm" onClick={() => setDetailReport(item)}>
                             View Details
                           </Button>
                         </div>
@@ -500,6 +538,21 @@ export function ForumModeration() {
           </Card>
         </div>
       </div>
+
+      {detailReport && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Moderation Details</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <p><strong>Title:</strong> {detailReport.title}</p>
+            <p><strong>Reason:</strong> {detailReport.reportReason}</p>
+            <p><strong>Action:</strong> {detailReport.action}</p>
+            <p><strong>Content:</strong> {detailReport.content}</p>
+            <Button variant="outline" onClick={() => setDetailReport(null)}>Close</Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

@@ -90,9 +90,19 @@ export function RolesPermissions() {
   const [activeTab, setActiveTab] = useState<'overview' | 'permissions' | 'assignments' | 'approvals' | 'audit'>('overview');
   const [selectedRole, setSelectedRole] = useState("HR Manager");
   const [searchQuery, setSearchQuery] = useState("");
+  const [assignmentSearch, setAssignmentSearch] = useState("");
+  const [assignmentRoleFilter, setAssignmentRoleFilter] = useState("All Roles");
   const filteredRoles = roles.filter((role) =>
     role.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+  const filteredRoleUsers = roleUsers.filter((user) => {
+    const matchesSearch =
+      user.name.toLowerCase().includes(assignmentSearch.toLowerCase()) ||
+      user.email.toLowerCase().includes(assignmentSearch.toLowerCase());
+    const matchesRole =
+      assignmentRoleFilter === "All Roles" || user.role === assignmentRoleFilter;
+    return matchesSearch && matchesRole;
+  });
 
   const exportRoles = () => {
     const rows = [
@@ -240,9 +250,9 @@ export function RolesPermissions() {
                       className="pl-9 pr-4 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                     />
                   </div>
-                  <Button variant="outline" size="sm" className="gap-2">
+                  <Button variant="outline" size="sm" className="gap-2" onClick={() => setSearchQuery("")}>
                     <Filter className="w-4 h-4" />
-                    Filter
+                    Clear
                   </Button>
                 </div>
               </div>
@@ -381,10 +391,16 @@ export function RolesPermissions() {
                   <input
                     type="text"
                     placeholder="Search employees..."
+                    value={assignmentSearch}
+                    onChange={(e) => setAssignmentSearch(e.target.value)}
                     className="pl-9 pr-4 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent w-64"
                   />
                 </div>
-                <select className="px-4 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+                <select
+                  value={assignmentRoleFilter}
+                  onChange={(e) => setAssignmentRoleFilter(e.target.value)}
+                  className="px-4 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                >
                   <option>All Roles</option>
                   {roles.map((role) => (
                     <option key={role.id}>{role.name}</option>
@@ -410,7 +426,7 @@ export function RolesPermissions() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {roleUsers.map((user) => (
+                {filteredRoleUsers.map((user) => (
                   <TableRow key={user.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">

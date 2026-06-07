@@ -1,36 +1,127 @@
+import { useEffect, useState } from "react";
 import { Check, Clock, FileText, GraduationCap, Receipt, Target } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Badge } from "../components/ui/Badge";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/Card";
+import api from "../services/api";
 
-const tasks = [
-  {
-    title: "Complete Q1 self-review",
-    area: "Performance",
-    due: "Completed",
-    done: true,
-    icon: Target,
-    link: "/dashboard/performance",
-  },
-  {
-    title: "Submit expense report",
-    area: "Expenses",
-    due: "Due today",
-    done: false,
-    icon: Receipt,
-    link: "/dashboard/expense",
-  },
-  {
-    title: "Complete Safety Training",
-    area: "Training",
-    due: "Due Apr 8",
-    done: false,
-    icon: GraduationCap,
-    link: "/dashboard/training",
-  },
-];
+type TaskItem = {
+  id: string;
+  title: string;
+  area: string;
+  due: string;
+  done: boolean;
+  icon: typeof Target;
+  link: string;
+};
+
+const iconByArea: Record<string, typeof Target> = {
+  Performance: Target,
+  Expenses: Receipt,
+  Training: GraduationCap,
+  Leave: FileText,
+};
 
 export function Tasks() {
+  const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    Promise.all([
+      api.get("/performance/reviews").catch(() => ({ data: { reviews: [] } })),
+      api.get("/training").catch(() => ({ data: { enrollments: [] } })),
+      api.get("/expenses").catch(() => ({ data: { expenses: [] } })),
+      api.get("/leave").catch(() => ({ data: { requests: [] } })),
+    ]).then(([performance, training, expenses, leave]) => {
+      if (!isMounted) return;
+
+      const nextTasks: TaskItem[] = [];
+
+      (performance.data.reviews || []).forEach((review: { id: number; reviewPeriod: string; status: string }) => {
+        if (review.status === "approved") return;
+        nextTasks.push({
+          id: `review-${review.id}`,
+          title: `Complete ${review.reviewPeriod} self-review`,
+          area: "Performance",
+          due: review.status === "draft" ? "Due soon" : "In progress",
+          done: review.status === "submitted",
+          icon: iconByArea.Performance,
+          link: "/dashboard/performance",
+        });
+      });
+
+      (training.data.enrollments || []).forEach((course: { id: number; title?: string; progress?: number }) => {
+        if (Number(course.progress || 0) >= 100) return;
+        nextTasks.push({
+          id: `training-${course.id}`,
+          title: `Complete ${course.title || "training course"}`,
+          area: "Training",
+          due: `${100 - Number(course.progress || 0)}% remaining`,
+          done: false,
+          icon: iconByArea.Training,
+          link: "/dashboard/training",
+        });
+      });
+
+      const pendingExpense = (expenses.data.expenses || []).find(
+        (expense: { status: string }) => expense.status?.toLowerCase() === "pending"
+      );
+      if (pendingExpense) {
+        nextTasks.push({
+          id: "expense-pending",
+          title: "Track pending expense claim",
+          area: "Expenses",
+          due: "Awaiting approval",
+          done: false,
+          icon: iconByArea.Expenses,
+          link: "/dashboard/expense",
+        });
+      } else {
+        nextTasks.push({
+          id: "expense-submit",
+          title: "Submit expense report",
+          area: "Expenses",
+          due: "Due today",
+          done: false,
+          icon: iconByArea.Expenses,
+          link: "/dashboard/expense",
+        });
+      }
+
+      const pendingLeave = (leave.data.requests || []).find(
+        (request: { status: string }) => request.status === "Pending"
+      );
+      if (pendingLeave) {
+        nextTasks.push({
+          id: `leave-${pendingLeave.id}`,
+          title: "Follow up on leave request",
+          area: "Leave",
+          due: "Pending approval",
+          done: false,
+          icon: iconByArea.Leave,
+          link: "/dashboard/leave",
+        });
+      }
+
+      setTasks(nextTasks.length ? nextTasks : [{
+        id: "none",
+        title: "You are all caught up",
+        area: "General",
+        due: "",
+        done: true,
+        icon: Check,
+        link: "/dashboard",
+      }]);
+      setLoading(false);
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const completedCount = tasks.filter((task) => task.done).length;
 
   return (
@@ -48,7 +139,7 @@ export function Tasks() {
             </div>
             <p className="text-sm text-muted-foreground">Total Tasks</p>
           </div>
-          <p className="text-2xl text-foreground">{tasks.length}</p>
+          <p className="text-2xl text-foreground">{loading ? "…" : tasks.length}</p>
         </Card>
 
         <Card className="p-4">
@@ -58,7 +149,7 @@ export function Tasks() {
             </div>
             <p className="text-sm text-muted-foreground">Completed</p>
           </div>
-          <p className="text-2xl text-foreground">{completedCount}</p>
+          <p className="text-2xl text-foreground">{loading ? "…" : completedCount}</p>
         </Card>
 
         <Card className="p-4">
@@ -68,7 +159,7 @@ export function Tasks() {
             </div>
             <p className="text-sm text-muted-foreground">Pending</p>
           </div>
-          <p className="text-2xl text-foreground">{tasks.length - completedCount}</p>
+          <p className="text-2xl text-foreground">{loading ? "…" : tasks.length - completedCount}</p>
         </Card>
       </div>
 
@@ -80,20 +171,24 @@ export function Tasks() {
           <div className="space-y-3">
             {tasks.map((task) => (
               <Link
-                key={task.title}
+                key={task.id}
                 to={task.link}
-                className="flex items-center gap-4 rounded-lg border border-border p-4 transition-colors hover:bg-accent"
+                className="flex items-center justify-between p-4 rounded-xl border border-border hover:border-[var(--primary)]/30 hover:bg-accent/20 transition-all group"
               >
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${task.done ? "bg-[#543884]" : "bg-[#543884]/10"}`}>
-                  <task.icon className={`w-5 h-5 ${task.done ? "text-white" : "text-[#543884]"}`} />
+                <div className="flex items-center gap-4">
+                  <div className="p-2 rounded-lg bg-[var(--primary)]/10">
+                    <task.icon className="w-5 h-5 text-[var(--primary)]" />
+                  </div>
+                  <div>
+                    <p className={`text-foreground group-hover:text-[var(--primary)] transition-colors ${task.done ? "line-through text-muted-foreground" : ""}`}>
+                      {task.title}
+                    </p>
+                    <p className="text-sm text-muted-foreground">{task.area}{task.due ? ` · ${task.due}` : ""}</p>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-medium ${task.done ? "line-through text-muted-foreground" : "text-foreground"}`}>
-                    {task.title}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">{task.area}</p>
-                </div>
-                <Badge variant={task.done ? "secondary" : "outline"}>{task.due}</Badge>
+                <Badge variant={task.done ? "success" : "warning"}>
+                  {task.done ? "Done" : "Pending"}
+                </Badge>
               </Link>
             ))}
           </div>
