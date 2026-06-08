@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect } from "react";
+import type { ReactNode } from "react";
 import api from "../services/api";
 
 interface User {
@@ -7,12 +8,20 @@ interface User {
   email: string;
   role: 'admin' | 'hr_manager' | 'employee';
   avatar?: string;
+  phone?: string;
+  department?: string;
+  designation?: string;
+  company_id?: string | number;
+  employee_code?: string;
+  company_name?: string;
+  company_domain?: string;
 }
 
 interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  updateUser: (updates: Partial<User>) => void;
   isAuthenticated: boolean;
   isLoading: boolean;
 }
@@ -22,40 +31,53 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const STORAGE_KEY = 'hrms-auth';
 const TOKEN_KEY = 'hrspace-token';
 
-function normalizeUser(user: User): User {
-  if (user.role !== 'admin') return user;
+function normalizeUser(user: any): User {
+  if (!user) return user;
 
-  return {
+  const company_id = user.company_id ?? user.company?.id;
+  const company_name = user.company_name ?? user.company?.name;
+  const company_domain = user.company_domain ?? user.company?.domain;
+
+  const normalized: User = {
     ...user,
-    name: 'System Admin',
+    company_id,
+    company_name,
+    company_domain,
+    employee_code: user.employee_code ?? user.employeeCode,
   };
+
+  if (normalized.role === 'admin') {
+    normalized.name = 'System Admin';
+  }
+
+  return normalized;
 }
 
 const MOCK_USERS: Record<string, { password: string; user: User }> = {
-  'admin@hrms.com': {
+  'admin@nexoratech.com': {
     password: 'Admin@1234',
     user: {
       id: '1',
       name: 'System Admin',
-      email: 'admin@hrms.com',
+      email: 'admin@nexoratech.com',
       role: 'admin'
     }
   },
-  'hr@hrms.com': {
+  'hr.manager01@nexoratech.com': {
     password: 'Hr@1234',
     user: {
       id: '2',
       name: 'HR Manager',
-      email: 'hr@hrms.com',
+      email: 'hr.manager01@nexoratech.com',
       role: 'hr_manager'
     }
   },
-  'employee@hrms.com': {
+  'employee01@nexoratech.com': {
     password: 'Emp@1234',
     user: {
       id: '3',
       name: 'Employee User',
-      email: 'employee@hrms.com',
+      email: 'employee01@nexoratech.com',
       role: 'employee'
     }
   }
@@ -93,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error(apiError.response.data?.message || 'Invalid email or password');
       }
 
-      if (import.meta.env.PROD) {
+      if ((import.meta as any).env?.PROD) {
         throw new Error('Invalid email or password');
       }
     }
@@ -112,7 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        if (normalizedEmail.endsWith('@hrms.com') && password === 'password123') {
+        if (normalizedEmail.endsWith('@nexoratech.com') && password === 'password123') {
           const name = normalizedEmail.split('@')[0].replace(/[._]/g, ' ');
           const capitalizedName = name
             .split(' ')
@@ -143,10 +165,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(TOKEN_KEY);
   };
 
+  const updateUser = (updates: Partial<User>) => {
+    setUser((currentUser) => {
+      if (!currentUser) return currentUser;
+      const updatedUser = normalizeUser({ ...currentUser, ...updates });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedUser));
+      return updatedUser;
+    });
+  };
+
   const value: AuthContextType = {
     user,
     login,
     logout,
+    updateUser,
     isAuthenticated: !!user,
     isLoading
   };

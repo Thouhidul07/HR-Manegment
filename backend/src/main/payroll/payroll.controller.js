@@ -58,15 +58,19 @@ function csvEscape(value) {
 }
 
 const listPayroll = asyncHandler(async (req, res) => {
-  const userFilter = req.user.role === "employee" ? "WHERE p.user_id = ?" : "";
-  const params = req.user.role === "employee" ? [req.user.id] : [];
+  const userFilter = req.user.role === "employee" 
+    ? "WHERE p.user_id = ? AND u.company_id = ?" 
+    : "WHERE u.company_id = ?";
+  const params = req.user.role === "employee" 
+    ? [req.user.id, req.user.company_id] 
+    : [req.user.company_id];
   const [payroll] = await query(payrollBaseQuery(userFilter), params);
 
   res.json({ payroll });
 });
 
 const downloadPayslip = asyncHandler(async (req, res) => {
-  const params = [req.params.id];
+  const params = [req.params.id, req.user.company_id];
   const ownerFilter = req.user.role === "employee" ? " AND p.user_id = ?" : "";
 
   if (req.user.role === "employee") {
@@ -74,7 +78,7 @@ const downloadPayslip = asyncHandler(async (req, res) => {
   }
 
   const [records] = await query(
-    payrollBaseQuery(`WHERE p.id = ?${ownerFilter}`),
+    payrollBaseQuery(`WHERE p.id = ? AND u.company_id = ?${ownerFilter}`),
     params
   );
 
@@ -91,8 +95,12 @@ const downloadPayslip = asyncHandler(async (req, res) => {
 });
 
 const exportPayroll = asyncHandler(async (req, res) => {
-  const userFilter = req.user.role === "employee" ? "WHERE p.user_id = ?" : "";
-  const params = req.user.role === "employee" ? [req.user.id] : [];
+  const userFilter = req.user.role === "employee" 
+    ? "WHERE p.user_id = ? AND u.company_id = ?" 
+    : "WHERE u.company_id = ?";
+  const params = req.user.role === "employee" 
+    ? [req.user.id, req.user.company_id] 
+    : [req.user.company_id];
   const [payroll] = await query(payrollBaseQuery(userFilter), params);
   const headers = [
     "Payroll ID",
@@ -131,12 +139,13 @@ const exportPayroll = asyncHandler(async (req, res) => {
 const processPayroll = asyncHandler(async (req, res) => {
   const payPeriod = req.body.payPeriod || new Date().toISOString().slice(0, 7) + "-01";
   const [existing] = await query(
-    "SELECT user_id FROM payroll WHERE pay_period = ?",
-    [payPeriod]
+    "SELECT p.user_id FROM payroll p JOIN users u ON u.id = p.user_id WHERE p.pay_period = ? AND u.company_id = ?",
+    [payPeriod, req.user.company_id]
   );
   const existingUserIds = new Set(existing.map((row) => Number(row.user_id)));
   const [employees] = await query(
-    "SELECT id, salary FROM users WHERE status = 'active' AND role = 'employee'"
+    "SELECT id, salary FROM users WHERE status = 'active' AND role = 'employee' AND company_id = ?",
+    [req.user.company_id]
   );
   let created = 0;
 

@@ -61,9 +61,9 @@ const fallbackCourses = [
     title: "Leadership & Management Fundamentals",
     category: "Leadership",
     duration: "8 hours",
-    enrolled: 45,
-    completed: 32,
-    progress: 71,
+    enrolled: 4,
+    completed: 2,
+    progress: 50,
     instructor: "Farhana Akter",
     level: "Intermediate",
   },
@@ -72,9 +72,9 @@ const fallbackCourses = [
     title: "Advanced JavaScript & React",
     category: "Technical",
     duration: "12 hours",
-    enrolled: 78,
-    completed: 45,
-    progress: 58,
+    enrolled: 3,
+    completed: 1,
+    progress: 33,
     instructor: "Tanvir Hasan",
     level: "Advanced",
   },
@@ -83,9 +83,9 @@ const fallbackCourses = [
     title: "Effective Communication Skills",
     category: "Soft Skills",
     duration: "6 hours",
-    enrolled: 92,
-    completed: 88,
-    progress: 96,
+    enrolled: 5,
+    completed: 4,
+    progress: 80,
     instructor: "Nusrat Jahan",
     level: "Beginner",
   },
@@ -94,8 +94,8 @@ const fallbackCourses = [
     title: "Data Analysis with Python",
     category: "Technical",
     duration: "10 hours",
-    enrolled: 56,
-    completed: 28,
+    enrolled: 2,
+    completed: 1,
     progress: 50,
     instructor: "Mehedi Hasan",
     level: "Intermediate",
@@ -172,7 +172,7 @@ export function Training() {
     ? "Training & Development"
     : "My Training";
   const pageSubtitle = canManageTraining
-    ? "Manage employee training programs and track progress"
+    ? "Manage employee training programs and schedules"
     : "View available trainings and track your progress";
 
   const mapSessionToCourse = useCallback(
@@ -576,20 +576,22 @@ export function Training() {
                   </div>
                 </div>
 
-                <div className="space-y-2 mb-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">
-                      Completion Rate
-                    </span>
-                    <span className="text-foreground">{course.progress}%</span>
+                {!canManageTraining && (
+                  <div className="space-y-2 mb-4">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        Completion Rate
+                      </span>
+                      <span className="text-foreground">{course.progress}%</span>
+                    </div>
+                    <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[var(--chart-2)] transition-all"
+                        style={{ width: `${course.progress}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-[var(--chart-2)] transition-all"
-                      style={{ width: `${course.progress}%` }}
-                    />
-                  </div>
-                </div>
+                )}
 
                 {canUseTrainingSelfService && (
                   <Button

@@ -47,16 +47,22 @@ These tests use Node's built-in test runner and verify that restricted APIs retu
 Demo logins from `backend/database/hrspace_xampp.sql`:
 
 - Admin
-  Email: `admin@hrms.com`
+  Email: `admin@nexoratech.com`
   Password: `Admin@1234`
 
 - HR Manager
-  Email: `hr@hrms.com`
+  Email: `hr.manager01@nexoratech.com`
   Password: `Hr@1234`
 
 - Employee
-  Email: `employee@hrms.com`
+  Email: `employee01@nexoratech.com`
   Password: `Emp@1234`
+
+Demo company scope:
+
+- Company: `NexoraTech Ltd`
+- Domain: `nexoratech.com`
+- Seeded users: 1 System Admin, 8 HR Managers, 42 Employees.
 
 ## Role Access Model
 

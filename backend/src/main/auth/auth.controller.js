@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const { query } = require("../../config/database");
 const asyncHandler = require("../../utils/asyncHandler");
 const { ensureUserStatusWorkflow } = require("../../utils/userStatus");
+const { ensureDemoCompanyData, companyIdFromEmail } = require("../../utils/companyScope");
 
 function signToken(user) {
   return jwt.sign(
@@ -14,6 +15,7 @@ function signToken(user) {
 
 const register = asyncHandler(async (req, res) => {
   await ensureUserStatusWorkflow();
+  await ensureDemoCompanyData();
 
   const { name, email, password, department, phone } = req.body;
   const normalizedEmail = email.toLowerCase();
@@ -24,25 +26,44 @@ const register = asyncHandler(async (req, res) => {
   }
 
   const hashedPassword = await bcrypt.hash(password, 10);
+  const companyId = await companyIdFromEmail(normalizedEmail);
+
+  const [rows] = await query(
+    "SELECT employee_code FROM users WHERE company_id = ? AND employee_code LIKE 'NX-EMP-%' ORDER BY id DESC LIMIT 1",
+    [companyId]
+  );
+  let nextNum = 9;
+  if (rows.length > 0) {
+    const match = rows[0].employee_code.match(/NX-EMP-(\d+)/);
+    if (match) {
+      nextNum = parseInt(match[1], 10) + 1;
+    }
+  }
+  const employeeCode = `NX-EMP-${String(nextNum).padStart(3, "0")}`;
 
   const [result] = await query(
-    `INSERT INTO users (name, email, password, role, phone, department, status)
-     VALUES (?, ?, ?, 'employee', ?, ?, 'pending')`,
-    [name, normalizedEmail, hashedPassword, phone || null, department || null]
+    `INSERT INTO users (company_id, employee_code, name, email, password, role, phone, department, status)
+     VALUES (?, ?, ?, ?, ?, 'employee', ?, ?, 'pending')`,
+    [companyId, employeeCode, name, normalizedEmail, hashedPassword, phone || null, department || null]
   );
 
   res.status(201).json({
     message: "Account created. Awaiting admin approval.",
-    user: { id: result.insertId, name, email: normalizedEmail, role: "employee", status: "pending" },
+    user: { id: result.insertId, name, email: normalizedEmail, role: "employee", employee_code: employeeCode, status: "pending" },
   });
 });
 
 const login = asyncHandler(async (req, res) => {
   await ensureUserStatusWorkflow();
+  await ensureDemoCompanyData();
 
   const { email, password } = req.body;
   const [users] = await query(
-    "SELECT id, name, email, password, role, avatar, status FROM users WHERE email = ? LIMIT 1",
+    `SELECT u.id, u.company_id, u.name, u.email, u.password, u.role, u.avatar, u.status, u.employee_code,
+            c.name AS company_name, c.domain AS company_domain
+     FROM users u
+     LEFT JOIN companies c ON c.id = u.company_id
+     WHERE u.email = ? LIMIT 1`,
     [email.toLowerCase()]
   );
 
@@ -62,68 +83,23 @@ const login = asyncHandler(async (req, res) => {
     return res.status(403).json({ message: "Account is not active. Please contact your administrator." });
   }
 
-  const { password: _password, ...user } = users[0];
+  const user = {
+    id: users[0].id,
+    company_id: users[0].company_id,
+    name: users[0].name,
+    email: users[0].email,
+    role: users[0].role,
+    avatar: users[0].avatar,
+    status: users[0].status,
+    employee_code: users[0].employee_code,
+    company_name: users[0].company_name,
+    company_domain: users[0].company_domain,
+  };
   res.json({ user, token: signToken(user) });
 });
 
 const me = asyncHandler(async (req, res) => {
-  const [users] = await query(
-    "SELECT id, name, email, role, avatar, status, phone, department, designation FROM users WHERE id = ? LIMIT 1",
-    [req.user.id]
-  );
-  res.json({ user: users[0] || req.user });
+  res.json({ user: req.user });
 });
 
-const updateProfile = asyncHandler(async (req, res) => {
-  const { name, phone, department } = req.body;
-  const updates = [];
-  const params = [];
-
-  if (name !== undefined && String(name).trim()) {
-    updates.push("name = ?");
-    params.push(String(name).trim());
-  }
-  if (phone !== undefined) {
-    updates.push("phone = ?");
-    params.push(phone ? String(phone).trim() : null);
-  }
-  if (department !== undefined) {
-    updates.push("department = ?");
-    params.push(department ? String(department).trim() : null);
-  }
-
-  if (!updates.length) {
-    return res.status(400).json({ message: "No valid fields to update" });
-  }
-
-  params.push(req.user.id);
-  await query(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`, params);
-
-  const [users] = await query(
-    "SELECT id, name, email, role, avatar, status, phone, department, designation FROM users WHERE id = ? LIMIT 1",
-    [req.user.id]
-  );
-
-  res.json({ message: "Profile updated successfully", user: users[0] });
-});
-
-const changePassword = asyncHandler(async (req, res) => {
-  const { currentPassword, newPassword } = req.body;
-
-  const [users] = await query("SELECT password FROM users WHERE id = ? LIMIT 1", [req.user.id]);
-  if (!users.length) {
-    return res.status(404).json({ message: "User not found" });
-  }
-
-  const matches = await bcrypt.compare(currentPassword, users[0].password);
-  if (!matches) {
-    return res.status(400).json({ message: "Current password is incorrect" });
-  }
-
-  const hashedPassword = await bcrypt.hash(newPassword, 10);
-  await query("UPDATE users SET password = ? WHERE id = ?", [hashedPassword, req.user.id]);
-
-  res.json({ message: "Password updated successfully" });
-});
-
-module.exports = { register, login, me, updateProfile, changePassword };
+module.exports = { register, login, me };

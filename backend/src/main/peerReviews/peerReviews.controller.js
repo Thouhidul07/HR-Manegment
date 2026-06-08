@@ -106,16 +106,20 @@ function mapReview(row) {
   };
 }
 
-async function seedPeerReviewsIfEmpty() {
+async function seedPeerReviewsIfEmpty(companyId) {
   await ensurePeerReviewTables();
-  const [[countRow]] = await query("SELECT COUNT(*) AS total FROM peer_reviews");
+  const [[countRow]] = await query(
+    "SELECT COUNT(*) AS total FROM peer_reviews pr JOIN users u ON u.id = pr.reviewee_id WHERE u.company_id = ?",
+    [companyId]
+  );
 
   if (Number(countRow.total) > 0) {
     return;
   }
 
   const [employees] = await query(
-    "SELECT id FROM users WHERE role = 'employee' ORDER BY id LIMIT 5"
+    "SELECT id FROM users WHERE role = 'employee' AND company_id = ? ORDER BY id LIMIT 5",
+    [companyId]
   );
 
   if (employees.length < 2) {
@@ -153,8 +157,11 @@ async function seedPeerReviewsIfEmpty() {
   }
 }
 
-async function reviewRows(where = "", params = []) {
-  await seedPeerReviewsIfEmpty();
+async function reviewRows(where = "", params = [], companyId) {
+  await seedPeerReviewsIfEmpty(companyId);
+  const finalWhere = where ? `${where} AND u.company_id = ?` : "WHERE u.company_id = ?";
+  const finalParams = [...params, companyId];
+
   const [rows] = await query(
     `SELECT pr.*,
       u.name AS employee_name,
@@ -163,20 +170,21 @@ async function reviewRows(where = "", params = []) {
       (
         SELECT COUNT(*)
         FROM peer_reviews pr2
-        WHERE pr2.reviewee_id = pr.reviewee_id
+        JOIN users u2 ON u2.id = pr2.reviewee_id
+        WHERE pr2.reviewee_id = pr.reviewee_id AND u2.company_id = ?
       ) AS review_count
      FROM peer_reviews pr
      JOIN users u ON u.id = pr.reviewee_id
-     ${where}
+     ${finalWhere}
      ORDER BY pr.review_date DESC, pr.created_at DESC`,
-    params
+    [companyId, ...finalParams]
   );
 
   return rows;
 }
 
 const listAnalytics = asyncHandler(async (req, res) => {
-  const rows = await reviewRows();
+  const rows = await reviewRows("", [], req.user.company_id);
   const reviews = rows.map(mapReview);
   const departments = [...new Set(reviews.map((review) => review.employeeDepartment))];
 
@@ -195,10 +203,10 @@ const listAnalytics = asyncHandler(async (req, res) => {
 });
 
 const listMine = asyncHandler(async (req, res) => {
-  const rows = await reviewRows("WHERE pr.reviewee_id = ?", [req.user.id]);
+  const rows = await reviewRows("WHERE pr.reviewee_id = ?", [req.user.id], req.user.company_id);
   const [[givenRow]] = await query(
-    "SELECT COUNT(*) AS total FROM peer_reviews WHERE reviewer_id = ?",
-    [req.user.id]
+    "SELECT COUNT(*) AS total FROM peer_reviews pr JOIN users u ON u.id = pr.reviewer_id WHERE pr.reviewer_id = ? AND u.company_id = ?",
+    [req.user.id, req.user.company_id]
   );
 
   res.json({
@@ -212,9 +220,9 @@ const listTeammates = asyncHandler(async (req, res) => {
   const [rows] = await query(
     `SELECT id, name, designation, department
      FROM users
-     WHERE id <> ? AND role IN ('employee', 'hr_manager')
+     WHERE id <> ? AND role IN ('employee', 'hr_manager') AND company_id = ?
      ORDER BY name`,
-    [req.user.id]
+    [req.user.id, req.user.company_id]
   );
 
   res.json({
@@ -235,8 +243,8 @@ const createReview = asyncHandler(async (req, res) => {
   }
 
   const [reviewees] = await query(
-    "SELECT id FROM users WHERE id = ? AND role IN ('employee', 'hr_manager') LIMIT 1",
-    [req.body.revieweeId]
+    "SELECT id FROM users WHERE id = ? AND role IN ('employee', 'hr_manager') AND company_id = ? LIMIT 1",
+    [req.body.revieweeId, req.user.company_id]
   );
 
   if (!reviewees.length) {
@@ -266,7 +274,7 @@ const createReview = asyncHandler(async (req, res) => {
     ]
   );
 
-  const rows = await reviewRows("WHERE pr.id = ?", [result.insertId]);
+  const rows = await reviewRows("WHERE pr.id = ?", [result.insertId], req.user.company_id);
   res.status(201).json({ review: mapReview(rows[0]) });
 });
 

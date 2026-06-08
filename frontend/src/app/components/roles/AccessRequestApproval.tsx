@@ -6,7 +6,7 @@ import { Button } from "../ui/Button";
 const accessRequests = [
   {
     id: 1,
-    user: { name: "Rafi Ahmed", email: "rafi.ahmed@hrspace.local", avatar: "RA" },
+    user: { name: "Rafi Ahmed", email: "rafi.ahmed@nexoratech.com", avatar: "RA" },
     requestedRole: "HR Manager",
     currentRole: "Recruiter",
     reason: "Need access to employee records for new recruitment analytics project",
@@ -16,7 +16,7 @@ const accessRequests = [
   },
   {
     id: 2,
-    user: { name: "Sadia Rahman", email: "sadia.rahman@hrspace.local", avatar: "SR" },
+    user: { name: "Sadia Rahman", email: "sadia.rahman@nexoratech.com", avatar: "SR" },
     requestedRole: "Finance Officer",
     currentRole: "Employee Manager",
     reason: "Temporary access required for Q2 budget planning",
@@ -26,7 +26,7 @@ const accessRequests = [
   },
   {
     id: 3,
-    user: { name: "Mahmudul Karim", email: "mahmudul.karim@hrspace.local", avatar: "MK" },
+    user: { name: "Mahmudul Karim", email: "mahmudul.karim@nexoratech.com", avatar: "MK" },
     requestedRole: "Super Admin",
     currentRole: "HR Manager",
     reason: "System migration and configuration updates needed",
@@ -36,7 +36,7 @@ const accessRequests = [
   },
   {
     id: 4,
-    user: { name: "Jannatul Ferdous", email: "jannatul.ferdous@hrspace.local", avatar: "JF" },
+    user: { name: "Jannatul Ferdous", email: "jannatul.ferdous@nexoratech.com", avatar: "JF" },
     requestedRole: "Employee Manager",
     currentRole: "Recruiter",
     reason: "Promotion to team lead position",

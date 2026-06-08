@@ -52,19 +52,19 @@ test.before(async () => {
   const { port } = server.address();
   baseUrl = `http://127.0.0.1:${port}`;
 
-  const adminLogin = await login("admin@hrms.com", "Admin@1234");
+  const adminLogin = await login("admin@nexoratech.com", "Admin@1234");
   assert.equal(adminLogin.status, 200);
   adminToken = adminLogin.data.token;
 });
 
 test.after(async () => {
-  await query("DELETE FROM users WHERE email LIKE 'qa-approval-%@hrspace.local'");
+  await query("DELETE FROM users WHERE email LIKE 'qa-approval-%@nexoratech.com'");
   await new Promise((resolve) => server.close(resolve));
   await pool.end();
 });
 
 test("registered accounts require admin approval before login", async () => {
-  const email = `qa-approval-approve-${Date.now()}@hrspace.local`;
+  const email = `qa-approval-approve-${Date.now()}@nexoratech.com`;
 
   const registerResponse = await registerAccount(email);
   assert.equal(registerResponse.status, 201);
@@ -93,7 +93,7 @@ test("registered accounts require admin approval before login", async () => {
 });
 
 test("rejected registrations cannot log in", async () => {
-  const email = `qa-approval-reject-${Date.now()}@hrspace.local`;
+  const email = `qa-approval-reject-${Date.now()}@nexoratech.com`;
 
   const registerResponse = await registerAccount(email);
   assert.equal(registerResponse.status, 201);

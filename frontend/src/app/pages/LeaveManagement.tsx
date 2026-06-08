@@ -285,32 +285,28 @@ export function LeaveManagement() {
 
   const handleSubmitLeaveRequest = async () => {
     if (!canRequestLeave) return;
-    try {
-      const response = await api.post("/leave", {
-        leaveType: leaveForm.type,
-        startDate: leaveForm.from,
-        endDate: leaveForm.to,
-        reason: leaveForm.reason,
-      });
-      const createdRequest = mapApiLeaveRequest(response.data.request);
+    const response = await api.post("/leave", {
+      leaveType: leaveForm.type,
+      startDate: leaveForm.from,
+      endDate: leaveForm.to,
+      reason: leaveForm.reason,
+    });
+    const createdRequest = mapApiLeaveRequest(response.data.request);
 
-      setRequestList((requests) => [createdRequest, ...requests]);
-      setUpcomingLeaveList((leaves) => [
-        {
-          date: formatUpcomingDate(leaveForm.from, leaveForm.to),
-          employee: user?.name || "Employee User",
-          type: leaveForm.type,
-          avatar: initials,
-        },
-        ...leaves,
-      ]);
-      resetLeaveForm();
-      setIsRequestModalOpen(false);
-      setShowSubmittedMessage(true);
-      window.setTimeout(() => setShowSubmittedMessage(false), 2500);
-    } catch (error: any) {
-      alert(error?.response?.data?.message || "Unable to submit leave request.");
-    }
+    setRequestList((requests) => [createdRequest, ...requests]);
+    setUpcomingLeaveList((leaves) => [
+      {
+        date: formatUpcomingDate(leaveForm.from, leaveForm.to),
+        employee: user?.name || "Employee User",
+        type: leaveForm.type,
+        avatar: initials,
+      },
+      ...leaves,
+    ]);
+    resetLeaveForm();
+    setIsRequestModalOpen(false);
+    setShowSubmittedMessage(true);
+    window.setTimeout(() => setShowSubmittedMessage(false), 2500);
   };
 
   const handleUpdateStatus = async (
@@ -325,6 +321,15 @@ export function LeaveManagement() {
       ),
     );
   };
+
+  const onLeaveTodayCount = requestList.filter((request) => {
+    if (request.status !== "Approved") return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const start = new Date(request.from);
+    const end = new Date(request.to);
+    return today >= start && today <= end;
+  }).length;
 
   return (
     <div className="space-y-6">
@@ -365,7 +370,7 @@ export function LeaveManagement() {
         </Card>
         <Card className="p-4">
           <p className="text-sm text-muted-foreground">On Leave Today</p>
-          <p className="text-2xl text-foreground mt-1">38</p>
+          <p className="text-2xl text-foreground mt-1">{onLeaveTodayCount}</p>
         </Card>
         <Card className="p-4">
           <p className="text-sm text-muted-foreground">Upcoming Leaves</p>

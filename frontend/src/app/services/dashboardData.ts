@@ -51,8 +51,9 @@ export interface UpcomingEvent {
 }
 
 export interface ChartPoint {
-  month: string;
-  [key: string]: string | number;
+  month?: string;
+  day?: string;
+  [key: string]: string | number | undefined;
 }
 
 export type DashboardRole = "admin" | "hr_manager" | "employee";
@@ -95,81 +96,69 @@ export interface AdminStats {
   onLeave: StatItem;
   openPositions: StatItem;
 }
-
 export function getAdminStats(): AdminStats {
-  // TODO: return await fetch('/api/v1/dashboard/admin/stats').then(r => r.json());
   return {
-    totalEmployees: { label: 'Total Employees', value: '1,234', subtitle: 'Across all departments', trend: { value: '+12 this month', isPositive: true } },
-    presentToday:   { label: 'Present Today',   value: '1,156', subtitle: '93.7% attendance rate',  trend: { value: '+2% vs yesterday', isPositive: true } },
-    onLeave:        { label: 'On Leave',         value: '48',    subtitle: '5 pending approval',    trend: { value: '3.9% of workforce', isPositive: false } },
-    openPositions:  { label: 'Open Positions',   value: '17',    subtitle: '3 offers extended',     trend: { value: '4 new this week',   isPositive: true } },
+    totalEmployees: { label: 'Total Employees', value: '11', subtitle: 'Across all departments', trend: { value: 'All active', isPositive: true } },
+    presentToday:   { label: 'Present Today',   value: '11', subtitle: '100% attendance rate',  trend: { value: 'Consistent', isPositive: true } },
+    onLeave:        { label: 'On Leave',         value: '0',    subtitle: '0 pending approval',    trend: { value: '0% of workforce', isPositive: false } },
+    openPositions:  { label: 'Open Positions',   value: '3',    subtitle: 'Candidates shortlisted',     trend: { value: '3 in pipeline',   isPositive: true } },
   };
 }
 
-// Future endpoint: GET /api/v1/dashboard/admin/attendance-trend
 export function getAdminAttendanceTrend(): ChartPoint[] {
-  // TODO: return await fetch('/api/v1/dashboard/admin/attendance-trend').then(r => r.json());
   return [
-    { month: 'Jan', present: 1150, absent: 84 },
-    { month: 'Feb', present: 1180, absent: 54 },
-    { month: 'Mar', present: 1200, absent: 34 },
-    { month: 'Apr', present: 1220, absent: 14 },
-    { month: 'May', present: 1180, absent: 54 },
-    { month: 'Jun', present: 1156, absent: 78 },
+    { month: 'Jan', present: 11, absent: 0 },
+    { month: 'Feb', present: 11, absent: 0 },
+    { month: 'Mar', present: 11, absent: 0 },
+    { month: 'Apr', present: 11, absent: 0 },
+    { month: 'May', present: 11, absent: 0 },
+    { month: 'Jun', present: 11, absent: 0 },
   ];
 }
 
-// Future endpoint: GET /api/v1/dashboard/admin/department-breakdown
 export function getDepartmentBreakdown() {
-  // TODO: return await fetch('/api/v1/dashboard/admin/departments').then(r => r.json());
   return [
-    { name: 'Information Technology', value: 450, color: '#543884' },
-    { name: 'Sales',       value: 280, color: '#9A77CF' },
-    { name: 'Marketing',   value: 180, color: '#EC4176' },
-    { name: 'Human Resources', value: 120, color: '#FFA45E' },
-    { name: 'Finance',     value: 204, color: '#A13670' },
+    { name: 'Human Resources', value: 2, color: '#543884' },
+    { name: 'Information Technology', value: 1, color: '#9A77CF' },
+    { name: 'Finance',     value: 1, color: '#EC4176' },
+    { name: 'Marketing',   value: 1, color: '#FFA45E' },
+    { name: 'Sales',       value: 1, color: '#A13670' },
+    { name: 'Other',       value: 5, color: '#00C853' },
   ];
 }
 
-// Future endpoint: GET /api/v1/dashboard/admin/payroll-summary
 export function getPayrollSummary() {
-  // TODO: return await fetch('/api/v1/dashboard/admin/payroll-summary').then(r => r.json());
   return {
-    totalDisbursed: formatCurrencyBDT(2847000),
-    pending: formatCurrencyBDT(124500),
-    deductions: formatCurrencyBDT(389200),
-    trend: [2600, 2700, 2750, 2800, 2820, 2847],
+    totalDisbursed: formatCurrencyBDT(827000),
+    pending: formatCurrencyBDT(0),
+    deductions: formatCurrencyBDT(15000),
+    trend: [8200, 8250, 8270, 8270, 8270, 8270],
   };
 }
 
-// Future endpoint: GET /api/v1/dashboard/admin/pending-approvals
 export function getPendingApprovals() {
-  // TODO: return await fetch('/api/v1/dashboard/admin/pending-approvals').then(r => r.json());
   return [
-    { label: 'Leave Requests',     count: 12, type: 'leave',       color: '#9A77CF' },
-    { label: 'Expense Claims',     count: 8,  type: 'expense',     color: '#FFA45E' },
-    { label: 'Onboarding Tasks',   count: 5,  type: 'onboarding',  color: '#543884' },
-    { label: 'Performance Reviews',count: 3,  type: 'performance', color: '#EC4176' },
+    { label: 'Leave Requests',     count: 2, type: 'leave',       color: '#9A77CF' },
+    { label: 'Expense Claims',     count: 1,  type: 'expense',     color: '#FFA45E' },
+    { label: 'Onboarding Tasks',   count: 3,  type: 'onboarding',  color: '#543884' },
+    { label: 'Performance Reviews',count: 1,  type: 'performance', color: '#EC4176' },
   ];
 }
 
-// Future endpoint: GET /api/v1/dashboard/admin/recent-activity
 export function getAdminActivity(): ActivityItem[] {
-  // TODO: return await fetch('/api/v1/dashboard/admin/activity').then(r => r.json());
   return [
-    { id: 1, user: 'Rafi Ahmed',    action: 'submitted a leave request',   time: '5 min ago',   type: 'leave' },
-    { id: 2, user: 'Sadia Rahman',  action: 'completed onboarding',        time: '22 min ago',  type: 'onboarding' },
-    { id: 3, user: 'Mehedi Hasan', action: 'filed an expense claim',       time: '1 hour ago',  type: 'expense' },
-    { id: 4, user: 'Tasmia Noor',   action: 'enrolled in training course', time: '2 hours ago', type: 'training' },
-    { id: 5, user: 'Arif Hossain',  action: 'updated profile information', time: '3 hours ago', type: 'profile' },
+    { id: 1, user: 'Employee 01',   action: 'submitted a leave request',   time: '5 min ago',   type: 'leave' },
+    { id: 2, user: 'Employee 07',   action: 'completed orientation step',  time: '22 min ago',  type: 'onboarding' },
+    { id: 3, user: 'Employee 03',   action: 'filed an expense claim',       time: '1 hour ago',  type: 'expense' },
+    { id: 4, user: 'Employee 08',   action: 'enrolled in training course', time: '2 hours ago', type: 'training' },
+    { id: 5, user: 'Employee 05',   action: 'updated profile information', time: '3 hours ago', type: 'profile' },
   ];
 }
 
 export function getUpcomingEvents(): UpcomingEvent[] {
-  // TODO: return await fetch('/api/v1/dashboard/events/upcoming').then(r => r.json());
   return [
     { id: 1, title: 'Payroll Processing',       description: 'Monthly payroll run',      date: 'May 30, 2026', day: '30', month: 'MAY', type: 'payroll' },
-    { id: 2, title: 'New Hire Orientation',      description: '4 new employees joining',  date: 'Jun 2, 2026',  day: '02', month: 'JUN', type: 'onboarding' },
+    { id: 2, title: 'New Hire Orientation',      description: 'Employee 07 & Employee 08 joining',  date: 'Jun 2, 2026',  day: '02', month: 'JUN', type: 'onboarding' },
     { id: 3, title: 'Performance Reviews Due',   description: 'Q1 appraisal cycle ends',  date: 'Jun 5, 2026',  day: '05', month: 'JUN', type: 'performance' },
     { id: 4, title: 'Leadership Workshop',       description: 'Training series — Day 1',  date: 'Jun 10, 2026', day: '10', month: 'JUN', type: 'training' },
   ];
@@ -185,61 +174,48 @@ export interface HRStats {
 }
 
 export function getHRManagerStats(): HRStats {
-  // TODO: return await fetch('/api/v1/dashboard/hr-manager/stats').then(r => r.json());
   return {
-    teamSize:         { label: 'Team Size',          value: '247',   subtitle: 'Direct + indirect reports', trend: { value: '+8 this month',     isPositive: true } },
-    attendanceRate:   { label: 'Attendance Rate',    value: '94.2%', subtitle: 'Team average this week',    trend: { value: '+1.2% vs last week', isPositive: true } },
-    leaveRequests:    { label: 'Leave Requests',     value: '12',    subtitle: '5 marked urgent',           trend: { value: 'Needs attention',    isPositive: false } },
-    trainingProgress: { label: 'Training Completion',value: '73%',   subtitle: '18 completed this month',   trend: { value: '+6% this month',     isPositive: true } },
+    teamSize:         { label: 'Team Size',          value: '11',   subtitle: 'Direct + indirect reports', trend: { value: 'All active',     isPositive: true } },
+    attendanceRate:   { label: 'Attendance Rate',    value: '95.4%', subtitle: 'Team average this week',    trend: { value: 'Stable', isPositive: true } },
+    leaveRequests:    { label: 'Leave Requests',     value: '2',    subtitle: 'Awaiting review',           trend: { value: 'Needs attention',    isPositive: false } },
+    trainingProgress: { label: 'Training Completion',value: '60%',   subtitle: 'In-progress sessions',   trend: { value: 'On track',     isPositive: true } },
   };
 }
 
-// Future endpoint: GET /api/v1/dashboard/hr-manager/team-attendance
 export function getTeamAttendance(): ChartPoint[] {
-  // TODO: return await fetch('/api/v1/dashboard/hr-manager/team-attendance').then(r => r.json());
   return [
-    { day: 'Mon', present: 238, leave: 9  },
-    { day: 'Tue', present: 241, leave: 6  },
-    { day: 'Wed', present: 235, leave: 12 },
-    { day: 'Thu', present: 240, leave: 7  },
-    { day: 'Fri', present: 232, leave: 15 },
+    { day: 'Mon', present: 10, leave: 1 },
+    { day: 'Tue', present: 11, leave: 0 },
+    { day: 'Wed', present: 9,  leave: 2 },
+    { day: 'Thu', present: 10, leave: 1 },
+    { day: 'Fri', present: 10, leave: 1 },
   ];
 }
 
-// Future endpoint: GET /api/v1/leave/pending
 export function getPendingLeaveRequests() {
-  // TODO: return await fetch('/api/v1/leave/pending').then(r => r.json());
   return [
-    { id: 1, name: 'Rafi Ahmed',   days: 3, type: 'Annual Leave',  initials: 'RA', color: '#543884' },
-    { id: 2, name: 'Nusrat Jahan', days: 1, type: 'Sick Leave',    initials: 'NJ', color: '#9A77CF' },
-    { id: 3, name: 'Mahmudul Karim', days: 5, type: 'Annual Leave', initials: 'MK', color: '#EC4176' },
-    { id: 4, name: 'Jannatul Ferdous', days: 2, type: 'Casual Leave', initials: 'JF', color: '#FFA45E' },
-    { id: 5, name: 'Arif Hossain', days: 4, type: 'Annual Leave',  initials: 'AH', color: '#A13670' },
+    { id: 1, name: 'Employee 01',   days: 3, type: 'Annual Leave',  initials: 'E1', color: '#543884' },
+    { id: 2, name: 'Employee 02',   days: 1, type: 'Sick Leave',    initials: 'E2', color: '#9A77CF' },
+    { id: 3, name: 'Employee 03',   days: 5, type: 'Annual Leave',  initials: 'E3', color: '#EC4176' },
   ];
 }
 
-// Future endpoint: GET /api/v1/onboarding/pipeline
 export function getOnboardingPipeline() {
-  // TODO: return await fetch('/api/v1/onboarding/pipeline').then(r => r.json());
   return [
-    { name: 'Sadia Rahman', role: 'Junior Software Engineer', progress: 92, initials: 'SR', startDate: 'May 1' },
-    { name: 'Mehedi Hasan', role: 'Backend Engineer',   progress: 68, initials: 'MH', startDate: 'May 8' },
-    { name: 'Tasmia Noor',  role: 'Operations Executive', progress: 45, initials: 'TN', startDate: 'May 15' },
-    { name: 'Rakibul Islam', role: 'Sales Representative',progress: 20, initials: 'RI', startDate: 'May 20' },
+    { name: 'Employee 07', role: 'Training & Development Executive', progress: 92, initials: 'E7', startDate: 'Jul 7' },
+    { name: 'Employee 08', role: 'Administration Executive',   progress: 68, initials: 'E8', startDate: 'Aug 8' },
+    { name: 'Employee 06', role: 'Customer Support Executive', progress: 45, initials: 'E6', startDate: 'Jun 6' },
   ];
 }
 
-// Future endpoint: GET /api/v1/dashboard/hr-manager/agenda/today
 export function getHRTodayAgenda() {
-  // TODO: return await fetch('/api/v1/dashboard/hr-manager/agenda/today').then(r => r.json());
   return [
-    { id: 1, time: '09:00', title: 'Interview: Senior Dev Role',  badge: 'Interview', color: '#9A77CF' },
+    { id: 1, time: '09:00', title: 'Interview: Candidate screening',  badge: 'Interview', color: '#9A77CF' },
     { id: 2, time: '11:00', title: 'Weekly Team Standup',         badge: 'Meeting',   color: '#543884' },
-    { id: 3, time: '14:00', title: 'Performance Review — Rafi A.', badge: 'Review',   color: '#EC4176' },
+    { id: 3, time: '14:00', title: 'Performance Review — Employee 01', badge: 'Review',   color: '#EC4176' },
     { id: 4, time: '16:00', title: 'Monthly Payroll Sign-off',    badge: 'Payroll',   color: '#FFA45E' },
   ];
 }
-
 // ─── Employee Data ────────────────────────────────────────────────────────────
 
 export interface EmployeeStats {

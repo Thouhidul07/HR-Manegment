@@ -148,8 +148,6 @@ export function Forum() {
   const [deleteError, setDeleteError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("recent");
-  const [visibleCount, setVisibleCount] = useState(5);
-  const [showGuidelines, setShowGuidelines] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -176,7 +174,7 @@ export function Forum() {
   const filteredDiscussions = discussionList.filter(d =>
     (selectedCategory === "all" || d.category === categories.find(c => c.id === selectedCategory)?.name)
     && (!searchQuery || `${d.title} ${d.content}`.toLowerCase().includes(searchQuery.toLowerCase()))
-  ).slice(0, visibleCount);
+  );
 
   const handleCreatePost = async (post: any) => {
     if (!canCreatePost) return;
@@ -442,11 +440,9 @@ export function Forum() {
 
           {/* Load More */}
           <div className="text-center">
-            {visibleCount < discussionList.length && (
-              <Button variant="outline" className="gap-2" onClick={() => setVisibleCount((count) => count + 5)}>
-                Load More Discussions
-              </Button>
-            )}
+            <Button variant="outline" className="gap-2">
+              Load More Discussions
+            </Button>
           </div>
         </div>
 
@@ -491,7 +487,7 @@ export function Forum() {
                 </div>
                 <p className="text-sm text-muted-foreground">Report inappropriate content</p>
               </div>
-              <Button variant="ghost" size="sm" className="w-full mt-2 text-[var(--primary)]" onClick={() => setShowGuidelines(true)}>
+              <Button variant="ghost" size="sm" className="w-full mt-2 text-[var(--primary)]">
                 Read Full Guidelines
               </Button>
             </CardContent>
@@ -597,23 +593,6 @@ export function Forum() {
               className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all resize-none"
             />
           </div>
-        </div>
-      </Modal>
-      <Modal
-        isOpen={showGuidelines}
-        onClose={() => setShowGuidelines(false)}
-        title="Community Guidelines"
-        footer={
-          <Button variant="outline" onClick={() => setShowGuidelines(false)}>
-            Close
-          </Button>
-        }
-      >
-        <div className="space-y-3 text-sm text-muted-foreground">
-          <p>Be respectful and professional in all discussions.</p>
-          <p>No harassment, hate speech, or identifying information about colleagues.</p>
-          <p>Keep discussions constructive and report inappropriate content.</p>
-          <p>HR moderators review flagged posts and may remove policy violations.</p>
         </div>
       </Modal>
       <ConfirmDialog

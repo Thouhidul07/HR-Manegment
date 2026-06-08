@@ -143,20 +143,20 @@ function mapCandidate(row, req) {
   };
 }
 
-async function seedCandidatesIfEmpty() {
+async function seedCandidatesIfEmpty(companyId) {
   await ensureCvTables();
-  const [[countRow]] = await query("SELECT COUNT(*) AS total FROM cv_candidates");
+  const [[countRow]] = await query("SELECT COUNT(*) AS total FROM cv_candidates WHERE company_id = ?", [companyId]);
 
   if (Number(countRow.total) > 0) {
     return;
   }
 
   const seedCandidates = [
-    ["Mahmudul Karim", "mahmudul.karim@hrspace.local", "+8801711122233", "Software Engineer", ["React", "Node.js", "TypeScript", "AWS", "Docker", "PostgreSQL"], 7, "M.S. Computer Science - BUET"],
-    ["Jannatul Ferdous", "jannatul.ferdous@hrspace.local", "+8801811122233", "Software Engineer", ["React", "Python", "Django", "MySQL", "Redis", "Git"], 6, "B.S. Software Engineering - University of Dhaka"],
-    ["Rafi Ahmed", "rafi.ahmed@hrspace.local", "+8801911122233", "Software Engineer", ["Vue.js", "Node.js", "MongoDB", "Express", "GraphQL"], 5, "B.S. Computer Science - North South University"],
-    ["Tasmia Noor", "tasmia.noor@hrspace.local", "+8801611122233", "Software Engineer", ["Angular", "Java", "Spring Boot", "Oracle", "Jenkins"], 8, "M.S. Information Systems - BRAC University"],
-    ["Arif Hossain", "arif.hossain@hrspace.local", "+8801311122233", "Software Engineer", ["HTML", "CSS", "JavaScript", "WordPress", "Bootstrap"], 3, "B.Sc. Information Technology - East West University"],
+    ["Mahmudul Karim", "mahmudul.karim@nexoratech.com", "+8801711122233", "Software Engineer", ["React", "Node.js", "TypeScript", "AWS", "Docker", "PostgreSQL"], 7, "M.S. Computer Science - BUET"],
+    ["Jannatul Ferdous", "jannatul.ferdous@nexoratech.com", "+8801811122233", "Software Engineer", ["React", "Python", "Django", "MySQL", "Redis", "Git"], 6, "B.S. Software Engineering - University of Dhaka"],
+    ["Rafi Ahmed", "rafi.ahmed@nexoratech.com", "+8801911122233", "Software Engineer", ["Vue.js", "Node.js", "MongoDB", "Express", "GraphQL"], 5, "B.S. Computer Science - North South University"],
+    ["Tasmia Noor", "tasmia.noor@nexoratech.com", "+8801611122233", "Software Engineer", ["Angular", "Java", "Spring Boot", "Oracle", "Jenkins"], 8, "M.S. Information Systems - BRAC University"],
+    ["Arif Hossain", "arif.hossain@nexoratech.com", "+8801311122233", "Software Engineer", ["HTML", "CSS", "JavaScript", "WordPress", "Bootstrap"], 3, "B.Sc. Information Technology - East West University"],
   ];
 
   for (const candidate of seedCandidates) {
@@ -165,10 +165,11 @@ async function seedCandidatesIfEmpty() {
 
     await query(
       `INSERT INTO cv_candidates
-        (name, email, phone, position, score, skills, experience, education, match_percentage,
+        (company_id, name, email, phone, position, score, skills, experience, education, match_percentage,
          status, key_strengths, concerns, upload_date)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
+        companyId,
         candidate[0],
         candidate[1],
         candidate[2],
@@ -188,9 +189,10 @@ async function seedCandidatesIfEmpty() {
 }
 
 const listPositions = asyncHandler(async (req, res) => {
-  await seedCandidatesIfEmpty();
+  await seedCandidatesIfEmpty(req.user.company_id);
   const [rows] = await query(
-    "SELECT DISTINCT position FROM cv_candidates ORDER BY position"
+    "SELECT DISTINCT position FROM cv_candidates WHERE company_id = ? ORDER BY position",
+    [req.user.company_id]
   );
   const positions = [...new Set([...Object.keys(jobProfiles), ...rows.map((row) => row.position)])];
 
@@ -198,9 +200,9 @@ const listPositions = asyncHandler(async (req, res) => {
 });
 
 const listCandidates = asyncHandler(async (req, res) => {
-  await seedCandidatesIfEmpty();
-  const params = [];
-  const filters = [];
+  await seedCandidatesIfEmpty(req.user.company_id);
+  const params = [req.user.company_id];
+  const filters = ["company_id = ?"];
 
   if (req.query.position) {
     filters.push("position = ?");
@@ -228,10 +230,11 @@ const createCandidate = asyncHandler(async (req, res) => {
 
   const [result] = await query(
     `INSERT INTO cv_candidates
-      (name, email, phone, position, score, skills, experience, education, match_percentage,
+      (company_id, name, email, phone, position, score, skills, experience, education, match_percentage,
        status, key_strengths, concerns, cv_file_path, uploaded_by, upload_date)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE())`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURDATE())`,
     [
+      req.user.company_id,
       req.body.name,
       req.body.email,
       req.body.phone || null,
@@ -249,22 +252,22 @@ const createCandidate = asyncHandler(async (req, res) => {
     ]
   );
 
-  const [rows] = await query("SELECT * FROM cv_candidates WHERE id = ?", [result.insertId]);
+  const [rows] = await query("SELECT * FROM cv_candidates WHERE id = ? AND company_id = ?", [result.insertId, req.user.company_id]);
   res.status(201).json({ candidate: mapCandidate(rows[0], req) });
 });
 
 const updateCandidateStatus = asyncHandler(async (req, res) => {
   await ensureCvTables();
   const [result] = await query(
-    "UPDATE cv_candidates SET status = ? WHERE id = ?",
-    [req.body.status, req.params.id]
+    "UPDATE cv_candidates SET status = ? WHERE id = ? AND company_id = ?",
+    [req.body.status, req.params.id, req.user.company_id]
   );
 
   if (!result.affectedRows) {
     return res.status(404).json({ message: "Candidate not found" });
   }
 
-  const [rows] = await query("SELECT * FROM cv_candidates WHERE id = ?", [req.params.id]);
+  const [rows] = await query("SELECT * FROM cv_candidates WHERE id = ? AND company_id = ?", [req.params.id, req.user.company_id]);
   res.json({ candidate: mapCandidate(rows[0], req) });
 });
 

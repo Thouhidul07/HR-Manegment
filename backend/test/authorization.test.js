@@ -44,9 +44,9 @@ test.before(async () => {
   const { port } = server.address();
   baseUrl = `http://127.0.0.1:${port}`;
 
-  await login("admin", "admin@hrms.com", "Admin@1234");
-  await login("hrManager", "hr@hrms.com", "Hr@1234");
-  await login("employee", "employee@hrms.com", "Emp@1234");
+  await login("admin", "admin@nexoratech.com", "Admin@1234");
+  await login("hrManager", "hr.manager01@nexoratech.com", "Hr@1234");
+  await login("employee", "employee01@nexoratech.com", "Emp@1234");
 });
 
 test.after(async () => {

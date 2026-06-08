@@ -96,8 +96,8 @@ export function EmployeePeerReview() {
   const [showSubmitForm, setShowSubmitForm] = useState(false);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [selectedTeammate, setSelectedTeammate] = useState<Teammate | null>(null);
-  const [receivedReviews, setReceivedReviews] = useState<ReceivedReview[]>([]);
-  const [teammates, setTeammates] = useState<Teammate[]>([]);
+  const [receivedReviews, setReceivedReviews] = useState<ReceivedReview[]>(mockReceivedReviews);
+  const [teammates, setTeammates] = useState<Teammate[]>(mockTeammates);
   const [givenCount, setGivenCount] = useState(5);
   const [savingReview, setSavingReview] = useState(false);
   const [peerReviewMessage, setPeerReviewMessage] = useState("");

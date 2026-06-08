@@ -38,22 +38,26 @@ function mapAttendance(row) {
   };
 }
 
-async function getTodayAttendance(userId) {
+async function getTodayAttendance(userId, companyId) {
   const [rows] = await query(
     `SELECT a.*, u.name AS employee_name
      FROM attendance a
      JOIN users u ON u.id = a.user_id
-     WHERE a.user_id = ? AND a.work_date = CURDATE()
+     WHERE a.user_id = ? AND a.work_date = CURDATE() AND u.company_id = ?
      LIMIT 1`,
-    [userId]
+    [userId, companyId]
   );
 
   return rows[0];
 }
 
 const listAttendance = asyncHandler(async (req, res) => {
-  const userFilter = req.user.role === "employee" ? "WHERE a.user_id = ?" : "";
-  const params = req.user.role === "employee" ? [req.user.id] : [];
+  const userFilter = req.user.role === "employee" 
+    ? "WHERE a.user_id = ? AND u.company_id = ?" 
+    : "WHERE u.company_id = ?";
+  const params = req.user.role === "employee" 
+    ? [req.user.id, req.user.company_id] 
+    : [req.user.company_id];
   const [records] = await query(
     `SELECT a.*, u.name AS employee_name FROM attendance a JOIN users u ON u.id = a.user_id ${userFilter} ORDER BY a.work_date DESC`,
     params
@@ -63,7 +67,7 @@ const listAttendance = asyncHandler(async (req, res) => {
 });
 
 const clockIn = asyncHandler(async (req, res) => {
-  const existingRecord = await getTodayAttendance(req.user.id);
+  const existingRecord = await getTodayAttendance(req.user.id, req.user.company_id);
 
   if (existingRecord?.clock_in) {
     return res.status(400).json({ message: "You have already clocked in today" });
@@ -78,7 +82,7 @@ const clockIn = asyncHandler(async (req, res) => {
     [req.user.id]
   );
 
-  const record = await getTodayAttendance(req.user.id);
+  const record = await getTodayAttendance(req.user.id, req.user.company_id);
 
   res.status(201).json({
     message: "Clock-in saved",
@@ -88,7 +92,7 @@ const clockIn = asyncHandler(async (req, res) => {
 });
 
 const clockOut = asyncHandler(async (req, res) => {
-  const existingRecord = await getTodayAttendance(req.user.id);
+  const existingRecord = await getTodayAttendance(req.user.id, req.user.company_id);
 
   if (!existingRecord?.clock_in) {
     return res.status(400).json({ message: "You need to clock in before clocking out" });
@@ -103,7 +107,7 @@ const clockOut = asyncHandler(async (req, res) => {
     [existingRecord.id, req.user.id]
   );
 
-  const record = await getTodayAttendance(req.user.id);
+  const record = await getTodayAttendance(req.user.id, req.user.company_id);
 
   res.json({ message: "Clock-out saved", record: mapAttendance(record) });
 });
@@ -131,8 +135,8 @@ const logAttendance = asyncHandler(async (req, res) => {
     `SELECT a.*, u.name AS employee_name
      FROM attendance a
      JOIN users u ON u.id = a.user_id
-     WHERE a.user_id = ? AND a.work_date = ?`,
-    [req.user.id, workDate]
+     WHERE a.user_id = ? AND a.work_date = ? AND u.company_id = ?`,
+    [req.user.id, workDate, req.user.company_id]
   );
 
   res.status(201).json({ record: mapAttendance(rows[0]) });

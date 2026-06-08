@@ -55,7 +55,7 @@ export function CVFilter() {
     {
       id: 1,
       name: "Mahmudul Karim",
-      email: "mahmudul.karim@hrspace.local",
+      email: "mahmudul.karim@nexoratech.com",
       phone: "+8801711122233",
       position: "Software Engineer",
       score: 94,
@@ -71,7 +71,7 @@ export function CVFilter() {
     {
       id: 2,
       name: "Jannatul Ferdous",
-      email: "jannatul.ferdous@hrspace.local",
+      email: "jannatul.ferdous@nexoratech.com",
       phone: "+8801811122233",
       position: "Software Engineer",
       score: 89,
@@ -87,7 +87,7 @@ export function CVFilter() {
     {
       id: 3,
       name: "Rafi Ahmed",
-      email: "rafi.ahmed@hrspace.local",
+      email: "rafi.ahmed@nexoratech.com",
       phone: "+8801911122233",
       position: "Software Engineer",
       score: 86,
@@ -103,7 +103,7 @@ export function CVFilter() {
     {
       id: 4,
       name: "Tasmia Noor",
-      email: "tasmia.noor@hrspace.local",
+      email: "tasmia.noor@nexoratech.com",
       phone: "+8801611122233",
       position: "Software Engineer",
       score: 82,
@@ -119,7 +119,7 @@ export function CVFilter() {
     {
       id: 5,
       name: "Sharmin Sultana",
-      email: "sharmin.sultana@hrspace.local",
+      email: "sharmin.sultana@nexoratech.com",
       phone: "+8801511122233",
       position: "Software Engineer",
       score: 78,
@@ -135,7 +135,7 @@ export function CVFilter() {
     {
       id: 6,
       name: "Arif Hossain",
-      email: "arif.hossain@hrspace.local",
+      email: "arif.hossain@nexoratech.com",
       phone: "+8801311122233",
       position: "Software Engineer",
       score: 65,
@@ -665,26 +665,7 @@ export function CVFilter() {
             <div className="bg-card border border-border rounded-xl p-5 sticky top-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-foreground">Candidate Details</h3>
-                <button type="button" className="p-2 hover:bg-accent rounded-lg transition-colors" onClick={() => {
-                  if (!selectedCandidate) return;
-                  const content = [
-                    `Candidate: ${selectedCandidate.name}`,
-                    `Position: ${selectedCandidate.position}`,
-                    `Score: ${selectedCandidate.score}`,
-                    `Email: ${selectedCandidate.email}`,
-                    `Phone: ${selectedCandidate.phone}`,
-                  ].join("\n");
-                  const blob = new Blob([content], { type: "text/plain;charset=utf-8;" });
-                  const url = URL.createObjectURL(blob);
-                  const anchor = document.createElement("a");
-                  anchor.href = selectedCandidate.cvUrl || url;
-                  anchor.download = `${selectedCandidate.name.replace(/\s+/g, "-").toLowerCase()}-cv.txt`;
-                  if (selectedCandidate.cvUrl) {
-                    anchor.target = "_blank";
-                  }
-                  anchor.click();
-                  if (!selectedCandidate.cvUrl) URL.revokeObjectURL(url);
-                }}>
+                <button className="p-2 hover:bg-accent rounded-lg transition-colors">
                   <Download className="w-4 h-4" />
                 </button>
               </div>

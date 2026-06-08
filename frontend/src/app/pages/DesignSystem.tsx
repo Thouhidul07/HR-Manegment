@@ -2,7 +2,6 @@ import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/Card"
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
-import { Select } from "../components/ui/Select";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "../components/ui/Table";
 import { Palette, Type, Layout, Box } from "lucide-react";
 
@@ -138,15 +137,17 @@ export function DesignSystem() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Input label="Email" placeholder="john@example.com" type="email" />
             <Input label="Password" placeholder="••••••••" type="password" />
-            <Select
-              label="Department"
-              options={[
-                { value: "", label: "Select department" },
-                { value: "eng", label: "Engineering" },
-                { value: "sales", label: "Sales" },
-                { value: "hr", label: "HR" },
-              ]}
-            />
+            <div className="w-full">
+              <label className="block text-sm mb-1.5 text-foreground">
+                Department
+              </label>
+              <select className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all text-sm h-10">
+                <option value="">Select department</option>
+                <option value="eng">Engineering</option>
+                <option value="sales">Sales</option>
+                <option value="hr">HR</option>
+              </select>
+            </div>
             <Input label="With Error" placeholder="Invalid input" error="This field is required" />
           </div>
         </CardContent>

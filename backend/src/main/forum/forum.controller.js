@@ -214,8 +214,8 @@ const postSelect = `
 const listPosts = asyncHandler(async (req, res) => {
   await ensureForumTables();
 
-  const filters = ["fp.status != 'hidden'"];
-  const params = [req.user.id];
+  const filters = ["fp.status != 'hidden'", "u.company_id = ?"];
+  const params = [req.user.id, req.user.company_id];
   if (req.query.category && req.query.category !== "all") {
     filters.push("fp.category = ?");
     params.push(req.query.category);
@@ -244,8 +244,18 @@ const listPosts = asyncHandler(async (req, res) => {
 
 const getPost = asyncHandler(async (req, res) => {
   await ensureForumTables();
-  await query("UPDATE forum_posts SET views = views + 1 WHERE id = ?", [req.params.id]);
-  const [rows] = await query(`${postSelect} WHERE fp.id = ? GROUP BY fp.id`, [req.user.id, req.params.id]);
+  await query(
+    `UPDATE forum_posts fp
+     JOIN users u ON u.id = fp.user_id
+     SET fp.views = fp.views + 1
+     WHERE fp.id = ? AND u.company_id = ?`,
+    [req.params.id, req.user.company_id]
+  );
+
+  const [rows] = await query(
+    `${postSelect} WHERE fp.id = ? AND u.company_id = ? GROUP BY fp.id`,
+    [req.user.id, req.params.id, req.user.company_id]
+  );
   if (!rows.length || rows[0].status === "hidden") {
     return res.status(404).json({ message: "Forum post not found" });
   }
@@ -258,10 +268,10 @@ const getPost = asyncHandler(async (req, res) => {
      FROM forum_replies fr
      LEFT JOIN users u ON u.id = fr.user_id
      LEFT JOIN forum_reactions fre ON fre.target_type = 'reply' AND fre.target_id = fr.id
-     WHERE fr.post_id = ? AND fr.status != 'hidden'
+     WHERE fr.post_id = ? AND fr.status != 'hidden' AND u.company_id = ?
      GROUP BY fr.id
      ORDER BY fr.created_at ASC`,
-    [req.user.id, req.params.id]
+    [req.user.id, req.params.id, req.user.company_id]
   );
 
   res.json({ post: { ...mapPost(rows[0]), replies: nestReplies(replyRows) } });
@@ -292,12 +302,23 @@ const createPost = asyncHandler(async (req, res) => {
     ]
   );
 
-  const [rows] = await query(`${postSelect} WHERE fp.id = ? GROUP BY fp.id`, [req.user.id, result.insertId]);
+  const [rows] = await query(
+    `${postSelect} WHERE fp.id = ? AND u.company_id = ? GROUP BY fp.id`,
+    [req.user.id, result.insertId, req.user.company_id]
+  );
   res.status(201).json({ post: mapPost(rows[0]) });
 });
 
 const createReply = asyncHandler(async (req, res) => {
   await ensureForumTables();
+  const [posts] = await query(
+    "SELECT fp.id FROM forum_posts fp JOIN users u ON u.id = fp.user_id WHERE fp.id = ? AND u.company_id = ? LIMIT 1",
+    [req.params.id, req.user.company_id]
+  );
+  if (!posts.length) {
+    return res.status(404).json({ message: "Forum post not found" });
+  }
+
   const avatar = req.body.avatarAlias
     ? { alias: req.body.avatarAlias, color: req.body.avatarColor || pickAvatar(req.user.id).color }
     : pickAvatar(req.user.id + Number(req.params.id));
@@ -321,8 +342,8 @@ const createReply = asyncHandler(async (req, res) => {
     `SELECT fr.*, u.name AS user_name, fr.user_id = ? AS is_owner, 0 AS likes, 0 AS hearts, 0 AS helpful
      FROM forum_replies fr
      LEFT JOIN users u ON u.id = fr.user_id
-     WHERE fr.id = ?`,
-    [req.user.id, result.insertId]
+     WHERE fr.id = ? AND u.company_id = ?`,
+    [req.user.id, result.insertId, req.user.company_id]
   );
 
   res.status(201).json({ reply: mapReply(rows[0]) });
@@ -330,7 +351,10 @@ const createReply = asyncHandler(async (req, res) => {
 
 const updatePost = asyncHandler(async (req, res) => {
   await ensureForumTables();
-  const [posts] = await query("SELECT user_id, status FROM forum_posts WHERE id = ?", [req.params.id]);
+  const [posts] = await query(
+    "SELECT fp.user_id, fp.status FROM forum_posts fp JOIN users u ON u.id = fp.user_id WHERE fp.id = ? AND u.company_id = ?",
+    [req.params.id, req.user.company_id]
+  );
   if (!posts.length || posts[0].status === "hidden") {
     return res.status(404).json({ message: "Forum post not found" });
   }
@@ -342,29 +366,37 @@ const updatePost = asyncHandler(async (req, res) => {
   }
 
   await query(
-    `UPDATE forum_posts
-     SET title = COALESCE(?, title),
-         body = COALESCE(?, body),
-         category = COALESCE(?, category),
-         tags = COALESCE(?, tags),
-         updated_at = CURRENT_TIMESTAMP
-     WHERE id = ?`,
+    `UPDATE forum_posts fp
+     JOIN users u ON u.id = fp.user_id
+     SET fp.title = COALESCE(?, fp.title),
+         fp.body = COALESCE(?, fp.body),
+         fp.category = COALESCE(?, fp.category),
+         fp.tags = COALESCE(?, fp.tags),
+         fp.updated_at = CURRENT_TIMESTAMP
+     WHERE fp.id = ? AND u.company_id = ?`,
     [
       req.body.title || null,
       req.body.content || null,
       req.body.category || null,
       req.body.tags ? JSON.stringify(req.body.tags) : null,
       req.params.id,
+      req.user.company_id,
     ]
   );
 
-  const [rows] = await query(`${postSelect} WHERE fp.id = ? GROUP BY fp.id`, [req.user.id, req.params.id]);
+  const [rows] = await query(
+    `${postSelect} WHERE fp.id = ? AND u.company_id = ? GROUP BY fp.id`,
+    [req.user.id, req.params.id, req.user.company_id]
+  );
   res.json({ post: mapPost(rows[0]) });
 });
 
 const updateReply = asyncHandler(async (req, res) => {
   await ensureForumTables();
-  const [replies] = await query("SELECT user_id, status FROM forum_replies WHERE id = ?", [req.params.id]);
+  const [replies] = await query(
+    "SELECT fr.user_id, fr.status FROM forum_replies fr JOIN users u ON u.id = fr.user_id WHERE fr.id = ? AND u.company_id = ?",
+    [req.params.id, req.user.company_id]
+  );
   if (!replies.length || replies[0].status === "hidden") {
     return res.status(404).json({ message: "Forum reply not found" });
   }
@@ -376,8 +408,11 @@ const updateReply = asyncHandler(async (req, res) => {
   }
 
   await query(
-    "UPDATE forum_replies SET body = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-    [req.body.content, req.params.id]
+    `UPDATE forum_replies fr
+     JOIN users u ON u.id = fr.user_id
+     SET fr.body = ?, fr.updated_at = CURRENT_TIMESTAMP
+     WHERE fr.id = ? AND u.company_id = ?`,
+    [req.body.content, req.params.id, req.user.company_id]
   );
 
   const [rows] = await query(
@@ -388,9 +423,9 @@ const updateReply = asyncHandler(async (req, res) => {
      FROM forum_replies fr
      LEFT JOIN users u ON u.id = fr.user_id
      LEFT JOIN forum_reactions fre ON fre.target_type = 'reply' AND fre.target_id = fr.id
-     WHERE fr.id = ?
+     WHERE fr.id = ? AND u.company_id = ?
      GROUP BY fr.id`,
-    [req.user.id, req.params.id]
+    [req.user.id, req.params.id, req.user.company_id]
   );
 
   res.json({ reply: mapReply(rows[0]) });
@@ -398,7 +433,10 @@ const updateReply = asyncHandler(async (req, res) => {
 
 const deletePost = asyncHandler(async (req, res) => {
   await ensureForumTables();
-  const [posts] = await query("SELECT user_id, status FROM forum_posts WHERE id = ?", [req.params.id]);
+  const [posts] = await query(
+    "SELECT fp.user_id, fp.status FROM forum_posts fp JOIN users u ON u.id = fp.user_id WHERE fp.id = ? AND u.company_id = ?",
+    [req.params.id, req.user.company_id]
+  );
   if (!posts.length || posts[0].status === "hidden") {
     return res.status(404).json({ message: "Forum post not found" });
   }
@@ -409,7 +447,13 @@ const deletePost = asyncHandler(async (req, res) => {
     return res.status(403).json({ message: "You do not have permission to delete this post" });
   }
 
-  const [result] = await query("UPDATE forum_posts SET status = 'hidden' WHERE id = ?", [req.params.id]);
+  const [result] = await query(
+    `UPDATE forum_posts fp
+     JOIN users u ON u.id = fp.user_id
+     SET fp.status = 'hidden'
+     WHERE fp.id = ? AND u.company_id = ?`,
+    [req.params.id, req.user.company_id]
+  );
   if (!result.affectedRows) {
     return res.status(404).json({ message: "Forum post not found" });
   }
@@ -419,7 +463,10 @@ const deletePost = asyncHandler(async (req, res) => {
 
 const deleteReply = asyncHandler(async (req, res) => {
   await ensureForumTables();
-  const [replies] = await query("SELECT user_id, status FROM forum_replies WHERE id = ?", [req.params.id]);
+  const [replies] = await query(
+    "SELECT fr.user_id, fr.status FROM forum_replies fr JOIN users u ON u.id = fr.user_id WHERE fr.id = ? AND u.company_id = ?",
+    [req.params.id, req.user.company_id]
+  );
   if (!replies.length || replies[0].status === "hidden") {
     return res.status(404).json({ message: "Forum reply not found" });
   }
@@ -430,7 +477,13 @@ const deleteReply = asyncHandler(async (req, res) => {
     return res.status(403).json({ message: "You do not have permission to delete this reply" });
   }
 
-  const [result] = await query("UPDATE forum_replies SET status = 'hidden' WHERE id = ?", [req.params.id]);
+  const [result] = await query(
+    `UPDATE forum_replies fr
+     JOIN users u ON u.id = fr.user_id
+     SET fr.status = 'hidden'
+     WHERE fr.id = ? AND u.company_id = ?`,
+    [req.params.id, req.user.company_id]
+  );
   if (!result.affectedRows) {
     return res.status(404).json({ message: "Forum reply not found" });
   }
@@ -441,6 +494,21 @@ const deleteReply = asyncHandler(async (req, res) => {
 const toggleReaction = asyncHandler(async (req, res) => {
   await ensureForumTables();
   const { targetType, targetId, reaction } = req.body;
+
+  if (targetType === "post") {
+    const [posts] = await query(
+      "SELECT fp.id FROM forum_posts fp JOIN users u ON u.id = fp.user_id WHERE fp.id = ? AND u.company_id = ? LIMIT 1",
+      [targetId, req.user.company_id]
+    );
+    if (!posts.length) return res.status(404).json({ message: "Content not found" });
+  } else if (targetType === "reply") {
+    const [replies] = await query(
+      "SELECT fr.id FROM forum_replies fr JOIN users u ON u.id = fr.user_id WHERE fr.id = ? AND u.company_id = ? LIMIT 1",
+      [targetId, req.user.company_id]
+    );
+    if (!replies.length) return res.status(404).json({ message: "Content not found" });
+  }
+
   const [existing] = await query(
     "SELECT id FROM forum_reactions WHERE target_type = ? AND target_id = ? AND user_id = ? AND reaction = ?",
     [targetType, targetId, req.user.id, reaction]
@@ -460,14 +528,25 @@ const toggleReaction = asyncHandler(async (req, res) => {
 
 const reportContent = asyncHandler(async (req, res) => {
   await ensureForumTables();
+  const table = req.body.targetType === "post" ? "forum_posts" : "forum_replies";
+  const [rows] = await query(
+    `SELECT t.id FROM ${table} t JOIN users u ON u.id = t.user_id WHERE t.id = ? AND u.company_id = ? LIMIT 1`,
+    [req.body.targetId, req.user.company_id]
+  );
+  if (!rows.length) {
+    return res.status(404).json({ message: "Content not found" });
+  }
+
   const [result] = await query(
     `INSERT INTO forum_reports (target_type, target_id, reporter_id, reason, notes)
      VALUES (?, ?, ?, ?, ?)`,
     [req.body.targetType, req.body.targetId, req.user.id, req.body.reason, req.body.notes || null]
   );
 
-  const table = req.body.targetType === "post" ? "forum_posts" : "forum_replies";
-  await query(`UPDATE ${table} SET status = 'flagged' WHERE id = ?`, [req.body.targetId]);
+  await query(
+    `UPDATE ${table} t JOIN users u ON u.id = t.user_id SET t.status = 'flagged' WHERE t.id = ? AND u.company_id = ?`,
+    [req.body.targetId, req.user.company_id]
+  );
   res.status(201).json({ reportId: result.insertId, message: "Content reported" });
 });
 
@@ -476,16 +555,23 @@ const listReports = asyncHandler(async (req, res) => {
   const [rows] = await query(
     `SELECT fr.*, reporter.name AS reporter_name, reviewer.name AS reviewer_name
      FROM forum_reports fr
-     LEFT JOIN users reporter ON reporter.id = fr.reporter_id
+     JOIN users reporter ON reporter.id = fr.reporter_id
      LEFT JOIN users reviewer ON reviewer.id = fr.reviewed_by
-     ORDER BY fr.created_at DESC`
+     WHERE reporter.company_id = ?
+     ORDER BY fr.created_at DESC`,
+    [req.user.company_id]
   );
   res.json({ reports: rows });
 });
 
 const moderateReport = asyncHandler(async (req, res) => {
   await ensureForumTables();
-  const [reports] = await query("SELECT * FROM forum_reports WHERE id = ?", [req.params.id]);
+  const [reports] = await query(
+    `SELECT fr.* FROM forum_reports fr
+     JOIN users reporter ON reporter.id = fr.reporter_id
+     WHERE fr.id = ? AND reporter.company_id = ?`,
+    [req.params.id, req.user.company_id]
+  );
   if (!reports.length) {
     return res.status(404).json({ message: "Report not found" });
   }
@@ -502,9 +588,15 @@ const moderateReport = asyncHandler(async (req, res) => {
 
   const table = report.target_type === "post" ? "forum_posts" : "forum_replies";
   if (action === "remove") {
-    await query(`UPDATE ${table} SET status = 'hidden' WHERE id = ?`, [report.target_id]);
+    await query(
+      `UPDATE ${table} t JOIN users u ON u.id = t.user_id SET t.status = 'hidden' WHERE t.id = ? AND u.company_id = ?`,
+      [report.target_id, req.user.company_id]
+    );
   } else if (action === "approve" || action === "dismiss") {
-    await query(`UPDATE ${table} SET status = 'published' WHERE id = ?`, [report.target_id]);
+    await query(
+      `UPDATE ${table} t JOIN users u ON u.id = t.user_id SET t.status = 'published' WHERE t.id = ? AND u.company_id = ?`,
+      [report.target_id, req.user.company_id]
+    );
   }
 
   res.json({ message: "Moderation action saved" });

@@ -93,7 +93,7 @@ export function ForumThread() {
   const { threadId } = useParams();
   const navigate = useNavigate();
   const canParticipate = user?.role === "employee" || user?.role === "hr_manager";
-  const [thread, setThread] = useState(threadData);
+  const [thread, setThread] = useState<typeof threadData & { isOwner?: boolean }>(threadData);
   const [replyContent, setReplyContent] = useState("");
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editForm, setEditForm] = useState({ title: threadData.title, content: threadData.content, category: threadData.category });
@@ -103,71 +103,7 @@ export function ForumThread() {
   const [deletingThread, setDeletingThread] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [userReactions, setUserReactions] = useState<Record<string, boolean>>({});
-  const [shareMessage, setShareMessage] = useState("");
-  const [savedPost, setSavedPost] = useState(false);
-  const [reportMessage, setReportMessage] = useState("");
 
-  useEffect(() => {
-    if (!threadId) return;
-    const saved = localStorage.getItem(`hrspace-saved-post-${threadId}`);
-    setSavedPost(saved === "true");
-  }, [threadId]);
-
-  const handleReaction = async (reaction: "like" | "heart" | "helpful") => {
-    if (!canParticipate) return;
-    try {
-      const response = await api.post("/forum/reactions", {
-        targetType: "post",
-        targetId: thread.id,
-        reaction,
-      });
-      setUserReactions((prev) => ({ ...prev, [reaction]: response.data.active }));
-      const refresh = await api.get(`/forum/posts/${thread.id}`);
-      if (refresh.data.post) {
-        setThread((current) => ({ ...current, ...refresh.data.post, replies: current.replies }));
-      }
-    } catch (error) {
-      console.warn("Unable to update reaction", error);
-    }
-  };
-
-  const handleShare = async () => {
-    const url = window.location.href;
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: thread.title, url });
-      } else {
-        await navigator.clipboard.writeText(url);
-        setShareMessage("Link copied to clipboard.");
-      }
-    } catch {
-      setShareMessage("Unable to share this thread.");
-    }
-    window.setTimeout(() => setShareMessage(""), 2500);
-  };
-
-  const handleSave = () => {
-    const next = !savedPost;
-    setSavedPost(next);
-    localStorage.setItem(`hrspace-saved-post-${threadId}`, String(next));
-    setShareMessage(next ? "Thread saved." : "Thread removed from saved items.");
-    window.setTimeout(() => setShareMessage(""), 2500);
-  };
-
-  const handleReport = async () => {
-    if (!canParticipate) return;
-    try {
-      await api.post("/forum/reports", {
-        targetType: "post",
-        targetId: thread.id,
-        reason: "Inappropriate or policy-violating content",
-      });
-      setReportMessage("Report submitted for moderation review.");
-    } catch (error: any) {
-      setReportMessage(error?.response?.data?.message || "Unable to submit report.");
-    }
-    window.setTimeout(() => setReportMessage(""), 3000);
-  };
   useEffect(() => {
     if (!threadId) return;
 
@@ -189,6 +125,13 @@ export function ForumThread() {
       isMounted = false;
     };
   }, [threadId]);
+
+  const toggleReaction = (type: string) => {
+    setUserReactions(prev => ({
+      ...prev,
+      [type]: !prev[type]
+    }));
+  };
 
   const handlePostReply = async () => {
     if (!canParticipate) return;
@@ -338,55 +281,50 @@ export function ForumThread() {
           </div>
 
           {/* Reactions */}
-          {(shareMessage || reportMessage) && (
-            <div className="rounded-lg border border-[var(--info)]/25 bg-[var(--info)]/10 px-4 py-3 text-sm text-muted-foreground">
-              {shareMessage || reportMessage}
-            </div>
-          )}
           <div className="flex items-center justify-between pt-4 border-t border-border">
             <div className="flex items-center gap-2">
               <Button
                 variant={canParticipate && userReactions.like ? "primary" : "outline"}
                 size="sm"
                 className="gap-2"
-                onClick={() => handleReaction("like")}
+                onClick={() => canParticipate && toggleReaction('like')}
                 disabled={!canParticipate}
               >
                 <ThumbsUp className="w-4 h-4" />
-                <span>{thread.reactions.likes}</span>
+                <span>{thread.reactions.likes + (canParticipate && userReactions.like ? 1 : 0)}</span>
               </Button>
               <Button
                 variant={canParticipate && userReactions.heart ? "primary" : "outline"}
                 size="sm"
                 className="gap-2"
-                onClick={() => handleReaction("heart")}
+                onClick={() => canParticipate && toggleReaction('heart')}
                 disabled={!canParticipate}
               >
                 <Heart className="w-4 h-4" />
-                <span>{thread.reactions.hearts}</span>
+                <span>{thread.reactions.hearts + (canParticipate && userReactions.heart ? 1 : 0)}</span>
               </Button>
               <Button
                 variant={canParticipate && userReactions.helpful ? "primary" : "outline"}
                 size="sm"
                 className="gap-2"
-                onClick={() => handleReaction("helpful")}
+                onClick={() => canParticipate && toggleReaction('helpful')}
                 disabled={!canParticipate}
               >
                 <Lightbulb className="w-4 h-4" />
-                <span>{thread.reactions.helpful}</span>
+                <span>{thread.reactions.helpful + (canParticipate && userReactions.helpful ? 1 : 0)}</span>
               </Button>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" className="gap-2" onClick={handleShare}>
+              <Button variant="ghost" size="sm" className="gap-2">
                 <Share2 className="w-4 h-4" />
                 Share
               </Button>
-              <Button variant={savedPost ? "primary" : "ghost"} size="sm" className="gap-2" onClick={handleSave}>
+              <Button variant="ghost" size="sm" className="gap-2">
                 <Bookmark className="w-4 h-4" />
-                {savedPost ? "Saved" : "Save"}
+                Save
               </Button>
               {canParticipate && (
-                <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-destructive" onClick={handleReport}>
+                <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-destructive">
                   <Flag className="w-4 h-4" />
                   Report
                 </Button>
@@ -505,7 +443,7 @@ export function ForumThread() {
           {/* Replies Thread */}
           <div className="space-y-4">
             {thread.replies.map((reply) => (
-              <ReplyThread key={reply.id} reply={reply} level={0} canParticipate={canParticipate} postId={thread.id} onReplyAdded={(newReply) => setThread((current) => ({ ...current, replies: [...current.replies, newReply] }))} />
+              <ReplyThread key={reply.id} reply={reply} level={0} canParticipate={canParticipate} />
             ))}
           </div>
         </div>

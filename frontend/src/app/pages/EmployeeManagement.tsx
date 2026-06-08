@@ -39,14 +39,17 @@ type EmployeeFormState = {
 };
 
 const fallbackEmployees: Employee[] = [
-  { id: 1, name: "Tanvir Hasan", email: "tanvir.hasan@hrspace.local", phone: "+8801712345678", department: "Information Technology", designation: "Senior Software Engineer", status: "active", avatar: "TH", salary: 95000, hire_date: "2024-03-01" },
-  { id: 2, name: "Nusrat Jahan", email: "nusrat.jahan@hrspace.local", phone: "+8801812345678", department: "Marketing", designation: "Marketing Executive", status: "active", avatar: "NJ", salary: 68000, hire_date: "2024-04-15" },
-  { id: 3, name: "Rakibul Islam", email: "rakibul.islam@hrspace.local", phone: "+8801912345678", department: "Sales", designation: "Sales Executive", status: "active", avatar: "RI", salary: 62000, hire_date: "2024-05-10" },
-  { id: 4, name: "Farhana Akter", email: "farhana.akter@hrspace.local", phone: "+8801612345678", department: "Human Resources", designation: "HR Manager", status: "active", avatar: "FA", salary: 95000, hire_date: "2024-02-01" },
-  { id: 5, name: "Mehedi Hasan", email: "mehedi.hasan@hrspace.local", phone: "+8801512345678", department: "Finance", designation: "Accounts Officer", status: "inactive", avatar: "MH", salary: 70000, hire_date: "2024-06-01" },
-  { id: 6, name: "Sadia Rahman", email: "sadia.rahman@hrspace.local", phone: "+8801312345678", department: "Information Technology", designation: "Junior Software Engineer", status: "active", avatar: "SR", salary: 55000, hire_date: "2025-01-15" },
-  { id: 7, name: "Arif Hossain", email: "arif.hossain@hrspace.local", phone: "+8801412345678", department: "Sales", designation: "Sales Executive", status: "active", avatar: "AH", salary: 60000, hire_date: "2024-09-01" },
-  { id: 8, name: "Sharmin Sultana", email: "sharmin.sultana@hrspace.local", phone: "+8801811112222", department: "Customer Support", designation: "Support Executive", status: "active", avatar: "SS", salary: 52000, hire_date: "2025-02-01" },
+  { id: 1, name: "System Admin", email: "admin@nexoratech.com", phone: "+8801712345601", department: "System Administration", designation: "Administrator", status: "active", avatar: "SA", salary: 120000, hire_date: "2024-01-01" },
+  { id: 2, name: "HR Manager 01", email: "hr.manager01@nexoratech.com", phone: "+8801712345602", department: "Human Resources", designation: "Lead HR Manager", status: "active", avatar: "HM", salary: 96000, hire_date: "2024-02-01" },
+  { id: 3, name: "Employee 01", email: "employee01@nexoratech.com", phone: "+8801712345603", department: "Information Technology", designation: "Software Engineer", status: "active", avatar: "E0", salary: 75000, hire_date: "2024-03-01" },
+  { id: 4, name: "Employee 02", email: "employee02@nexoratech.com", phone: "+8801712345604", department: "Finance", designation: "Accounts Officer", status: "active", avatar: "E0", salary: 68000, hire_date: "2024-04-15" },
+  { id: 5, name: "Employee 03", email: "employee03@nexoratech.com", phone: "+8801712345605", department: "Marketing", designation: "Marketing Executive", status: "active", avatar: "E0", salary: 62000, hire_date: "2024-05-10" },
+  { id: 6, name: "HR Manager 02", email: "hr.manager02@nexoratech.com", phone: "+8801712345606", department: "Human Resources", designation: "HR Manager", status: "active", avatar: "HM", salary: 92000, hire_date: "2024-02-02" },
+  { id: 7, name: "Employee 04", email: "employee04@nexoratech.com", phone: "+8801812345004", department: "Sales", designation: "Sales Executive", status: "active", avatar: "E0", salary: 53000, hire_date: "2024-04-04" },
+  { id: 8, name: "Employee 05", email: "employee05@nexoratech.com", phone: "+8801812345005", department: "Operations", designation: "Operations Executive", status: "active", avatar: "E0", salary: 53750, hire_date: "2024-05-05" },
+  { id: 9, name: "Employee 06", email: "employee06@nexoratech.com", phone: "+8801812345006", department: "Customer Support", designation: "Customer Support Executive", status: "active", avatar: "E0", salary: 54500, hire_date: "2024-06-06" },
+  { id: 10, name: "Employee 07", email: "employee07@nexoratech.com", phone: "+8801812345007", department: "Training & Development", designation: "Training & Development Executive", status: "active", avatar: "E0", salary: 55250, hire_date: "2024-07-07" },
+  { id: 11, name: "Employee 08", email: "employee08@nexoratech.com", phone: "+8801812345008", department: "Administration", designation: "Administration Executive", status: "active", avatar: "E0", salary: 56000, hire_date: "2024-08-08" },
 ];
 
 const departments = [
@@ -489,7 +492,7 @@ export function EmployeeManagement() {
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Input label="Full Name" value={form.name} onChange={(event) => handleFormChange("name", event.target.value)} placeholder="Tanvir Hasan" />
-          <Input label="Email" type="email" value={form.email} onChange={(event) => handleFormChange("email", event.target.value)} placeholder="tanvir.hasan@hrspace.local" />
+          <Input label="Email" type="email" value={form.email} onChange={(event) => handleFormChange("email", event.target.value)} placeholder="tanvir.hasan@nexoratech.com" />
           <Input label="Phone" value={form.phone} onChange={(event) => handleFormChange("phone", event.target.value)} placeholder="+8801712345678" />
           <div>
             <label className="block text-sm mb-1.5 text-foreground">Department</label>

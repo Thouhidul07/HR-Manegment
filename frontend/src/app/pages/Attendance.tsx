@@ -124,11 +124,11 @@ const attendanceData: AttendanceRecord[] = [
 ];
 
 const weeklyAttendance = [
-  { day: "Mon", present: 1156, late: 45, absent: 12, leave: 21 },
-  { day: "Tue", present: 1180, late: 32, absent: 8, leave: 14 },
-  { day: "Wed", present: 1165, late: 38, absent: 15, leave: 16 },
-  { day: "Thu", present: 1175, late: 28, absent: 10, leave: 21 },
-  { day: "Fri", present: 1142, late: 52, absent: 18, leave: 22 },
+  { day: "Mon", present: 8, late: 1, absent: 1, leave: 1 },
+  { day: "Tue", present: 9, late: 0, absent: 1, leave: 1 },
+  { day: "Wed", present: 8, late: 2, absent: 0, leave: 1 },
+  { day: "Thu", present: 9, late: 1, absent: 0, leave: 1 },
+  { day: "Fri", present: 7, late: 2, absent: 1, leave: 1 },
 ];
 
 const myAttendanceData: AttendanceRecord[] = [
@@ -522,10 +522,10 @@ export function Attendance() {
             <p className="text-sm text-muted-foreground">Present</p>
           </div>
           <p className="text-2xl text-foreground">
-            {isEmployee ? presentCount : "1,156"}
+            {isEmployee ? presentCount : (attendanceRecords.length ? presentCount : 8)}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            {isEmployee ? "Your records" : "93.7% of total"}
+            {isEmployee ? "Your records" : `${Math.round(((isEmployee ? presentCount : (attendanceRecords.length ? presentCount : 8)) / 11) * 100)}% of total`}
           </p>
         </Card>
 
@@ -537,10 +537,10 @@ export function Attendance() {
             <p className="text-sm text-muted-foreground">Late Arrivals</p>
           </div>
           <p className="text-2xl text-foreground">
-            {isEmployee ? lateCount : "32"}
+            {isEmployee ? lateCount : (attendanceRecords.length ? lateCount : 1)}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            {isEmployee ? "Your records" : "2.6% of total"}
+            {isEmployee ? "Your records" : `${Math.round(((isEmployee ? lateCount : (attendanceRecords.length ? lateCount : 1)) / 11) * 100)}% of total`}
           </p>
         </Card>
 
@@ -552,10 +552,10 @@ export function Attendance() {
             <p className="text-sm text-muted-foreground">Absent</p>
           </div>
           <p className="text-2xl text-foreground">
-            {isEmployee ? absentCount : "8"}
+            {isEmployee ? absentCount : (attendanceRecords.length ? absentCount : 1)}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            {isEmployee ? "Your records" : "0.6% of total"}
+            {isEmployee ? "Your records" : `${Math.round(((isEmployee ? absentCount : (attendanceRecords.length ? absentCount : 1)) / 11) * 100)}% of total`}
           </p>
         </Card>
 
@@ -567,10 +567,10 @@ export function Attendance() {
             <p className="text-sm text-muted-foreground">On Leave</p>
           </div>
           <p className="text-2xl text-foreground">
-            {isEmployee ? leaveCount : "38"}
+            {isEmployee ? leaveCount : (attendanceRecords.length ? leaveCount : 1)}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            {isEmployee ? "Your records" : "3.1% of total"}
+            {isEmployee ? "Your records" : `${Math.round(((isEmployee ? leaveCount : (attendanceRecords.length ? leaveCount : 1)) / 11) * 100)}% of total`}
           </p>
         </Card>
       </div>
@@ -590,28 +590,28 @@ export function Attendance() {
                   <div className="flex-1 flex gap-1 h-8">
                     <div
                       className="bg-[var(--success)] rounded flex items-center justify-center text-xs text-white"
-                      style={{ width: `${(day.present / 1234) * 100}%` }}
+                      style={{ width: `${(day.present / 11) * 100}%` }}
                       title={`Present: ${day.present}`}
                     >
                       {day.present}
                     </div>
                     <div
                       className="bg-[var(--warning)] rounded flex items-center justify-center text-xs text-white"
-                      style={{ width: `${(day.late / 1234) * 100}%` }}
+                      style={{ width: `${(day.late / 11) * 100}%` }}
                       title={`Late: ${day.late}`}
                     >
                       {day.late}
                     </div>
                     <div
                       className="bg-destructive rounded flex items-center justify-center text-xs text-white"
-                      style={{ width: `${(day.absent / 1234) * 100}%` }}
+                      style={{ width: `${(day.absent / 11) * 100}%` }}
                       title={`Absent: ${day.absent}`}
                     >
                       {day.absent}
                     </div>
                     <div
                       className="bg-[var(--info)] rounded flex items-center justify-center text-xs text-white"
-                      style={{ width: `${(day.leave / 1234) * 100}%` }}
+                      style={{ width: `${(day.leave / 11) * 100}%` }}
                       title={`Leave: ${day.leave}`}
                     >
                       {day.leave}

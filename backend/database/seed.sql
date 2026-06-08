@@ -1,14 +1,53 @@
 USE hrspace;
 
-INSERT INTO users (name, email, password, role, department, designation, hire_date)
-VALUES
-  ('System Admin', 'admin@hrms.com', '$2a$10$7IAQrKRQwkIHv2eZSIRDj.S1O0ove29.KjCkCXD3369iJk9dTKngi', 'admin', 'System Administration', 'Administrator', '2024-01-01'),
-  ('Farhana Akter', 'hr@hrms.com', '$2a$10$cteqOigYNxjG6l8d.G7tNOSlBprtlBiCUvj03ljajfV.0CMwhd.Uq', 'hr_manager', 'Human Resources', 'HR Manager', '2024-02-01'),
-  ('Tanvir Hasan', 'employee@hrms.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', 'Information Technology', 'Software Engineer', '2024-03-01')
-ON DUPLICATE KEY UPDATE name = VALUES(name);
+INSERT INTO companies (id, name, domain)
+VALUES (1, 'NexoraTech Ltd', 'nexoratech.com')
+ON DUPLICATE KEY UPDATE name = VALUES(name), domain = VALUES(domain);
 
-INSERT INTO training_sessions (title, description, starts_at)
-VALUES ('Workplace Safety', 'Quarterly safety training', DATE_ADD(NOW(), INTERVAL 7 DAY));
+INSERT INTO users
+  (id, company_id, employee_code, name, email, password, role, phone, department, designation, hire_date, salary, avatar)
+VALUES
+  (1, 1, 'NX-ADM-001', 'System Admin', 'admin@nexoratech.com', '$2a$10$7IAQrKRQwkIHv2eZSIRDj.S1O0ove29.KjCkCXD3369iJk9dTKngi', 'admin', '+8801712345601', 'System Administration', 'Administrator', '2024-01-01', 120000.00, 'SA'),
+  (2, 1, 'NX-HR-001', 'HR Manager 01', 'hr.manager01@nexoratech.com', '$2a$10$cteqOigYNxjG6l8d.G7tNOSlBprtlBiCUvj03ljajfV.0CMwhd.Uq', 'hr_manager', '+8801712345602', 'Human Resources', 'Lead HR Manager', '2024-02-01', 96000.00, 'HM'),
+  (3, 1, 'NX-EMP-001', 'Employee 01', 'employee01@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801712345603', 'Information Technology', 'Software Engineer', '2024-03-01', 75000.00, 'E0'),
+  (4, 1, 'NX-EMP-002', 'Employee 02', 'employee02@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801712345604', 'Finance', 'Accounts Officer', '2024-04-15', 68000.00, 'E0'),
+  (5, 1, 'NX-EMP-003', 'Employee 03', 'employee03@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801712345605', 'Marketing', 'Marketing Executive', '2024-05-10', 62000.00, 'E0'),
+  (6, 1, 'NX-HR-002', 'HR Manager 02', 'hr.manager02@nexoratech.com', '$2a$10$cteqOigYNxjG6l8d.G7tNOSlBprtlBiCUvj03ljajfV.0CMwhd.Uq', 'hr_manager', '+8801712345606', 'Human Resources', 'HR Manager', '2024-02-02', 92000.00, 'HM'),
+  (7, 1, 'NX-EMP-004', 'Employee 04', 'employee04@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801812345004', 'Sales', 'Sales Executive', '2024-04-04', 53000.00, 'E0'),
+  (8, 1, 'NX-EMP-005', 'Employee 05', 'employee05@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801812345005', 'Operations', 'Operations Executive', '2024-05-05', 53750.00, 'E0'),
+  (9, 1, 'NX-EMP-006', 'Employee 06', 'employee06@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801812345006', 'Customer Support', 'Customer Support Executive', '2024-06-06', 54500.00, 'E0'),
+  (10, 1, 'NX-EMP-007', 'Employee 07', 'employee07@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801812345007', 'Training & Development', 'Training & Development Executive', '2024-07-07', 55250.00, 'E0'),
+  (11, 1, 'NX-EMP-008', 'Employee 08', 'employee08@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801812345008', 'Administration', 'Administration Executive', '2024-08-08', 56000.00, 'E0')
+ON DUPLICATE KEY UPDATE
+  company_id = VALUES(company_id),
+  employee_code = VALUES(employee_code),
+  name = VALUES(name),
+  email = VALUES(email),
+  role = VALUES(role),
+  department = VALUES(department),
+  designation = VALUES(designation),
+  hire_date = VALUES(hire_date),
+  salary = VALUES(salary),
+  avatar = VALUES(avatar),
+  status = 'active';
+
+INSERT INTO lifecycle_steps (company_id, type, step_order, title, description)
+VALUES
+  (1, 'onboarding', 1, 'Document Verification', 'Verify and upload all required documents'),
+  (1, 'onboarding', 2, 'IT Setup', 'Email, laptop, and system access setup'),
+  (1, 'onboarding', 3, 'Orientation', 'Complete company orientation program'),
+  (1, 'onboarding', 4, 'Training', 'Complete role-specific training modules'),
+  (1, 'onboarding', 5, 'Team Introduction', 'Meet team members and manager'),
+  (1, 'offboarding', 1, 'Resignation/Termination Confirmation', 'Confirm exit request and final working date'),
+  (1, 'offboarding', 2, 'Knowledge Transfer', 'Complete handover of responsibilities and documents'),
+  (1, 'offboarding', 3, 'Asset Return', 'Return laptop, access card, and company assets'),
+  (1, 'offboarding', 4, 'Account Deactivation', 'Disable email, HRSpace, and internal system access'),
+  (1, 'offboarding', 5, 'Final Settlement', 'Complete payroll, benefits, and final clearance')
+ON DUPLICATE KEY UPDATE title = VALUES(title), description = VALUES(description);
+
+INSERT INTO training_sessions (company_id, title, description, trainer, starts_at, ends_at)
+VALUES (1, 'Workplace Safety', 'Quarterly safety training', 'HR Team', DATE_ADD(NOW(), INTERVAL 7 DAY), DATE_ADD(NOW(), INTERVAL 7 DAY) + INTERVAL 2 HOUR)
+ON DUPLICATE KEY UPDATE title = VALUES(title);
 
 INSERT INTO peer_reviews
   (reviewee_id, reviewer_id, project, duration, review_text, communication_rating, technical_rating, teamwork_rating, leadership_rating, strengths, improvements, review_date)
@@ -18,7 +57,7 @@ VALUES
 INSERT INTO cv_candidates
   (name, email, phone, position, score, skills, experience, education, match_percentage, status, key_strengths, concerns, upload_date)
 VALUES
-  ('Mahmudul Karim', 'mahmudul.karim@hrspace.local', '+8801711122233', 'Software Engineer', 94, JSON_ARRAY('React', 'Node.js', 'TypeScript', 'AWS', 'Docker', 'PostgreSQL'), 7, 'M.S. Computer Science - BUET', 94, 'shortlisted', JSON_ARRAY('Matched react', 'Matched node.js', 'Matched typescript'), JSON_ARRAY(), '2026-05-28');
+  ('Mahmudul Karim', 'mahmudul.karim@nexoratech.com', '+8801711122233', 'Software Engineer', 94, JSON_ARRAY('React', 'Node.js', 'TypeScript', 'AWS', 'Docker', 'PostgreSQL'), 7, 'M.S. Computer Science - BUET', 94, 'shortlisted', JSON_ARRAY('Matched react', 'Matched node.js', 'Matched typescript'), JSON_ARRAY(), '2026-05-28');
 
 INSERT INTO forum_posts
   (user_id, title, body, category, is_anonymous, anonymous_alias, anonymous_color, tags, sentiment, views)
@@ -30,3 +69,22 @@ INSERT INTO forum_replies
   (post_id, user_id, body, is_anonymous, anonymous_alias, anonymous_color)
 VALUES
   (2, 2, 'Please submit an expense request with the quotation attached.', FALSE, 'Owl', '#7C5FB5');
+
+INSERT INTO user_profile_settings
+  (user_id, display_name, nationality, city, country, language, timezone)
+SELECT id, name, 'Bangladeshi', 'Dhaka', 'Bangladesh', 'English', 'Asia/Dhaka'
+FROM users
+WHERE company_id = 1
+ON DUPLICATE KEY UPDATE display_name = VALUES(display_name);
+
+INSERT INTO notifications (company_id, user_id, type, title, body, link)
+VALUES
+  (1, 1, 'leave', 'New leave request from Employee 03', 'Employee 03 submitted a casual leave request.', '/dashboard/leave'),
+  (1, 1, 'payroll', 'Payroll processing completed', 'Monthly payroll has been processed for NexoraTech Ltd.', '/dashboard/payroll'),
+  (1, 1, 'attendance', '3 employees on leave today', 'Review today’s team attendance summary.', '/dashboard/attendance'),
+  (1, 2, 'leave', 'New leave request from Employee 03', 'Employee 03 submitted a casual leave request.', '/dashboard/leave'),
+  (1, 2, 'payroll', 'Payroll processing completed', 'Monthly payroll has been processed for NexoraTech Ltd.', '/dashboard/payroll'),
+  (1, 2, 'attendance', '3 employees on leave today', 'Review today’s team attendance summary.', '/dashboard/attendance'),
+  (1, 3, 'training', 'Training session starts soon', 'Workplace Safety starts next week.', '/dashboard/training'),
+  (1, 3, 'payroll', 'Payslip available', 'Your latest payslip is ready to view.', '/dashboard/payslips'),
+  (1, 3, 'leave', 'Leave balance updated', 'Your annual leave balance has been refreshed.', '/dashboard/leave');

@@ -24,6 +24,9 @@ DROP TABLE IF EXISTS performance_reviews;
 DROP TABLE IF EXISTS training_certificates;
 DROP TABLE IF EXISTS training_enrollments;
 DROP TABLE IF EXISTS training_sessions;
+DROP TABLE IF EXISTS lifecycle_cases;
+DROP TABLE IF EXISTS lifecycle_steps;
+DROP TABLE IF EXISTS lifecycle_tasks;
 DROP TABLE IF EXISTS payroll;
 DROP TABLE IF EXISTS leave_requests;
 DROP TABLE IF EXISTS attendance;
@@ -31,12 +34,28 @@ DROP TABLE IF EXISTS access_requests;
 DROP TABLE IF EXISTS role_permissions;
 DROP TABLE IF EXISTS permissions;
 DROP TABLE IF EXISTS roles;
+DROP TABLE IF EXISTS notifications;
+DROP TABLE IF EXISTS user_profile_settings;
 DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS companies;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
+CREATE TABLE companies (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(140) NOT NULL,
+  domain VARCHAR(160) NOT NULL UNIQUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+INSERT INTO companies (id, name, domain)
+VALUES (1, 'NexoraTech Ltd', 'nexoratech.com');
+
 CREATE TABLE users (
   id INT AUTO_INCREMENT PRIMARY KEY,
+  company_id INT NOT NULL DEFAULT 1,
+  employee_code VARCHAR(50) NOT NULL UNIQUE,
   name VARCHAR(120) NOT NULL,
   email VARCHAR(160) NOT NULL UNIQUE,
   password VARCHAR(255) NOT NULL,
@@ -49,7 +68,58 @@ CREATE TABLE users (
   avatar VARCHAR(255),
   status ENUM('pending', 'active', 'rejected', 'inactive') NOT NULL DEFAULT 'active',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE RESTRICT
+);
+
+
+CREATE TABLE user_profile_settings (
+  user_id INT PRIMARY KEY,
+  display_name VARCHAR(120),
+  date_of_birth DATE,
+  gender VARCHAR(40),
+  nationality VARCHAR(80),
+  marital_status VARCHAR(80),
+  city VARCHAR(100),
+  country VARCHAR(100),
+  bio TEXT,
+  emergency_contact_name VARCHAR(120),
+  emergency_contact_phone VARCHAR(60),
+  blood_group VARCHAR(20),
+  linkedin_url VARCHAR(255),
+  language VARCHAR(80) NOT NULL DEFAULT 'English',
+  timezone VARCHAR(80) NOT NULL DEFAULT 'Asia/Dhaka',
+  theme_preference ENUM('light','dark','system') NOT NULL DEFAULT 'system',
+  notify_leave_updates TINYINT(1) NOT NULL DEFAULT 1,
+  notify_schedule_changes TINYINT(1) NOT NULL DEFAULT 1,
+  notify_payslip_available TINYINT(1) NOT NULL DEFAULT 1,
+  forum_anonymous_mode TINYINT(1) NOT NULL DEFAULT 0,
+  forum_allow_anonymous_posting TINYINT(1) NOT NULL DEFAULT 1,
+  forum_hide_identity TINYINT(1) NOT NULL DEFAULT 0,
+  forum_notify_replies TINYINT(1) NOT NULL DEFAULT 1,
+  privacy_show_directory TINYINT(1) NOT NULL DEFAULT 1,
+  privacy_show_phone TINYINT(1) NOT NULL DEFAULT 1,
+  privacy_show_email TINYINT(1) NOT NULL DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE notifications (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  company_id INT NOT NULL,
+  user_id INT NOT NULL,
+  type VARCHAR(60) NOT NULL DEFAULT 'info',
+  title VARCHAR(180) NOT NULL,
+  body TEXT,
+  link VARCHAR(255),
+  is_read TINYINT(1) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  read_at DATETIME,
+  FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_notifications_user_read (user_id, is_read, created_at),
+  INDEX idx_notifications_company (company_id, created_at)
 );
 
 CREATE TABLE roles (
@@ -138,12 +208,14 @@ CREATE TABLE payroll (
 
 CREATE TABLE training_sessions (
   id INT AUTO_INCREMENT PRIMARY KEY,
+  company_id INT NOT NULL DEFAULT 1,
   title VARCHAR(160) NOT NULL,
   description TEXT,
   trainer VARCHAR(120),
   starts_at DATETIME NOT NULL,
   ends_at DATETIME,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
 );
 
 CREATE TABLE training_enrollments (
@@ -167,6 +239,53 @@ CREATE TABLE training_certificates (
   UNIQUE KEY unique_enrollment_certificate (enrollment_id),
   FOREIGN KEY (enrollment_id) REFERENCES training_enrollments(id) ON DELETE CASCADE,
   FOREIGN KEY (issued_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE lifecycle_cases (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  company_id INT NOT NULL,
+  user_id INT NOT NULL,
+  type ENUM('onboarding','offboarding') NOT NULL,
+  status ENUM('not_started','in_progress','completed','cancelled') NOT NULL DEFAULT 'in_progress',
+  start_date DATE,
+  target_date DATE,
+  completed_at DATETIME,
+  created_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE lifecycle_steps (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  company_id INT NOT NULL,
+  type ENUM('onboarding','offboarding') NOT NULL,
+  step_order INT NOT NULL,
+  title VARCHAR(160) NOT NULL,
+  description TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_lifecycle_step (company_id, type, step_order),
+  FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE
+);
+
+CREATE TABLE lifecycle_tasks (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  company_id INT NOT NULL,
+  case_id INT NOT NULL,
+  step_id INT NOT NULL,
+  title VARCHAR(180) NOT NULL,
+  status ENUM('pending','in_progress','completed') NOT NULL DEFAULT 'pending',
+  due_date DATE,
+  completed_by INT,
+  completed_at DATETIME,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+  FOREIGN KEY (case_id) REFERENCES lifecycle_cases(id) ON DELETE CASCADE,
+  FOREIGN KEY (step_id) REFERENCES lifecycle_steps(id) ON DELETE CASCADE,
+  FOREIGN KEY (completed_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE TABLE performance_reviews (
@@ -208,6 +327,7 @@ CREATE TABLE peer_reviews (
 
 CREATE TABLE cv_candidates (
   id INT AUTO_INCREMENT PRIMARY KEY,
+  company_id INT NOT NULL DEFAULT 1,
   name VARCHAR(140) NOT NULL,
   email VARCHAR(160) NOT NULL,
   phone VARCHAR(60),
@@ -225,6 +345,7 @@ CREATE TABLE cv_candidates (
   upload_date DATE NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
   FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
@@ -385,13 +506,19 @@ CREATE TABLE forum_reports (
 );
 
 INSERT INTO users
-  (id, name, email, password, role, phone, department, designation, hire_date, salary)
+  (id, company_id, employee_code, name, email, password, role, phone, department, designation, hire_date, salary, avatar)
 VALUES
-  (1, 'System Admin', 'admin@hrms.com', '$2a$10$7IAQrKRQwkIHv2eZSIRDj.S1O0ove29.KjCkCXD3369iJk9dTKngi', 'admin', '+8801712345601', 'System Administration', 'Administrator', '2024-01-01', 120000.00),
-  (2, 'Farhana Akter', 'hr@hrms.com', '$2a$10$cteqOigYNxjG6l8d.G7tNOSlBprtlBiCUvj03ljajfV.0CMwhd.Uq', 'hr_manager', '+8801712345602', 'Human Resources', 'HR Manager', '2024-02-01', 95000.00),
-  (3, 'Tanvir Hasan', 'employee@hrms.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801712345603', 'Information Technology', 'Software Engineer', '2024-03-01', 75000.00),
-  (4, 'Nusrat Jahan', 'nusrat.jahan@hrspace.local', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801712345604', 'Finance', 'Accounts Officer', '2024-04-15', 68000.00),
-  (5, 'Rakibul Islam', 'rakibul.islam@hrspace.local', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801712345605', 'Marketing', 'Marketing Executive', '2024-05-10', 62000.00);
+  (1, 1, 'NX-ADM-001', 'System Admin', 'admin@nexoratech.com', '$2a$10$7IAQrKRQwkIHv2eZSIRDj.S1O0ove29.KjCkCXD3369iJk9dTKngi', 'admin', '+8801712345601', 'System Administration', 'Administrator', '2024-01-01', 120000.00, 'SA'),
+  (2, 1, 'NX-HR-001', 'HR Manager 01', 'hr.manager01@nexoratech.com', '$2a$10$cteqOigYNxjG6l8d.G7tNOSlBprtlBiCUvj03ljajfV.0CMwhd.Uq', 'hr_manager', '+8801712345602', 'Human Resources', 'Lead HR Manager', '2024-02-01', 96000.00, 'HM'),
+  (3, 1, 'NX-EMP-001', 'Employee 01', 'employee01@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801712345603', 'Information Technology', 'Software Engineer', '2024-03-01', 75000.00, 'E0'),
+  (4, 1, 'NX-EMP-002', 'Employee 02', 'employee02@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801712345604', 'Finance', 'Accounts Officer', '2024-04-15', 68000.00, 'E0'),
+  (5, 1, 'NX-EMP-003', 'Employee 03', 'employee03@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801712345605', 'Marketing', 'Marketing Executive', '2024-05-10', 62000.00, 'E0'),
+  (6, 1, 'NX-HR-002', 'HR Manager 02', 'hr.manager02@nexoratech.com', '$2a$10$cteqOigYNxjG6l8d.G7tNOSlBprtlBiCUvj03ljajfV.0CMwhd.Uq', 'hr_manager', '+8801712345606', 'Human Resources', 'HR Manager', '2024-02-02', 92000.00, 'HM'),
+  (7, 1, 'NX-EMP-004', 'Employee 04', 'employee04@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801812345004', 'Sales', 'Sales Executive', '2024-04-04', 53000.00, 'E0'),
+  (8, 1, 'NX-EMP-005', 'Employee 05', 'employee05@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801812345005', 'Operations', 'Operations Executive', '2024-05-05', 53750.00, 'E0'),
+  (9, 1, 'NX-EMP-006', 'Employee 06', 'employee06@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801812345006', 'Customer Support', 'Customer Support Executive', '2024-06-06', 54500.00, 'E0'),
+  (10, 1, 'NX-EMP-007', 'Employee 07', 'employee07@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801812345007', 'Training & Development', 'Training & Development Executive', '2024-07-07', 55250.00, 'E0'),
+  (11, 1, 'NX-EMP-008', 'Employee 08', 'employee08@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801812345008', 'Administration', 'Administration Executive', '2024-08-08', 56000.00, 'E0');
 
 INSERT INTO roles (id, code, name, description)
 VALUES
@@ -552,10 +679,10 @@ VALUES
   (5, DATE_FORMAT(CURDATE(), '%Y-%m-01'), 62000.00, 3000.00, 1500.00, 63500.00, 'processed');
 
 INSERT INTO training_sessions
-  (id, title, description, trainer, starts_at, ends_at)
+  (id, company_id, title, description, trainer, starts_at, ends_at)
 VALUES
-  (1, 'Workplace Safety', 'Quarterly workplace safety training.', 'HR Team', DATE_ADD(NOW(), INTERVAL 7 DAY), DATE_ADD(NOW(), INTERVAL 7 DAY) + INTERVAL 2 HOUR),
-  (2, 'Leadership Basics', 'Managerial communication and feedback skills.', 'People Ops', DATE_ADD(NOW(), INTERVAL 14 DAY), DATE_ADD(NOW(), INTERVAL 14 DAY) + INTERVAL 3 HOUR);
+  (1, 1, 'Workplace Safety', 'Quarterly workplace safety training.', 'HR Team', DATE_ADD(NOW(), INTERVAL 7 DAY), DATE_ADD(NOW(), INTERVAL 7 DAY) + INTERVAL 2 HOUR),
+  (2, 1, 'Leadership Basics', 'Managerial communication and feedback skills.', 'People Ops', DATE_ADD(NOW(), INTERVAL 14 DAY), DATE_ADD(NOW(), INTERVAL 14 DAY) + INTERVAL 3 HOUR);
 
 INSERT INTO training_enrollments
   (training_id, user_id, status, progress)
@@ -568,6 +695,20 @@ INSERT INTO training_certificates
   (enrollment_id, certificate_code, issued_by)
 VALUES
   (2, 'CERT-DEMO-0002', 2);
+
+
+INSERT INTO lifecycle_steps (company_id, type, step_order, title, description)
+VALUES
+  (1, 'onboarding', 1, 'Document Verification', 'Verify and upload all required documents'),
+  (1, 'onboarding', 2, 'IT Setup', 'Email, laptop, and system access setup'),
+  (1, 'onboarding', 3, 'Orientation', 'Complete company orientation program'),
+  (1, 'onboarding', 4, 'Training', 'Complete role-specific training modules'),
+  (1, 'onboarding', 5, 'Team Introduction', 'Meet team members and manager'),
+  (1, 'offboarding', 1, 'Resignation/Termination Confirmation', 'Confirm exit request and final working date'),
+  (1, 'offboarding', 2, 'Knowledge Transfer', 'Complete handover of responsibilities and documents'),
+  (1, 'offboarding', 3, 'Asset Return', 'Return laptop, access card, and company assets'),
+  (1, 'offboarding', 4, 'Account Deactivation', 'Disable email, HRSpace, and internal system access'),
+  (1, 'offboarding', 5, 'Final Settlement', 'Complete payroll, benefits, and final clearance');
 
 INSERT INTO performance_reviews
   (user_id, reviewer_id, review_period, score, goals, feedback, status)
@@ -586,9 +727,9 @@ VALUES
 INSERT INTO cv_candidates
   (name, email, phone, position, score, skills, experience, education, match_percentage, status, key_strengths, concerns, upload_date)
 VALUES
-  ('Mahmudul Karim', 'mahmudul.karim@hrspace.local', '+8801711122233', 'Software Engineer', 94, JSON_ARRAY('React', 'Node.js', 'TypeScript', 'AWS', 'Docker', 'PostgreSQL'), 7, 'M.S. Computer Science - BUET', 94, 'shortlisted', JSON_ARRAY('Matched react', 'Matched node.js', 'Matched typescript'), JSON_ARRAY(), '2026-05-28'),
-  ('Jannatul Ferdous', 'jannatul.ferdous@hrspace.local', '+8801811122233', 'Software Engineer', 73, JSON_ARRAY('React', 'Python', 'Django', 'MySQL', 'Redis', 'Git'), 6, 'B.S. Software Engineering - University of Dhaka', 73, 'pending', JSON_ARRAY('Matched react'), JSON_ARRAY('Missing preferred skills: node.js, typescript, aws'), '2026-05-27'),
-  ('Rafi Ahmed', 'rafi.ahmed@hrspace.local', '+8801911122233', 'Software Engineer', 68, JSON_ARRAY('Vue.js', 'Node.js', 'MongoDB', 'Express', 'GraphQL'), 5, 'B.S. Computer Science - North South University', 68, 'rejected', JSON_ARRAY('Matched node.js'), JSON_ARRAY('Missing preferred skills: react, typescript, aws'), '2026-05-26');
+  ('Mahmudul Karim', 'mahmudul.karim@nexoratech.com', '+8801711122233', 'Software Engineer', 94, JSON_ARRAY('React', 'Node.js', 'TypeScript', 'AWS', 'Docker', 'PostgreSQL'), 7, 'M.S. Computer Science - BUET', 94, 'shortlisted', JSON_ARRAY('Matched react', 'Matched node.js', 'Matched typescript'), JSON_ARRAY(), '2026-05-28'),
+  ('Jannatul Ferdous', 'jannatul.ferdous@nexoratech.com', '+8801811122233', 'Software Engineer', 73, JSON_ARRAY('React', 'Python', 'Django', 'MySQL', 'Redis', 'Git'), 6, 'B.S. Software Engineering - University of Dhaka', 73, 'pending', JSON_ARRAY('Matched react'), JSON_ARRAY('Missing preferred skills: node.js, typescript, aws'), '2026-05-27'),
+  ('Rafi Ahmed', 'rafi.ahmed@nexoratech.com', '+8801911122233', 'Software Engineer', 68, JSON_ARRAY('Vue.js', 'Node.js', 'MongoDB', 'Express', 'GraphQL'), 5, 'B.S. Computer Science - North South University', 68, 'rejected', JSON_ARRAY('Matched node.js'), JSON_ARRAY('Missing preferred skills: react, typescript, aws'), '2026-05-26');
 
 INSERT INTO expenses
   (user_id, category, amount, expense_date, description, status, reviewed_by)
@@ -638,3 +779,23 @@ VALUES
   ('post', 1, 4, 'heart'),
   ('post', 2, 2, 'helpful'),
   ('reply', 1, 3, 'like');
+
+
+INSERT INTO user_profile_settings
+  (user_id, display_name, nationality, city, country, language, timezone)
+SELECT id, name, 'Bangladeshi', 'Dhaka', 'Bangladesh', 'English', 'Asia/Dhaka'
+FROM users
+WHERE company_id = 1
+ON DUPLICATE KEY UPDATE display_name = VALUES(display_name);
+
+INSERT INTO notifications (company_id, user_id, type, title, body, link)
+VALUES
+  (1, 1, 'leave', 'New leave request from Employee 03', 'Employee 03 submitted a casual leave request.', '/dashboard/leave'),
+  (1, 1, 'payroll', 'Payroll processing completed', 'Monthly payroll has been processed for NexoraTech Ltd.', '/dashboard/payroll'),
+  (1, 1, 'attendance', '3 employees on leave today', 'Review today’s team attendance summary.', '/dashboard/attendance'),
+  (1, 2, 'leave', 'New leave request from Employee 03', 'Employee 03 submitted a casual leave request.', '/dashboard/leave'),
+  (1, 2, 'payroll', 'Payroll processing completed', 'Monthly payroll has been processed for NexoraTech Ltd.', '/dashboard/payroll'),
+  (1, 2, 'attendance', '3 employees on leave today', 'Review today’s team attendance summary.', '/dashboard/attendance'),
+  (1, 3, 'training', 'Training session starts soon', 'Workplace Safety starts next week.', '/dashboard/training'),
+  (1, 3, 'payroll', 'Payslip available', 'Your latest payslip is ready to view.', '/dashboard/payslips'),
+  (1, 3, 'leave', 'Leave balance updated', 'Your annual leave balance has been refreshed.', '/dashboard/leave');

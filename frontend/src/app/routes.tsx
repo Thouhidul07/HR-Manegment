@@ -3,7 +3,6 @@ import type { ReactElement } from "react";
 import { Layout } from "./components/layout/Layout";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { useAuth } from "./contexts/AuthContext";
-import { LandingPage } from "./pages/LandingPage";
 import { Features } from "./pages/Features";
 import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
@@ -55,7 +54,11 @@ function RoleRoute({
 }
 
 function DevOnlyRoute({ children }: { children: ReactElement }) {
-  if (!import.meta.env.DEV) {
+  const isLocalDev =
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1";
+
+  if (!isLocalDev) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -80,7 +83,7 @@ function ForumRoute({ children }: { children: ReactElement }) {
 export const router = createBrowserRouter([
   {
     path: "/",
-    Component: LandingPage,
+    element: <Navigate to="/login" replace />,
   },
   {
     path: "/features",

@@ -583,7 +583,7 @@ export function DesignWBS() {
                 </span>
                 <span className="font-semibold">
                   {totalBudget
-                    ? `${((totalEstimatedCost / parseFloat(totalBudget.replace(/[$,]/g, '') || 1)) * 100).toFixed(1)}%`
+                    ? `${((totalEstimatedCost / parseFloat(totalBudget.replace(/[$,]/g, '') || '1')) * 100).toFixed(1)}%`
                     : '0%'}
                 </span>
               </div>
