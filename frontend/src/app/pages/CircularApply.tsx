@@ -23,10 +23,35 @@ interface JobCircular {
   status: 'open' | 'closing-soon' | 'closed';
   applied: boolean;
 }
+type JobFilterType = 'all' | 'open' | 'applied';
+
+const jobFilterStyles: Record<
+  JobFilterType,
+  { label: string; active: string; idle: string; dot: string }
+> = {
+  all: {
+    label: "All Jobs",
+    active: "border-[#9A77CF] bg-[#9A77CF]/25 text-white shadow-sm shadow-[#9A77CF]/20",
+    idle: "border-[#9A77CF]/25 bg-[#9A77CF]/10 text-[#CBB7FF] hover:border-[#9A77CF]/60",
+    dot: "bg-[#9A77CF]",
+  },
+  open: {
+    label: "Open",
+    active: "border-emerald-400 bg-emerald-400/20 text-emerald-100 shadow-sm shadow-emerald-950/20",
+    idle: "border-emerald-400/25 bg-emerald-400/10 text-emerald-300 hover:border-emerald-400/60",
+    dot: "bg-emerald-400",
+  },
+  applied: {
+    label: "Applied",
+    active: "border-sky-400 bg-sky-400/20 text-sky-100 shadow-sm shadow-sky-950/20",
+    idle: "border-sky-400/25 bg-sky-400/10 text-sky-300 hover:border-sky-400/60",
+    dot: "bg-sky-400",
+  },
+};
 
 export function CircularApply() {
   const [selectedCircular, setSelectedCircular] = useState<JobCircular | null>(null);
-  const [filterType, setFilterType] = useState<'all' | 'open' | 'applied'>('all');
+  const [filterType, setFilterType] = useState<JobFilterType>('all');
   const [searchQuery, setSearchQuery] = useState("");
   const [showApplicationModal, setShowApplicationModal] = useState(false);
   const [applicationStep, setApplicationStep] = useState(1);
@@ -319,36 +344,24 @@ export function CircularApply() {
           <div className="flex-1">
             <label className="text-xs text-muted-foreground mb-2 block">Filter By</label>
             <div className="flex gap-2">
-              <button
-                onClick={() => setFilterType('all')}
-                className={`px-4 py-2 rounded-lg text-sm transition-all ${
-                  filterType === 'all'
-                    ? 'bg-gradient-to-r from-[#543884] to-[#9A77CF] text-white'
-                    : 'bg-background border border-border text-foreground hover:bg-accent'
-                }`}
-              >
-                All Jobs
-              </button>
-              <button
-                onClick={() => setFilterType('open')}
-                className={`px-4 py-2 rounded-lg text-sm transition-all ${
-                  filterType === 'open'
-                    ? 'bg-green-500 text-white'
-                    : 'bg-background border border-border text-foreground hover:bg-accent'
-                }`}
-              >
-                Open
-              </button>
-              <button
-                onClick={() => setFilterType('applied')}
-                className={`px-4 py-2 rounded-lg text-sm transition-all ${
-                  filterType === 'applied'
-                    ? 'bg-[#9A77CF] text-white'
-                    : 'bg-background border border-border text-foreground hover:bg-accent'
-                }`}
-              >
-                Applied
-              </button>
+              {(Object.keys(jobFilterStyles) as JobFilterType[]).map((filter) => {
+                const styles = jobFilterStyles[filter];
+                const isActive = filterType === filter;
+
+                return (
+                  <button
+                    key={filter}
+                    type="button"
+                    onClick={() => setFilterType(filter)}
+                    className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-all ${
+                      isActive ? styles.active : styles.idle
+                    }`}
+                  >
+                    <span className={`h-2 w-2 rounded-full ${styles.dot}`} />
+                    {styles.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

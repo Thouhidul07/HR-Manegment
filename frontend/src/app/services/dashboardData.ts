@@ -66,6 +66,31 @@ export interface RoleDashboardSummary {
   activeEmployees?: number;
   upcomingTraining?: number;
   daysPresent?: number;
+  daysLate?: number;
+  daysAbsent?: number;
+  daysLeave?: number;
+  attendedDays?: number;
+  workdaysInMonth?: number;
+  workdaysToDate?: number;
+  monthAttendance?: {
+    year: number;
+    month: number;
+    daysPresent: number;
+    daysLate: number;
+    daysAbsent: number;
+    daysLeave: number;
+    attendedDays: number;
+    workdaysInMonth: number;
+    workdaysToDate: number;
+    days: {
+      date: string;
+      day: number;
+      status: "present" | "late" | "absent" | "leave" | "none";
+      isToday: boolean;
+      isWeekend: boolean;
+      isFuture: boolean;
+    }[];
+  };
   latestPayroll?: {
     net_pay: number | string;
     pay_period: string;

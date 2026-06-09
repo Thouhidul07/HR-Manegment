@@ -5,11 +5,15 @@ const {
   clockIn,
   clockOut,
   logAttendance,
+  getAttendanceSummary,
+  getWeeklyOverview,
 } = require("./attendance.controller");
 const { protect, authorize } = require("../../middleware/authMiddleware");
 const validate = require("../../utils/validation");
 
 router.use(protect);
+router.get("/summary", getAttendanceSummary);
+router.get("/weekly-overview", getWeeklyOverview);
 router.get("/", listAttendance);
 router.post("/clock-in", authorize("employee"), clockIn);
 router.post("/clock-out", authorize("employee"), clockOut);

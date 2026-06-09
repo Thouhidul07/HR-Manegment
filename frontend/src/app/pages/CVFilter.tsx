@@ -663,9 +663,22 @@ export function CVFilter() {
         <div className="lg:col-span-1">
           {selectedCandidate ? (
             <div className="bg-card border border-border rounded-xl p-5 sticky top-6">
-              <div className="flex items-center justify-between mb-4">
+               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-foreground">Candidate Details</h3>
-                <button className="p-2 hover:bg-accent rounded-lg transition-colors">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (selectedCandidate.cvUrl) {
+                      const link = document.createElement("a");
+                      link.href = selectedCandidate.cvUrl;
+                      link.download = `${selectedCandidate.name.replace(/\s+/g, "_")}_CV`;
+                      link.click();
+                    }
+                  }}
+                  disabled={!selectedCandidate.cvUrl}
+                  className="p-2 hover:bg-accent rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  aria-label="Download CV"
+                >
                   <Download className="w-4 h-4" />
                 </button>
               </div>

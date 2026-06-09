@@ -130,6 +130,22 @@ const discussions = [
   }
 ];
 
+const sentimentFilters = [
+  { id: "all", label: "All moods" },
+  { id: "positive", label: "Positive" },
+  { id: "neutral", label: "Neutral" },
+  { id: "concerned", label: "Concerned" },
+  { id: "negative", label: "Negative" },
+];
+
+const postTypeFilters = [
+  { id: "all", label: "All posts" },
+  { id: "discussions", label: "Discussions" },
+  { id: "polls", label: "Polls" },
+];
+
+const DISCUSSIONS_PAGE_SIZE = 4;
+
 export function Forum() {
   const { user } = useAuth();
   const location = useLocation();
@@ -148,33 +164,77 @@ export function Forum() {
   const [deleteError, setDeleteError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("recent");
+  const [showFilters, setShowFilters] = useState(false);
+  const [sentimentFilter, setSentimentFilter] = useState("all");
+  const [postTypeFilter, setPostTypeFilter] = useState("all");
+  const [discussionPage, setDiscussionPage] = useState(1);
+  const [hasMoreDiscussions, setHasMoreDiscussions] = useState(false);
+  const [loadingDiscussions, setLoadingDiscussions] = useState(false);
+  const activeFilterCount = [sentimentFilter !== "all", postTypeFilter !== "all"].filter(Boolean).length;
 
   useEffect(() => {
     let isMounted = true;
+    setLoadingDiscussions(true);
 
     api.get("/forum/posts", {
       params: {
-        category: categories.find((category) => category.id === selectedCategory)?.name,
+        category: selectedCategory === "all"
+          ? undefined
+          : categories.find((category) => category.id === selectedCategory)?.name,
         search: searchQuery || undefined,
         sort: sortBy,
+        sentiment: sentimentFilter !== "all" ? sentimentFilter : undefined,
+        type: postTypeFilter !== "all" ? postTypeFilter : undefined,
+        limit: DISCUSSIONS_PAGE_SIZE,
+        offset: (discussionPage - 1) * DISCUSSIONS_PAGE_SIZE,
       },
     })
       .then((response) => {
-        if (isMounted && response.data.posts?.length) {
-          setDiscussionList(response.data.posts);
+        if (isMounted && Array.isArray(response.data.posts)) {
+          setDiscussionList((currentDiscussions) => {
+            if (discussionPage === 1) return response.data.posts;
+
+            const existingIds = new Set(currentDiscussions.map((discussion) => discussion.id));
+            const newPosts = response.data.posts.filter((discussion: any) => !existingIds.has(discussion.id));
+            return [...currentDiscussions, ...newPosts];
+          });
+          setHasMoreDiscussions(Boolean(response.data.hasMore));
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (isMounted) setHasMoreDiscussions(false);
+      })
+      .finally(() => {
+        if (isMounted) setLoadingDiscussions(false);
+      });
 
     return () => {
       isMounted = false;
     };
-  }, [selectedCategory, searchQuery, sortBy]);
+  }, [selectedCategory, searchQuery, sortBy, sentimentFilter, postTypeFilter, discussionPage]);
 
-  const filteredDiscussions = discussionList.filter(d =>
-    (selectedCategory === "all" || d.category === categories.find(c => c.id === selectedCategory)?.name)
-    && (!searchQuery || `${d.title} ${d.content}`.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const filteredDiscussions = discussionList.filter((discussion) => {
+    const selectedCategoryName = categories.find((category) => category.id === selectedCategory)?.name;
+    const searchableText = `${discussion.title} ${discussion.content} ${discussion.category} ${(discussion.tags || []).join(" ")}`.toLowerCase();
+    const matchesCategory = selectedCategory === "all" || discussion.category === selectedCategoryName;
+    const matchesSearch = !searchQuery || searchableText.includes(searchQuery.toLowerCase());
+    const matchesSentiment = sentimentFilter === "all" || discussion.sentiment === sentimentFilter;
+    const matchesType =
+      postTypeFilter === "all" ||
+      (postTypeFilter === "polls" && discussion.isPoll) ||
+      (postTypeFilter === "discussions" && !discussion.isPoll);
+
+    return matchesCategory && matchesSearch && matchesSentiment && matchesType;
+  });
+
+  const resetFilters = () => {
+    setSearchQuery("");
+    setSelectedCategory("all");
+    setSortBy("recent");
+    setSentimentFilter("all");
+    setPostTypeFilter("all");
+    setDiscussionPage(1);
+  };
 
   const handleCreatePost = async (post: any) => {
     if (!canCreatePost) return;
@@ -378,13 +438,19 @@ export function Forum() {
                   type="text"
                   placeholder="Search discussions..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setDiscussionPage(1);
+                    setSearchQuery(e.target.value);
+                  }}
                   className="w-full pl-9 pr-4 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                 />
               </div>
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
+                onChange={(e) => {
+                  setDiscussionPage(1);
+                  setSortBy(e.target.value);
+                }}
                 className="px-4 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
               >
                 <option value="recent">Most Recent</option>
@@ -392,11 +458,75 @@ export function Forum() {
                 <option value="discussed">Most Discussed</option>
                 <option value="unanswered">Unanswered</option>
               </select>
-              <Button variant="outline" size="sm" className="gap-2">
+              <Button
+                variant={showFilters ? "primary" : "outline"}
+                size="sm"
+                className="gap-2"
+                onClick={() => setShowFilters((isVisible) => !isVisible)}
+              >
                 <Filter className="w-4 h-4" />
                 Filters
+                {activeFilterCount > 0 && (
+                  <span className="ml-1 rounded-full bg-white/20 px-2 py-0.5 text-xs">
+                    {activeFilterCount}
+                  </span>
+                )}
               </Button>
             </div>
+            {showFilters && (
+              <div className="mt-4 grid gap-4 rounded-lg border border-border bg-background/60 p-4 md:grid-cols-2">
+                <div>
+                  <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Sentiment</p>
+                  <div className="flex flex-wrap gap-2">
+                    {sentimentFilters.map((filter) => (
+                      <button
+                        key={filter.id}
+                        onClick={() => {
+                          setDiscussionPage(1);
+                          setSentimentFilter(filter.id);
+                        }}
+                        className={`rounded-lg border px-3 py-1.5 text-sm transition-all ${
+                          sentimentFilter === filter.id
+                            ? "border-[var(--primary)] bg-[var(--primary)] text-white"
+                            : "border-border bg-card text-muted-foreground hover:border-[var(--primary)]/50"
+                        }`}
+                      >
+                        {filter.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Post Type</p>
+                    <button
+                      onClick={resetFilters}
+                      className="text-xs text-[var(--primary)] hover:text-[var(--primary)]/80"
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {postTypeFilters.map((filter) => (
+                      <button
+                        key={filter.id}
+                        onClick={() => {
+                          setDiscussionPage(1);
+                          setPostTypeFilter(filter.id);
+                        }}
+                        className={`rounded-lg border px-3 py-1.5 text-sm transition-all ${
+                          postTypeFilter === filter.id
+                            ? "border-[var(--primary)] bg-[var(--primary)] text-white"
+                            : "border-border bg-card text-muted-foreground hover:border-[var(--primary)]/50"
+                        }`}
+                      >
+                        {filter.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </Card>
 
           {/* Category Filters */}
@@ -406,7 +536,10 @@ export function Forum() {
               return (
                 <button
                   key={cat.id}
-                  onClick={() => setSelectedCategory(cat.id)}
+                  onClick={() => {
+                    setDiscussionPage(1);
+                    setSelectedCategory(cat.id);
+                  }}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all whitespace-nowrap ${
                     selectedCategory === cat.id
                       ? 'bg-[var(--primary)] text-white border-[var(--primary)] shadow-md'
@@ -428,22 +561,42 @@ export function Forum() {
 
           {/* Discussion Feed */}
           <div className="space-y-4">
-            {filteredDiscussions.map((discussion) => (
-              <DiscussionCard
-                key={discussion.id}
-                discussion={discussion}
-                onEdit={openEditPost}
-                onDelete={openDeletePostDialog}
-              />
-            ))}
+            {filteredDiscussions.length > 0 ? (
+              filteredDiscussions.map((discussion) => (
+                <DiscussionCard
+                  key={discussion.id}
+                  discussion={discussion}
+                  onEdit={openEditPost}
+                  onDelete={openDeletePostDialog}
+                />
+              ))
+            ) : (
+              <Card className="p-8 text-center">
+                <MessageSquare className="mx-auto mb-3 h-9 w-9 text-muted-foreground" />
+                <p className="text-foreground">No discussions found</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Try another search, category, or filter.
+                </p>
+                <Button variant="outline" size="sm" className="mt-4" onClick={resetFilters}>
+                  Clear Filters
+                </Button>
+              </Card>
+            )}
           </div>
 
           {/* Load More */}
-          <div className="text-center">
-            <Button variant="outline" className="gap-2">
-              Load More Discussions
-            </Button>
-          </div>
+          {hasMoreDiscussions && (
+            <div className="text-center">
+              <Button
+                variant="outline"
+                className="gap-2"
+                disabled={loadingDiscussions}
+                onClick={() => setDiscussionPage((page) => page + 1)}
+              >
+                {loadingDiscussions ? "Loading..." : "Load More Discussions"}
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Sidebar */}

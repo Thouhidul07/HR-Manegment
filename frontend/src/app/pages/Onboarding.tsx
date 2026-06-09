@@ -107,6 +107,7 @@ export function Onboarding() {
   const [activeType, setActiveType] = useState<LifecycleType>("onboarding");
   const [stats, setStats] = useState<LifecycleStats>(emptyStats);
   const [cases, setCases] = useState<LifecycleCase[]>([]);
+  const [caseFilter, setCaseFilter] = useState<"all" | "active" | "completed">("all");
   const [eligibleUsers, setEligibleUsers] = useState<EligibleUser[]>([]);
   const [selectedCaseId, setSelectedCaseId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -114,7 +115,23 @@ export function Onboarding() {
   const [error, setError] = useState("");
   const [form, setForm] = useState({ userId: "", startDate: "", targetDate: "" });
 
-  const selectedCase = useMemo(() => cases.find((item) => item.id === selectedCaseId) || cases[0] || null, [cases, selectedCaseId]);
+  const filteredCases = useMemo(() => {
+    if (caseFilter === "active") {
+      return cases.filter((item) => item.status === "in_progress" || item.status === "not_started");
+    }
+    if (caseFilter === "completed") {
+      return cases.filter((item) => item.status === "completed");
+    }
+    return cases;
+  }, [cases, caseFilter]);
+
+  const selectedCase = useMemo(() => {
+    const found = cases.find((item) => item.id === selectedCaseId);
+    if (found && filteredCases.some((item) => item.id === selectedCaseId)) {
+      return found;
+    }
+    return filteredCases[0] || null;
+  }, [cases, filteredCases, selectedCaseId]);
 
   async function loadData(type: LifecycleType = activeType) {
     setLoading(true);
@@ -144,6 +161,7 @@ export function Onboarding() {
   }
 
   useEffect(() => {
+    setCaseFilter("all");
     loadData(activeType);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeType]);
@@ -290,10 +308,26 @@ export function Onboarding() {
       {error && <div className="rounded-lg border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="p-4"><p className="text-sm text-muted-foreground">Active {activeType === "onboarding" ? "Onboarding" : "Offboarding"}</p><p className="text-2xl text-foreground mt-1">{loading ? "..." : stats.activeOnboarding}</p></Card>
-        <Card className="p-4"><p className="text-sm text-muted-foreground">Completed This Month</p><p className="text-2xl text-foreground mt-1">{loading ? "..." : stats.completedThisMonth}</p></Card>
-        <Card className="p-4"><p className="text-sm text-muted-foreground">Pending Tasks</p><p className="text-2xl text-foreground mt-1">{loading ? "..." : stats.pendingTasks}</p></Card>
-        <Card className="p-4"><p className="text-sm text-muted-foreground">Average Time</p><p className="text-2xl text-foreground mt-1">{loading ? "..." : `${stats.averageTimeDays || 0} days`}</p></Card>
+        <Card
+          className={`p-4 cursor-pointer transition-all hover:scale-102 hover:shadow-sm border-2 ${
+            caseFilter === "active" ? "border-primary bg-primary/5" : "border-transparent"
+          }`}
+          onClick={() => setCaseFilter(caseFilter === "active" ? "all" : "active")}
+        >
+          <p className="text-sm text-muted-foreground">Active {activeType === "onboarding" ? "Onboarding" : "Offboarding"}</p>
+          <p className="text-2xl text-foreground mt-1">{loading ? "..." : stats.activeOnboarding}</p>
+        </Card>
+        <Card
+          className={`p-4 cursor-pointer transition-all hover:scale-102 hover:shadow-sm border-2 ${
+            caseFilter === "completed" ? "border-primary bg-primary/5" : "border-transparent"
+          }`}
+          onClick={() => setCaseFilter(caseFilter === "completed" ? "all" : "completed")}
+        >
+          <p className="text-sm text-muted-foreground">Completed This Month</p>
+          <p className="text-2xl text-foreground mt-1">{loading ? "..." : stats.completedThisMonth}</p>
+        </Card>
+        <Card className="p-4 bg-card"><p className="text-sm text-muted-foreground">Pending Tasks</p><p className="text-2xl text-foreground mt-1">{loading ? "..." : stats.pendingTasks}</p></Card>
+        <Card className="p-4 bg-card"><p className="text-sm text-muted-foreground">Average Time</p><p className="text-2xl text-foreground mt-1">{loading ? "..." : `${stats.averageTimeDays || 0} days`}</p></Card>
       </div>
 
       <Card>
@@ -333,9 +367,9 @@ export function Onboarding() {
               <span className="inline-block w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
               Loading {activeType} cases...
             </div>
-          ) : cases.length ? (
+          ) : filteredCases.length ? (
             <div className="space-y-4">
-              {cases.map((item) => (
+              {filteredCases.map((item) => (
                 <button
                   type="button"
                   key={item.id}
@@ -369,7 +403,9 @@ export function Onboarding() {
               ))}
             </div>
           ) : (
-            <div className="py-12 text-center text-sm text-muted-foreground">No {activeType} cases yet. Create one from the form above.</div>
+            <div className="py-12 text-center text-sm text-muted-foreground">
+              {cases.length ? "No cases match the selected filter." : `No ${activeType} cases yet. Create one from the form above.`}
+            </div>
           )}
         </CardContent>
       </Card>

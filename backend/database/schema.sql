@@ -325,3 +325,23 @@ CREATE TABLE IF NOT EXISTS notifications (
   INDEX idx_notifications_user_read (user_id, is_read, created_at),
   INDEX idx_notifications_company (company_id, created_at)
 );
+
+CREATE TABLE IF NOT EXISTS tasks (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  company_id INT NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  category ENUM('general','performance','expense','training','attendance','leave','onboarding','offboarding','custom') NOT NULL DEFAULT 'general',
+  priority ENUM('low','medium','high','urgent') NOT NULL DEFAULT 'medium',
+  status ENUM('todo','in_progress','completed','cancelled') NOT NULL DEFAULT 'todo',
+  assigned_to INT NOT NULL,
+  assigned_by INT NOT NULL,
+  due_date DATE,
+  completed_at DATETIME,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+  FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE CASCADE
+);
+

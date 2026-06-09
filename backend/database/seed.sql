@@ -88,3 +88,11 @@ VALUES
   (1, 3, 'training', 'Training session starts soon', 'Workplace Safety starts next week.', '/dashboard/training'),
   (1, 3, 'payroll', 'Payslip available', 'Your latest payslip is ready to view.', '/dashboard/payslips'),
   (1, 3, 'leave', 'Leave balance updated', 'Your annual leave balance has been refreshed.', '/dashboard/leave');
+
+INSERT INTO tasks (company_id, title, description, category, priority, status, assigned_to, assigned_by, due_date)
+VALUES 
+  (1, 'Complete Safety Compliance training', 'Review and complete safety policies.', 'training', 'medium', 'todo', 3, 1, DATE_ADD(CURDATE(), INTERVAL 7 DAY)),
+  (1, 'Submit Q1 performance feedback', 'Submit peer reviews for IT team members.', 'performance', 'high', 'in_progress', 3, 2, DATE_ADD(CURDATE(), INTERVAL 3 DAY)),
+  (1, 'Refactor dashboard charts', 'Update charts to support interactive legends.', 'custom', 'low', 'todo', 3, 3, DATE_ADD(CURDATE(), INTERVAL 5 DAY)),
+  (1, 'Review recruitment pipeline', 'Review CV filter candidates for backend engineers.', 'general', 'urgent', 'in_progress', 2, 1, DATE_ADD(CURDATE(), INTERVAL 1 DAY));
+

@@ -1,5 +1,5 @@
 import { Target, TrendingUp, Award, Star } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import {
   Card,
   CardHeader,
@@ -68,6 +68,8 @@ type EmployeeOption = {
   department?: string;
   designation?: string;
 };
+
+type SkillAssessmentView = "current" | "target" | "both";
 
 const getDefaultReviewPeriod = () =>
   `Q${Math.ceil((new Date().getMonth() + 1) / 3)} ${new Date().getFullYear()}`;
@@ -189,6 +191,7 @@ const reviewCycle = [
 
 export function Performance() {
   const { user } = useAuth();
+  const [reviewFilter, setReviewFilter] = useState<"All" | "Pending" | "Top Performers">("All");
   const [performanceData, setPerformanceData] = useState<PerformanceRecord[]>(
     fallbackPerformanceData,
   );
@@ -198,6 +201,7 @@ export function Performance() {
   const [isStartModalOpen, setIsStartModalOpen] = useState(false);
   const [isSelfModalOpen, setIsSelfModalOpen] = useState(false);
   const [isFinalizeModalOpen, setIsFinalizeModalOpen] = useState(false);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [selectedReview, setSelectedReview] =
     useState<PerformanceReview | null>(null);
   const [startReviewForm, setStartReviewForm] = useState(
@@ -210,6 +214,8 @@ export function Performance() {
   const [savingReview, setSavingReview] = useState(false);
   const [performanceMessage, setPerformanceMessage] = useState("");
   const [performanceError, setPerformanceError] = useState("");
+  const [skillAssessmentView, setSkillAssessmentView] =
+    useState<SkillAssessmentView>("both");
   const isAdmin = user?.role === "admin";
   const isEmployee = user?.role === "employee";
   const isHRManager = user?.role === "hr_manager";
@@ -224,6 +230,22 @@ export function Performance() {
     if (score >= 4.2) return "Excellent";
     if (score >= 3.5) return "Good";
     return review.status === "approved" ? "Finalized" : "Pending";
+  };
+
+  const performanceStatusClass = (status: string) => {
+    if (["Outstanding", "Excellent", "Finalized"].includes(status)) {
+      return "border-emerald-400/30 bg-emerald-400/15 text-emerald-300";
+    }
+
+    if (status === "Submitted") {
+      return "border-amber-400/30 bg-amber-400/15 text-amber-300";
+    }
+
+    if (status === "Good") {
+      return "border-sky-400/30 bg-sky-400/15 text-sky-300";
+    }
+
+    return "border-rose-400/30 bg-rose-400/15 text-rose-300";
   };
 
   const mapReviewToRecord = (review: PerformanceReview): PerformanceRecord => {
@@ -322,6 +344,26 @@ export function Performance() {
   const reviewsPending = performanceData.filter((record) =>
     ["draft", "Pending", "Submitted"].includes(record.status),
   ).length;
+  const currentSkillAverage = Math.round(
+    skillsData.reduce((sum, skill) => sum + skill.current, 0) / skillsData.length,
+  );
+  const targetSkillAverage = Math.round(
+    skillsData.reduce((sum, skill) => sum + skill.target, 0) / skillsData.length,
+  );
+
+  const filteredPerformanceData = useMemo(() => {
+    if (reviewFilter === "Pending") {
+      return performanceData.filter((record) =>
+        ["draft", "Pending", "Submitted"].includes(record.status)
+      );
+    }
+    if (reviewFilter === "Top Performers") {
+      return performanceData.filter((record) =>
+        Number(record.overall || 0) >= 4.5
+      );
+    }
+    return performanceData;
+  }, [performanceData, reviewFilter]);
 
   const showPerformanceFeedback = (message: string, isError = false) => {
     if (isError) {
@@ -373,11 +415,19 @@ export function Performance() {
     setIsFinalizeModalOpen(true);
   };
 
+  const openViewReviewModal = (review: PerformanceReview | null) => {
+    if (!review) return;
+    setSelectedReview(review);
+    setPerformanceError("");
+    setIsViewModalOpen(true);
+  };
+
   const closeReviewModals = () => {
     if (savingReview) return;
     setIsStartModalOpen(false);
     setIsSelfModalOpen(false);
     setIsFinalizeModalOpen(false);
+    setIsViewModalOpen(false);
     setSelectedReview(null);
   };
 
@@ -518,47 +568,56 @@ export function Performance() {
         )}
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="p-4">
+        <Card 
+          className={`p-4 cursor-pointer transition-all hover:scale-102 hover:shadow-sm border-2 ${reviewFilter === "All" ? "border-primary bg-primary/5" : "border-transparent"}`}
+          onClick={() => setReviewFilter("All")}
+        >
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 rounded-lg bg-[var(--chart-1)]/20">
               <Target className="w-5 h-5 text-[var(--chart-1)]" />
             </div>
             <p className="text-sm text-muted-foreground">Overall Rating</p>
           </div>
-          <p className="text-2xl text-foreground">{averageRating}/5.0</p>
+          <p className="text-2xl text-foreground font-bold">{averageRating}/5.0</p>
           <p className="text-xs text-muted-foreground mt-1">Average score</p>
         </Card>
 
-        <Card className="p-4">
+        <Card className="p-4 bg-card">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 rounded-lg bg-[var(--chart-2)]/20">
               <TrendingUp className="w-5 h-5 text-[var(--chart-2)]" />
             </div>
             <p className="text-sm text-muted-foreground">Goals Achieved</p>
           </div>
-          <p className="text-2xl text-foreground">{goalsAchieved}%</p>
+          <p className="text-2xl text-foreground font-bold">{goalsAchieved}%</p>
           <p className="text-xs text-muted-foreground mt-1">This quarter</p>
         </Card>
 
-        <Card className="p-4">
+        <Card 
+          className={`p-4 cursor-pointer transition-all hover:scale-102 hover:shadow-sm border-2 ${reviewFilter === "Top Performers" ? "border-primary bg-primary/5" : "border-transparent"}`}
+          onClick={() => setReviewFilter(reviewFilter === "Top Performers" ? "All" : "Top Performers")}
+        >
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 rounded-lg bg-[var(--chart-3)]/20">
               <Award className="w-5 h-5 text-[var(--chart-3)]" />
             </div>
             <p className="text-sm text-muted-foreground">Top Performers</p>
           </div>
-          <p className="text-2xl text-foreground">{topPerformers}</p>
+          <p className="text-2xl text-foreground font-bold">{topPerformers}</p>
           <p className="text-xs text-muted-foreground mt-1">4.5+ rating</p>
         </Card>
 
-        <Card className="p-4">
+        <Card 
+          className={`p-4 cursor-pointer transition-all hover:scale-102 hover:shadow-sm border-2 ${reviewFilter === "Pending" ? "border-primary bg-primary/5" : "border-transparent"}`}
+          onClick={() => setReviewFilter(reviewFilter === "Pending" ? "All" : "Pending")}
+        >
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 rounded-lg bg-[var(--chart-4)]/20">
               <Star className="w-5 h-5 text-[var(--chart-4)]" />
             </div>
             <p className="text-sm text-muted-foreground">Reviews Pending</p>
           </div>
-          <p className="text-2xl text-foreground">{reviewsPending}</p>
+          <p className="text-2xl text-foreground font-bold">{reviewsPending}</p>
         </Card>
       </div>
 
@@ -567,7 +626,29 @@ export function Performance() {
         {/* Skills Assessment */}
         <Card>
           <CardHeader>
-            <CardTitle>Skills Assessment</CardTitle>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle>Skills Assessment</CardTitle>
+              <div className="flex rounded-xl border border-border bg-background/40 p-1">
+                {[
+                  { key: "current", label: "Current" },
+                  { key: "target", label: "Target" },
+                  { key: "both", label: "Both" },
+                ].map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => setSkillAssessmentView(option.key as SkillAssessmentView)}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                      skillAssessmentView === option.key
+                        ? "bg-[#9A77CF]/25 text-white"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -582,31 +663,39 @@ export function Performance() {
                   domain={[0, 100]}
                   stroke="var(--muted-foreground)"
                 />
-                <Radar
-                  name="Current"
-                  dataKey="current"
-                  stroke="var(--chart-1)"
-                  fill="var(--chart-1)"
-                  fillOpacity={0.3}
-                />
-                <Radar
-                  name="Target"
-                  dataKey="target"
-                  stroke="var(--chart-2)"
-                  fill="var(--chart-2)"
-                  fillOpacity={0.2}
-                />
+                {(skillAssessmentView === "current" || skillAssessmentView === "both") && (
+                  <Radar
+                    name="Current"
+                    dataKey="current"
+                    stroke="var(--chart-1)"
+                    fill="var(--chart-1)"
+                    fillOpacity={0.3}
+                  />
+                )}
+                {(skillAssessmentView === "target" || skillAssessmentView === "both") && (
+                  <Radar
+                    name="Target"
+                    dataKey="target"
+                    stroke="var(--chart-2)"
+                    fill="var(--chart-2)"
+                    fillOpacity={0.2}
+                  />
+                )}
               </RadarChart>
             </ResponsiveContainer>
             <div className="flex gap-4 justify-center mt-4">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-[var(--chart-1)]"></div>
-                <span className="text-xs text-muted-foreground">Current</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-[var(--chart-2)]"></div>
-                <span className="text-xs text-muted-foreground">Target</span>
-              </div>
+              {(skillAssessmentView === "current" || skillAssessmentView === "both") && (
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-[var(--chart-1)]"></div>
+                  <span className="text-xs text-muted-foreground">Current avg: {currentSkillAverage}%</span>
+                </div>
+              )}
+              {(skillAssessmentView === "target" || skillAssessmentView === "both") && (
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-[var(--chart-2)]"></div>
+                  <span className="text-xs text-muted-foreground">Target avg: {targetSkillAverage}%</span>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -618,43 +707,47 @@ export function Performance() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {goals.map((goal) => (
-                <div
-                  key={goal.id}
-                  className="p-4 rounded-lg border border-border hover:border-primary/50 transition-colors"
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <h4 className="text-sm text-foreground">{goal.title}</h4>
-                    <Badge
-                      variant={
-                        goal.status === "Ahead"
-                          ? "success"
-                          : goal.status === "On Track"
-                            ? "info"
-                            : "warning"
-                      }
-                      size="sm"
-                    >
-                      {goal.status}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground mb-2">
-                    Due: {goal.dueDate}
-                  </p>
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">Progress</span>
-                      <span className="text-foreground">{goal.progress}%</span>
+              {goals.length > 0 ? (
+                goals.map((goal) => (
+                  <div
+                    key={goal.id}
+                    className="p-4 rounded-lg border border-border hover:border-primary/50 transition-colors"
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <h4 className="text-sm text-foreground">{goal.title}</h4>
+                      <Badge
+                        variant={
+                          goal.status === "Ahead"
+                            ? "success"
+                            : goal.status === "On Track"
+                              ? "info"
+                              : "warning"
+                        }
+                        size="sm"
+                      >
+                        {goal.status}
+                      </Badge>
                     </div>
-                    <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-primary transition-all"
-                        style={{ width: `${goal.progress}%` }}
-                      />
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Due: {goal.dueDate}
+                    </p>
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Progress</span>
+                        <span className="text-foreground">{goal.progress}%</span>
+                      </div>
+                      <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-primary transition-all"
+                          style={{ width: `${goal.progress}%` }}
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-8">No goals added.</p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -753,7 +846,7 @@ export function Performance() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {performanceData.map((record) => {
+              {filteredPerformanceData.map((record) => {
                 const review = reviews.find((item) => item.id === record.id);
                 const canSubmitSelfAssessment =
                   isEmployee && review?.status === "draft";
@@ -794,17 +887,7 @@ export function Performance() {
                       {record.leadership}
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant={
-                          record.status === "Outstanding" ||
-                          record.status === "Excellent" ||
-                          record.status === "Finalized"
-                            ? "success"
-                            : record.status === "Submitted"
-                              ? "warning"
-                              : "info"
-                        }
-                      >
+                      <Badge variant="outline" className={performanceStatusClass(record.status)}>
                         {record.status}
                       </Badge>
                     </TableCell>
@@ -829,7 +912,12 @@ export function Performance() {
                       )}
                       {(!review ||
                         (!canSubmitSelfAssessment && !canFinalizeReview)) && (
-                        <Button variant="ghost" size="sm">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openViewReviewModal(review || null)}
+                          disabled={!review}
+                        >
                           View
                         </Button>
                       )}
@@ -837,6 +925,13 @@ export function Performance() {
                   </TableRow>
                 );
               })}
+              {!filteredPerformanceData.length && (
+                <TableRow>
+                  <TableCell colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
+                    No performance records found.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -1054,6 +1149,70 @@ export function Performance() {
             />
           </div>
         </div>
+      </Modal>
+
+      <Modal
+        isOpen={isViewModalOpen}
+        onClose={closeReviewModals}
+        title="Performance Review Details"
+        size="lg"
+        footer={
+          <Button variant="outline" onClick={closeReviewModals}>
+            Close
+          </Button>
+        }
+      >
+        {selectedReview && (
+          <div className="space-y-5">
+            <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-accent/20 p-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Employee</p>
+                <p className="text-lg font-medium text-foreground">{selectedReview.employee}</p>
+                <p className="text-sm text-muted-foreground">
+                  {selectedReview.reviewPeriod}
+                </p>
+              </div>
+              <Badge variant="outline" className={performanceStatusClass(getPerformanceStatus(selectedReview))}>
+                {getPerformanceStatus(selectedReview)}
+              </Badge>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="rounded-lg border border-border p-4">
+                <p className="text-xs text-muted-foreground">Reviewer</p>
+                <p className="text-sm text-foreground">{selectedReview.reviewer || "Not assigned"}</p>
+              </div>
+              <div className="rounded-lg border border-border p-4">
+                <p className="text-xs text-muted-foreground">Score</p>
+                <p className="text-sm text-foreground">
+                  {selectedReview.score ? `${Number(selectedReview.score).toFixed(1)} / 5.0` : "Pending"}
+                </p>
+              </div>
+              <div className="rounded-lg border border-border p-4">
+                <p className="text-xs text-muted-foreground">Raw Status</p>
+                <p className="text-sm capitalize text-foreground">{selectedReview.status}</p>
+              </div>
+            </div>
+
+            <div>
+              <p className="text-sm font-medium text-foreground mb-2">Goals</p>
+              <div className="space-y-2">
+                {(selectedReview.goals?.length ? selectedReview.goals : ["No goals added."]).map((goal, index) => (
+                  <div key={`${goal}-${index}`} className="rounded-lg border border-border bg-background/40 px-3 py-2 text-sm text-muted-foreground">
+                    {goal}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-sm font-medium text-foreground mb-2">Feedback / Comments</p>
+              <p className="rounded-lg border border-border bg-background/40 p-3 text-sm text-muted-foreground">
+                {selectedReview.feedback || "No feedback added yet."}
+              </p>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

@@ -17,6 +17,7 @@ router.use("/peer-reviews", require("../main/peerReviews/peerReviews.routes"));
 router.use("/cv-filter", require("../main/cvFilter/cvFilter.routes"));
 router.use("/projects", require("../main/projects/projects.routes"));
 router.use("/forum", require("../main/forum/forum.routes"));
+router.use("/tasks", require("../main/tasks/tasks.routes"));
 
 router.use("/admin", require("../roles/admin/admin.routes"));
 router.use("/hr-manager", require("../roles/hrManager/hrManager.routes"));

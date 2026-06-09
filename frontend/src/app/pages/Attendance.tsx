@@ -32,6 +32,7 @@ type AttendanceRecord = {
   name?: string;
   avatar?: string;
   date?: string;
+  workDate?: string;
   checkIn: string;
   checkOut: string;
   hours: string;
@@ -223,6 +224,44 @@ const getDisplayDate = (dateValue: string) => {
   });
 };
 
+type WeeklyOverviewFilter = "all" | "present" | "late" | "absent" | "leave";
+
+const getDateKey = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
+const getRecordDateKey = (record: AttendanceRecord) => {
+  if (record.workDate) return record.workDate;
+
+  if (record.date === "Today") return getDateKey(new Date());
+
+  if (record.date === "Yesterday") {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    return getDateKey(yesterday);
+  }
+
+  if (record.date) {
+    const parsed = new Date(record.date);
+    if (!Number.isNaN(parsed.getTime())) return getDateKey(parsed);
+  }
+
+  return "";
+};
+
+const isSameWeek = (dateKey: string, baseDate: Date) => {
+  const date = new Date(`${dateKey}T00:00:00`);
+  const weekStart = new Date(baseDate);
+  const day = weekStart.getDay();
+  weekStart.setDate(weekStart.getDate() - (day === 0 ? 6 : day - 1));
+  weekStart.setHours(0, 0, 0, 0);
+
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  weekEnd.setHours(23, 59, 59, 999);
+
+  return date >= weekStart && date <= weekEnd;
+};
+
 export function Attendance() {
   const { user } = useAuth();
   const location = useLocation();
@@ -242,6 +281,15 @@ export function Attendance() {
     breakMinutes: "45",
     status: "present",
   });
+
+  // Interactive Filter states
+  const [selectedStatus, setSelectedStatus] = useState<string>("All");
+  const [weeklyOverview, setWeeklyOverview] = useState<any[]>([]);
+  const [summaryData, setSummaryData] = useState<any>({ present: 0, late: 0, absent: 0, leave: 0 });
+  const [weeklyOverviewFilter, setWeeklyOverviewFilter] = useState<WeeklyOverviewFilter>("all");
+  const [periodFilter, setPeriodFilter] = useState("month");
+  const attendanceStatusRequiresTime = attendanceForm.status === "present" || attendanceForm.status === "late";
+
   const isAdmin = user?.role === "admin";
   const isEmployee = user?.role === "employee";
   const pageTitle =
@@ -273,6 +321,7 @@ export function Attendance() {
       name: record.name,
       avatar: record.avatar,
       date: getDisplayDate(record.date),
+      workDate: record.workDate || (record.date ? String(record.date).slice(0, 10) : ""),
       checkIn: checkInDate
         ? checkInDate.toLocaleTimeString("en-US", {
             hour: "numeric",
@@ -301,21 +350,49 @@ export function Attendance() {
     setAttendanceLoading(true);
 
     try {
-      const response = await api.get("/attendance");
+      const params: any = {};
+      if (selectedStatus !== "All") {
+        const apiStatusMap: Record<string, string> = {
+          "Present": "present",
+          "Late": "late",
+          "Absent": "absent",
+          "On Leave": "leave"
+        };
+        params.status = apiStatusMap[selectedStatus] || selectedStatus;
+      }
+      const response = await api.get("/attendance", { params });
       setAttendanceRecords(
         response.data.records?.length
           ? response.data.records.map(mapApiAttendanceRecord)
           : [],
       );
+
+      // load summary and weekly overview
+      const [summaryRes, weeklyRes] = await Promise.all([
+        api.get("/attendance/summary"),
+        api.get("/attendance/weekly-overview")
+      ]);
+      if (summaryRes.data) {
+        setSummaryData(summaryRes.data);
+      }
+      if (weeklyRes.data?.overview) {
+        setWeeklyOverview(weeklyRes.data.overview);
+      }
     } catch {
       setAttendanceRecords([]);
     } finally {
       setAttendanceLoading(false);
     }
-  }, [mapApiAttendanceRecord]);
+  }, [selectedStatus, mapApiAttendanceRecord]);
 
   useEffect(() => {
     if (isEmployee && location.state?.openLogAttendance) {
+      if (location.state?.workDate) {
+        setAttendanceForm((form) => ({
+          ...form,
+          workDate: location.state.workDate,
+        }));
+      }
       setIsLogModalOpen(true);
     }
   }, [isEmployee, location.state]);
@@ -324,11 +401,41 @@ export function Attendance() {
     loadAttendance();
   }, [loadAttendance]);
 
-  const visibleRecords = attendanceRecords.length
+  const rawRecords = attendanceRecords.length
     ? attendanceRecords
     : isEmployee
       ? myAttendanceData
       : attendanceData;
+
+  const visibleRecords = useMemo(() => {
+    if (selectedStatus === "All") return rawRecords;
+    return rawRecords.filter((record) => {
+      const recStatus = record.status.toLowerCase() === "leave" ? "on leave" : record.status.toLowerCase();
+      const selStatus = selectedStatus.toLowerCase() === "leave" ? "on leave" : selectedStatus.toLowerCase();
+      return recStatus === selStatus;
+    });
+  }, [rawRecords, selectedStatus]);
+
+  const filteredRecords = useMemo(() => {
+    const today = new Date();
+    const todayKey = getDateKey(today);
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    const yesterdayKey = getDateKey(yesterday);
+    const currentMonth = todayKey.slice(0, 7);
+
+    return visibleRecords.filter((record) => {
+      const dateKey = getRecordDateKey(record);
+
+      if (!dateKey) return periodFilter === "all";
+      if (periodFilter === "today") return dateKey === todayKey;
+      if (periodFilter === "yesterday") return dateKey === yesterdayKey;
+      if (periodFilter === "week") return isSameWeek(dateKey, today);
+      if (periodFilter === "month") return dateKey.startsWith(currentMonth);
+      return true;
+    });
+  }, [periodFilter, visibleRecords]);
+
   const todayRecord = useMemo(
     () =>
       isEmployee
@@ -340,18 +447,20 @@ export function Attendance() {
     Boolean(todayRecord) && todayRecord?.checkIn !== "-";
   const hasClockedOutToday =
     Boolean(todayRecord) && todayRecord?.checkOut !== "-";
-  const presentCount = visibleRecords.filter(
-    (record) => record.status === "Present",
-  ).length;
-  const lateCount = visibleRecords.filter(
-    (record) => record.status === "Late",
-  ).length;
-  const absentCount = visibleRecords.filter(
-    (record) => record.status === "Absent",
-  ).length;
-  const leaveCount = visibleRecords.filter(
-    (record) => record.status === "On Leave",
-  ).length;
+
+  // Use values from backend summary where available, otherwise count filtered records
+  const presentCount = attendanceRecords.length ? summaryData.present : filteredRecords.filter((record) => record.status === "Present").length;
+  const lateCount = attendanceRecords.length ? summaryData.late : filteredRecords.filter((record) => record.status === "Late").length;
+  const absentCount = attendanceRecords.length ? summaryData.absent : filteredRecords.filter((record) => record.status === "Absent").length;
+  const leaveCount = attendanceRecords.length ? summaryData.leave : filteredRecords.filter((record) => record.status === "On Leave").length;
+
+  const handleToggleFilter = (status: string) => {
+    if (selectedStatus === status) {
+      setSelectedStatus("All");
+    } else {
+      setSelectedStatus(status);
+    }
+  };
 
   const showAttendanceFeedback = (message: string, isError = false) => {
     if (isError) {
@@ -412,12 +521,18 @@ export function Attendance() {
 
     setAttendanceLoading(true);
     try {
-      const response = await api.post("/attendance/log", {
-        workDate: attendanceForm.workDate,
-        clockIn: attendanceForm.checkIn,
-        clockOut: attendanceForm.checkOut,
-        status: attendanceForm.status,
-      });
+      const payload = attendanceStatusRequiresTime
+        ? {
+            workDate: attendanceForm.workDate,
+            clockIn: attendanceForm.checkIn,
+            clockOut: attendanceForm.checkOut,
+            status: attendanceForm.status,
+          }
+        : {
+            workDate: attendanceForm.workDate,
+            status: attendanceForm.status,
+          };
+      const response = await api.post("/attendance/log", payload);
       const mappedRecord = mapApiAttendanceRecord(response.data.record);
 
       setAttendanceRecords((records) => [
@@ -491,11 +606,16 @@ export function Attendance() {
               </Button>
             </>
           )}
-          <select className="px-4 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
-            <option>Today - Jun 1, 2026</option>
-            <option>Yesterday</option>
-            <option>This Week</option>
-            <option>This Month</option>
+          <select
+            value={periodFilter}
+            onChange={(event) => setPeriodFilter(event.target.value)}
+            className="px-4 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent cursor-pointer"
+          >
+            <option value="today">Today</option>
+            <option value="yesterday">Yesterday</option>
+            <option value="week">This Week</option>
+            <option value="month">This Month</option>
+            <option value="all">All Records</option>
           </select>
         </div>
       </div>
@@ -514,63 +634,95 @@ export function Attendance() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="p-4">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 rounded-lg bg-[var(--success)]/20">
-              <Users className="w-5 h-5 text-[var(--success)]" />
+        <Card 
+          className={`p-4 cursor-pointer transition-all hover:scale-102 hover:shadow-sm border-2 ${selectedStatus === "Present" ? "border-primary bg-primary/5" : "border-transparent"}`}
+          onClick={() => handleToggleFilter("Present")}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 rounded-lg bg-[var(--success)]/20">
+                <Users className="w-5 h-5 text-[var(--success)]" />
+              </div>
+              <p className="text-sm text-muted-foreground">Present</p>
             </div>
-            <p className="text-sm text-muted-foreground">Present</p>
+            {selectedStatus === "Present" && (
+              <Badge variant="success" size="sm">Filtered</Badge>
+            )}
           </div>
-          <p className="text-2xl text-foreground">
-            {isEmployee ? presentCount : (attendanceRecords.length ? presentCount : 8)}
+          <p className="text-2xl text-foreground font-bold">
+            {presentCount}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            {isEmployee ? "Your records" : `${Math.round(((isEmployee ? presentCount : (attendanceRecords.length ? presentCount : 8)) / 11) * 100)}% of total`}
+            {isEmployee ? "Your records" : `${Math.round((presentCount / 11) * 100)}% of total`}
           </p>
         </Card>
 
-        <Card className="p-4">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 rounded-lg bg-[var(--warning)]/20">
-              <Clock className="w-5 h-5 text-[var(--warning)]" />
+        <Card 
+          className={`p-4 cursor-pointer transition-all hover:scale-102 hover:shadow-sm border-2 ${selectedStatus === "Late" ? "border-primary bg-primary/5" : "border-transparent"}`}
+          onClick={() => handleToggleFilter("Late")}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 rounded-lg bg-[var(--warning)]/20">
+                <Clock className="w-5 h-5 text-[var(--warning)]" />
+              </div>
+              <p className="text-sm text-muted-foreground">Late Arrivals</p>
             </div>
-            <p className="text-sm text-muted-foreground">Late Arrivals</p>
+            {selectedStatus === "Late" && (
+              <Badge variant="warning" size="sm">Filtered</Badge>
+            )}
           </div>
-          <p className="text-2xl text-foreground">
-            {isEmployee ? lateCount : (attendanceRecords.length ? lateCount : 1)}
+          <p className="text-2xl text-foreground font-bold">
+            {lateCount}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            {isEmployee ? "Your records" : `${Math.round(((isEmployee ? lateCount : (attendanceRecords.length ? lateCount : 1)) / 11) * 100)}% of total`}
+            {isEmployee ? "Your records" : `${Math.round((lateCount / 11) * 100)}% of total`}
           </p>
         </Card>
 
-        <Card className="p-4">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 rounded-lg bg-destructive/20">
-              <Users className="w-5 h-5 text-destructive" />
+        <Card 
+          className={`p-4 cursor-pointer transition-all hover:scale-102 hover:shadow-sm border-2 ${selectedStatus === "Absent" ? "border-primary bg-primary/5" : "border-transparent"}`}
+          onClick={() => handleToggleFilter("Absent")}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 rounded-lg bg-destructive/20">
+                <Users className="w-5 h-5 text-destructive" />
+              </div>
+              <p className="text-sm text-muted-foreground">Absent</p>
             </div>
-            <p className="text-sm text-muted-foreground">Absent</p>
+            {selectedStatus === "Absent" && (
+              <Badge variant="error" size="sm">Filtered</Badge>
+            )}
           </div>
-          <p className="text-2xl text-foreground">
-            {isEmployee ? absentCount : (attendanceRecords.length ? absentCount : 1)}
+          <p className="text-2xl text-foreground font-bold">
+            {absentCount}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            {isEmployee ? "Your records" : `${Math.round(((isEmployee ? absentCount : (attendanceRecords.length ? absentCount : 1)) / 11) * 100)}% of total`}
+            {isEmployee ? "Your records" : `${Math.round((absentCount / 11) * 100)}% of total`}
           </p>
         </Card>
 
-        <Card className="p-4">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 rounded-lg bg-[var(--info)]/20">
-              <CalendarIcon className="w-5 h-5 text-[var(--info)]" />
+        <Card 
+          className={`p-4 cursor-pointer transition-all hover:scale-102 hover:shadow-sm border-2 ${selectedStatus === "On Leave" ? "border-primary bg-primary/5" : "border-transparent"}`}
+          onClick={() => handleToggleFilter("On Leave")}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 rounded-lg bg-[var(--info)]/20">
+                <CalendarIcon className="w-5 h-5 text-[var(--info)]" />
+              </div>
+              <p className="text-sm text-muted-foreground">On Leave</p>
             </div>
-            <p className="text-sm text-muted-foreground">On Leave</p>
+            {selectedStatus === "On Leave" && (
+              <Badge variant="info" size="sm">Filtered</Badge>
+            )}
           </div>
-          <p className="text-2xl text-foreground">
-            {isEmployee ? leaveCount : (attendanceRecords.length ? leaveCount : 1)}
+          <p className="text-2xl text-foreground font-bold">
+            {leaveCount}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            {isEmployee ? "Your records" : `${Math.round(((isEmployee ? leaveCount : (attendanceRecords.length ? leaveCount : 1)) / 11) * 100)}% of total`}
+            {isEmployee ? "Your records" : `${Math.round((leaveCount / 11) * 100)}% of total`}
           </p>
         </Card>
       </div>
@@ -581,7 +733,7 @@ export function Attendance() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {weeklyAttendance.map((day) => (
+            {(weeklyOverview.length ? weeklyOverview : weeklyAttendance).map((day) => (
               <div key={day.day} className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-foreground w-12">
@@ -589,54 +741,84 @@ export function Attendance() {
                   </span>
                   <div className="flex-1 flex gap-1 h-8">
                     <div
-                      className="bg-[var(--success)] rounded flex items-center justify-center text-xs text-white"
-                      style={{ width: `${(day.present / 11) * 100}%` }}
+                      className="bg-[var(--success)] rounded flex items-center justify-center text-xs text-white transition-all duration-200"
+                      style={{ 
+                        width: `${(day.present / 11) * 100}%`,
+                        opacity: selectedStatus === "All" || selectedStatus === "Present" ? 1 : 0.15
+                      }}
                       title={`Present: ${day.present}`}
                     >
-                      {day.present}
+                      {day.present > 0 && day.present}
                     </div>
                     <div
-                      className="bg-[var(--warning)] rounded flex items-center justify-center text-xs text-white"
-                      style={{ width: `${(day.late / 11) * 100}%` }}
+                      className="bg-[var(--warning)] rounded flex items-center justify-center text-xs text-white transition-all duration-200"
+                      style={{ 
+                        width: `${(day.late / 11) * 100}%`,
+                        opacity: selectedStatus === "All" || selectedStatus === "Late" ? 1 : 0.15
+                      }}
                       title={`Late: ${day.late}`}
                     >
-                      {day.late}
+                      {day.late > 0 && day.late}
                     </div>
                     <div
-                      className="bg-destructive rounded flex items-center justify-center text-xs text-white"
-                      style={{ width: `${(day.absent / 11) * 100}%` }}
+                      className="bg-destructive rounded flex items-center justify-center text-xs text-white transition-all duration-200"
+                      style={{ 
+                        width: `${(day.absent / 11) * 100}%`,
+                        opacity: selectedStatus === "All" || selectedStatus === "Absent" ? 1 : 0.15
+                      }}
                       title={`Absent: ${day.absent}`}
                     >
-                      {day.absent}
+                      {day.absent > 0 && day.absent}
                     </div>
                     <div
-                      className="bg-[var(--info)] rounded flex items-center justify-center text-xs text-white"
-                      style={{ width: `${(day.leave / 11) * 100}%` }}
+                      className="bg-[var(--info)] rounded flex items-center justify-center text-xs text-white transition-all duration-200"
+                      style={{ 
+                        width: `${(day.leave / 11) * 100}%`,
+                        opacity: selectedStatus === "All" || selectedStatus === "On Leave" ? 1 : 0.15
+                      }}
                       title={`Leave: ${day.leave}`}
                     >
-                      {day.leave}
+                      {day.leave > 0 && day.leave}
                     </div>
                   </div>
                 </div>
               </div>
             ))}
           </div>
-          <div className="flex gap-4 mt-6 pt-4 border-t border-border">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-wrap gap-4 mt-6 pt-4 border-t border-border">
+            <div 
+              onClick={() => setSelectedStatus("All")}
+              className={`flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-lg border transition-all ${selectedStatus === "All" ? "bg-primary text-primary-foreground border-primary font-medium" : "border-border hover:bg-accent/40 text-muted-foreground bg-accent/10"}`}
+            >
+              <span className="text-xs">All Records</span>
+            </div>
+            <div 
+              onClick={() => handleToggleFilter("Present")}
+              className={`flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-lg border transition-all ${selectedStatus === "Present" ? "bg-[var(--success)]/10 text-[var(--success)] border-[var(--success)]/30 font-medium" : "border-border hover:bg-accent/40 text-muted-foreground bg-accent/10"}`}
+            >
               <div className="w-3 h-3 rounded bg-[var(--success)]"></div>
-              <span className="text-xs text-muted-foreground">Present</span>
+              <span className="text-xs">Present</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div 
+              onClick={() => handleToggleFilter("Late")}
+              className={`flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-lg border transition-all ${selectedStatus === "Late" ? "bg-[var(--warning)]/10 text-[var(--warning)] border-[var(--warning)]/30 font-medium" : "border-border hover:bg-accent/40 text-muted-foreground bg-accent/10"}`}
+            >
               <div className="w-3 h-3 rounded bg-[var(--warning)]"></div>
-              <span className="text-xs text-muted-foreground">Late</span>
+              <span className="text-xs">Late</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div 
+              onClick={() => handleToggleFilter("Absent")}
+              className={`flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-lg border transition-all ${selectedStatus === "Absent" ? "bg-destructive/10 text-destructive border-destructive/30 font-medium" : "border-border hover:bg-accent/40 text-muted-foreground bg-accent/10"}`}
+            >
               <div className="w-3 h-3 rounded bg-destructive"></div>
-              <span className="text-xs text-muted-foreground">Absent</span>
+              <span className="text-xs">Absent</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div 
+              onClick={() => handleToggleFilter("On Leave")}
+              className={`flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-lg border transition-all ${selectedStatus === "On Leave" ? "bg-[var(--info)]/10 text-[var(--info)] border-[var(--info)]/30 font-medium" : "border-border hover:bg-accent/40 text-muted-foreground bg-accent/10"}`}
+            >
               <div className="w-3 h-3 rounded bg-[var(--info)]"></div>
-              <span className="text-xs text-muted-foreground">On Leave</span>
+              <span className="text-xs">On Leave</span>
             </div>
           </div>
         </CardContent>
@@ -661,7 +843,7 @@ export function Attendance() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {visibleRecords.map((record) => (
+              {filteredRecords.map((record) => (
                 <TableRow key={record.id}>
                   <TableCell>
                     {isEmployee ? (
@@ -690,6 +872,13 @@ export function Attendance() {
                   </TableCell>
                 </TableRow>
               ))}
+              {!filteredRecords.length && (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
+                    No attendance records found for this filter.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -731,6 +920,7 @@ export function Attendance() {
               label="Check In"
               type="time"
               value={attendanceForm.checkIn}
+              disabled={!attendanceStatusRequiresTime}
               onChange={(event) =>
                 setAttendanceForm((form) => ({
                   ...form,
@@ -742,6 +932,7 @@ export function Attendance() {
               label="Check Out"
               type="time"
               value={attendanceForm.checkOut}
+              disabled={!attendanceStatusRequiresTime}
               onChange={(event) =>
                 setAttendanceForm((form) => ({
                   ...form,
@@ -755,6 +946,7 @@ export function Attendance() {
             type="number"
             min="0"
             value={attendanceForm.breakMinutes}
+            disabled={!attendanceStatusRequiresTime}
             onChange={(event) =>
               setAttendanceForm((form) => ({
                 ...form,
@@ -767,7 +959,7 @@ export function Attendance() {
               Status
             </label>
             <select
-              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all shadow-sm"
               value={attendanceForm.status}
               onChange={(event) =>
                 setAttendanceForm((form) => ({
@@ -783,12 +975,18 @@ export function Attendance() {
             </select>
           </div>
           <p className="text-xs text-muted-foreground">
-            Preview: {formatTime(attendanceForm.checkIn)} to{" "}
-            {formatTime(attendanceForm.checkOut)},{" "}
-            {getWorkHours(
-              attendanceForm.checkIn,
-              attendanceForm.checkOut,
-              attendanceForm.breakMinutes,
+            {attendanceStatusRequiresTime ? (
+              <>
+                Preview: {formatTime(attendanceForm.checkIn)} to{" "}
+                {formatTime(attendanceForm.checkOut)},{" "}
+                {getWorkHours(
+                  attendanceForm.checkIn,
+                  attendanceForm.checkOut,
+                  attendanceForm.breakMinutes,
+                )}
+              </>
+            ) : (
+              "Preview: no clock-in, clock-out, or work hours will be saved for this status."
             )}
           </p>
         </div>

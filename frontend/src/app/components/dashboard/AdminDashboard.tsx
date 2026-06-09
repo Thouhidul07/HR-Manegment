@@ -133,16 +133,16 @@ export function AdminDashboard({ userName }: { userName: string }) {
 
       {/* ── Row 1: KPI Stats ─────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <button type="button" onClick={() => navigate('/dashboard/employees')} className="text-left">
+        <button type="button" onClick={() => navigate('/dashboard/employees')} className="text-left w-full cursor-pointer hover:scale-102 transition-all duration-200">
           <StatCard {...liveStats.totalEmployees} icon={Users}     iconColor={C.primary} iconBg={`${C.primary}18`} />
         </button>
-        <button type="button" onClick={() => navigate('/dashboard/attendance')} className="text-left">
+        <button type="button" onClick={() => navigate('/dashboard/attendance')} className="text-left w-full cursor-pointer hover:scale-102 transition-all duration-200">
           <StatCard {...liveStats.presentToday}   icon={UserCheck} iconColor={C.mid}     iconBg={`${C.mid}18`} />
         </button>
-        <button type="button" onClick={() => navigate('/dashboard/leave')} className="text-left">
+        <button type="button" onClick={() => navigate('/dashboard/leave')} className="text-left w-full cursor-pointer hover:scale-102 transition-all duration-200">
           <StatCard {...liveStats.onLeave}        icon={UserX}     iconColor={C.warm}    iconBg={`${C.warm}20`} />
         </button>
-        <button type="button" onClick={() => navigate('/dashboard/cv-filter')} className="text-left">
+        <button type="button" onClick={() => navigate('/dashboard/cv-filter')} className="text-left w-full cursor-pointer hover:scale-102 transition-all duration-200">
           <StatCard {...liveStats.openPositions}  icon={Briefcase} iconColor={C.action}  iconBg={`${C.action}15`} />
         </button>
       </div>

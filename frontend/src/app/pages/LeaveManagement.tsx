@@ -173,9 +173,35 @@ const getLeaveDays = (from: string, to: string) => {
 };
 
 const statusVariant = (status: string) => {
-  if (status === "Approved") return "success";
-  if (status === "Pending") return "warning";
-  return "error";
+  if (status === "Approved") return "border-emerald-400/30 bg-emerald-400/15 text-emerald-300";
+  if (status === "Pending") return "border-amber-400/30 bg-amber-400/15 text-amber-300";
+  return "border-rose-400/30 bg-rose-400/15 text-rose-300";
+};
+
+const leaveStatusFilterStyles: Record<
+  LeaveFilter,
+  { text: string; dot: string; activeText: string }
+> = {
+  All: {
+    text: "text-slate-300",
+    dot: "bg-slate-400",
+    activeText: "text-white",
+  },
+  Pending: {
+    text: "text-amber-300",
+    dot: "bg-amber-400",
+    activeText: "text-amber-100",
+  },
+  Approved: {
+    text: "text-emerald-300",
+    dot: "bg-emerald-400",
+    activeText: "text-emerald-100",
+  },
+  Rejected: {
+    text: "text-rose-300",
+    dot: "bg-rose-400",
+    activeText: "text-rose-100",
+  },
 };
 
 export function LeaveManagement() {
@@ -236,6 +262,7 @@ export function LeaveManagement() {
       : visibleLeaveRequests.filter(
           (request) => request.status === activeLeaveFilter,
         );
+  const activeFilterIndex = leaveFilters.indexOf(activeLeaveFilter);
   const pendingCount = visibleLeaveRequests.filter(
     (request) => request.status === "Pending",
   ).length;
@@ -358,23 +385,29 @@ export function LeaveManagement() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="p-4">
+        <Card 
+          className={`p-4 cursor-pointer transition-all hover:scale-102 hover:shadow-sm border-2 ${activeLeaveFilter === "Pending" ? "border-primary bg-primary/5" : "border-transparent"}`}
+          onClick={() => setActiveLeaveFilter(activeLeaveFilter === "Pending" ? "All" : "Pending")}
+        >
           <p className="text-sm text-muted-foreground">Pending Requests</p>
-          <p className="text-2xl text-foreground mt-1">{pendingCount}</p>
+          <p className="text-2xl text-foreground mt-1 font-bold">{pendingCount}</p>
         </Card>
-        <Card className="p-4">
+        <Card 
+          className={`p-4 cursor-pointer transition-all hover:scale-102 hover:shadow-sm border-2 ${activeLeaveFilter === "Approved" ? "border-primary bg-primary/5" : "border-transparent"}`}
+          onClick={() => setActiveLeaveFilter(activeLeaveFilter === "Approved" ? "All" : "Approved")}
+        >
           <p className="text-sm text-muted-foreground">Approved This Month</p>
-          <p className="text-2xl text-foreground mt-1">
+          <p className="text-2xl text-foreground mt-1 font-bold">
             {approvedThisMonthCount}
           </p>
         </Card>
-        <Card className="p-4">
+        <Card className="p-4 bg-card">
           <p className="text-sm text-muted-foreground">On Leave Today</p>
-          <p className="text-2xl text-foreground mt-1">{onLeaveTodayCount}</p>
+          <p className="text-2xl text-foreground mt-1 font-bold">{onLeaveTodayCount}</p>
         </Card>
-        <Card className="p-4">
+        <Card className="p-4 bg-card">
           <p className="text-sm text-muted-foreground">Upcoming Leaves</p>
-          <p className="text-2xl text-foreground mt-1">
+          <p className="text-2xl text-foreground mt-1 font-bold font-mono">
             {visibleUpcomingLeaves.length}
           </p>
         </Card>
@@ -457,17 +490,29 @@ export function LeaveManagement() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Leave Requests</CardTitle>
-            <div className="flex gap-2">
-              {leaveFilters.map((filter) => (
-                <Button
-                  key={filter}
-                  variant={activeLeaveFilter === filter ? "outline" : "ghost"}
-                  size="sm"
-                  onClick={() => setActiveLeaveFilter(filter)}
-                >
-                  {filter}
-                </Button>
-              ))}
+            <div className="relative grid w-[420px] grid-cols-4 rounded-2xl border border-[#543884]/20 bg-[#120926]/50 p-1">
+              <div
+                className="absolute left-1 top-1 h-[calc(100%-0.5rem)] w-[calc((100%-0.5rem)/4)] rounded-xl border border-[#9A77CF]/40 bg-[#543884]/35 shadow-sm transition-transform duration-300 ease-out"
+                style={{ transform: `translateX(${activeFilterIndex * 100}%)` }}
+              />
+              {leaveFilters.map((filter) => {
+                const styles = leaveStatusFilterStyles[filter];
+                const isActive = activeLeaveFilter === filter;
+
+                return (
+                  <button
+                    key={filter}
+                    type="button"
+                    onClick={() => setActiveLeaveFilter(filter)}
+                    className={`relative z-10 flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
+                      isActive ? styles.activeText : styles.text
+                    }`}
+                  >
+                    <span className={`h-2 w-2 rounded-full ${styles.dot}`} />
+                    {filter}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </CardHeader>

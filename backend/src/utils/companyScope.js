@@ -90,6 +90,9 @@ async function ensureCompanyColumns() {
   await addColumnIfMissing("lifecycle_cases", "company_id", "INT NULL AFTER id");
   await addColumnIfMissing("lifecycle_steps", "company_id", "INT NULL AFTER id");
   await addColumnIfMissing("lifecycle_tasks", "company_id", "INT NULL AFTER id");
+
+  await ensureTasksTable();
+  await seedDemoTasks();
 }
 
 function initials(name = "") {
@@ -308,6 +311,43 @@ async function ensureDemoCompanyData() {
     "DELETE FROM users WHERE email NOT IN (" + demoEmails.map(() => "?").join(",") + ")",
     demoEmails
   );
+}
+
+async function ensureTasksTable() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS tasks (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      company_id INT NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      description TEXT,
+      category ENUM('general','performance','expense','training','attendance','leave','onboarding','offboarding','custom') NOT NULL DEFAULT 'general',
+      priority ENUM('low','medium','high','urgent') NOT NULL DEFAULT 'medium',
+      status ENUM('todo','in_progress','completed','cancelled') NOT NULL DEFAULT 'todo',
+      assigned_to INT NOT NULL,
+      assigned_by INT NOT NULL,
+      due_date DATE,
+      completed_at DATETIME,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+      FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+}
+
+async function seedDemoTasks() {
+  const [rows] = await query("SELECT COUNT(*) as count FROM tasks");
+  if (rows[0].count === 0) {
+    await query(`
+      INSERT INTO tasks (company_id, title, description, category, priority, status, assigned_to, assigned_by, due_date)
+      VALUES 
+        (1, 'Complete Safety Compliance training', 'Review and complete safety policies.', 'training', 'medium', 'todo', 3, 1, DATE_ADD(CURDATE(), INTERVAL 7 DAY)),
+        (1, 'Submit Q1 performance feedback', 'Submit peer reviews for IT team members.', 'performance', 'high', 'in_progress', 3, 2, DATE_ADD(CURDATE(), INTERVAL 3 DAY)),
+        (1, 'Refactor dashboard charts', 'Update charts to support interactive legends.', 'custom', 'low', 'todo', 3, 3, DATE_ADD(CURDATE(), INTERVAL 5 DAY)),
+        (1, 'Review recruitment pipeline', 'Review CV filter candidates for backend engineers.', 'general', 'urgent', 'in_progress', 2, 1, DATE_ADD(CURDATE(), INTERVAL 1 DAY))
+    `);
+  }
 }
 
 async function companyIdFromEmail(email) {

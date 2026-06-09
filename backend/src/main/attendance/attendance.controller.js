@@ -52,14 +52,41 @@ async function getTodayAttendance(userId, companyId) {
 }
 
 const listAttendance = asyncHandler(async (req, res) => {
-  const userFilter = req.user.role === "employee" 
-    ? "WHERE a.user_id = ? AND u.company_id = ?" 
-    : "WHERE u.company_id = ?";
-  const params = req.user.role === "employee" 
-    ? [req.user.id, req.user.company_id] 
-    : [req.user.company_id];
+  const { status, userId, startDate, endDate } = req.query;
+
+  let whereClauses = ["u.company_id = ?"];
+  let params = [req.user.company_id];
+
+  if (req.user.role === "employee") {
+    whereClauses.push("a.user_id = ?");
+    params.push(req.user.id);
+  } else if (userId) {
+    whereClauses.push("a.user_id = ?");
+    params.push(userId);
+  }
+
+  if (status) {
+    let statusDb = status.toLowerCase();
+    if (statusDb === "on leave" || statusDb === "leave") {
+      statusDb = "leave";
+    }
+    whereClauses.push("a.status = ?");
+    params.push(statusDb);
+  }
+
+  if (startDate) {
+    whereClauses.push("a.work_date >= ?");
+    params.push(startDate);
+  }
+  if (endDate) {
+    whereClauses.push("a.work_date <= ?");
+    params.push(endDate);
+  }
+
+  const whereStr = "WHERE " + whereClauses.join(" AND ");
+
   const [records] = await query(
-    `SELECT a.*, u.name AS employee_name FROM attendance a JOIN users u ON u.id = a.user_id ${userFilter} ORDER BY a.work_date DESC`,
+    `SELECT a.*, u.name AS employee_name FROM attendance a JOIN users u ON u.id = a.user_id ${whereStr} ORDER BY a.work_date DESC`,
     params
   );
 
@@ -142,4 +169,131 @@ const logAttendance = asyncHandler(async (req, res) => {
   res.status(201).json({ record: mapAttendance(rows[0]) });
 });
 
-module.exports = { listAttendance, clockIn, clockOut, logAttendance };
+const getAttendanceSummary = asyncHandler(async (req, res) => {
+  const { userId, startDate, endDate } = req.query;
+
+  let whereClauses = ["u.company_id = ?"];
+  let params = [req.user.company_id];
+
+  if (req.user.role === "employee") {
+    whereClauses.push("a.user_id = ?");
+    params.push(req.user.id);
+  } else if (userId) {
+    whereClauses.push("a.user_id = ?");
+    params.push(userId);
+  }
+
+  if (startDate) {
+    whereClauses.push("a.work_date >= ?");
+    params.push(startDate);
+  }
+  if (endDate) {
+    whereClauses.push("a.work_date <= ?");
+    params.push(endDate);
+  }
+
+  const whereStr = "WHERE " + whereClauses.join(" AND ");
+
+  const [counts] = await query(
+    `SELECT a.status, COUNT(*) as count
+     FROM attendance a
+     JOIN users u ON u.id = a.user_id
+     ${whereStr}
+     GROUP BY a.status`,
+    params
+  );
+
+  let summary = {
+    present: 0,
+    late: 0,
+    absent: 0,
+    leave: 0
+  };
+
+  counts.forEach(c => {
+    const statusKey = c.status === "leave" ? "leave" : c.status;
+    if (summary[statusKey] !== undefined) {
+      summary[statusKey] = c.count;
+    }
+  });
+
+  res.json(summary);
+});
+
+const getWeeklyOverview = asyncHandler(async (req, res) => {
+  const { userId, startDate, endDate } = req.query;
+
+  let start = startDate;
+  let end = endDate;
+
+  if (!start || !end) {
+    const today = new Date();
+    const currentDay = today.getDay(); 
+    const diffToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+    
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + diffToMonday);
+    
+    const friday = new Date(monday);
+    friday.setDate(monday.getDate() + 4);
+
+    start = monday.toISOString().slice(0, 10);
+    end = friday.toISOString().slice(0, 10);
+  }
+
+  let whereClauses = ["u.company_id = ?", "a.work_date >= ?", "a.work_date <= ?"];
+  let params = [req.user.company_id, start, end];
+
+  if (req.user.role === "employee") {
+    whereClauses.push("a.user_id = ?");
+    params.push(req.user.id);
+  } else if (userId) {
+    whereClauses.push("a.user_id = ?");
+    params.push(userId);
+  }
+
+  const [rows] = await query(
+    `SELECT a.work_date, a.status, COUNT(*) as count, DAYNAME(a.work_date) as day_name
+     FROM attendance a
+     JOIN users u ON u.id = a.user_id
+     WHERE ${whereClauses.join(" AND ")}
+     GROUP BY a.work_date, a.status`,
+    params
+  );
+
+  const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+  const dayAbbr = {
+    Monday: "Mon",
+    Tuesday: "Tue",
+    Wednesday: "Wed",
+    Thursday: "Thu",
+    Friday: "Fri",
+    Saturday: "Sat",
+    Sunday: "Sun"
+  };
+
+  const overviewMap = {};
+  daysOfWeek.forEach(day => {
+    overviewMap[day] = { day: dayAbbr[day], present: 0, late: 0, absent: 0, leave: 0 };
+  });
+
+  rows.forEach(row => {
+    const day = row.day_name;
+    if (overviewMap[day]) {
+      const statusKey = row.status === "leave" ? "leave" : row.status; 
+      overviewMap[day][statusKey] = row.count;
+    }
+  });
+
+  const overview = daysOfWeek.map(day => overviewMap[day]);
+  res.json({ overview });
+});
+
+module.exports = {
+  listAttendance,
+  clockIn,
+  clockOut,
+  logAttendance,
+  getAttendanceSummary,
+  getWeeklyOverview
+};
