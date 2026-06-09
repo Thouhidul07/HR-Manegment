@@ -5,9 +5,15 @@ const {
   createProject,
   listTasks,
   getProjectStats,
+  getProjectHistory,
   createTask,
   updateTask,
   deleteTask,
+  listWBS,
+  getWBSById,
+  createWBS,
+  updateWBS,
+  deleteWBS
 } = require("./projects.controller");
 const validate = require("../../utils/validation");
 const { protect, authorize } = require("../../middleware/authMiddleware");
@@ -31,6 +37,7 @@ router.post(
 
 router.get("/tasks", listTasks);
 router.get("/stats", getProjectStats);
+router.get("/history", getProjectHistory);
 
 router.post(
   "/tasks",
@@ -64,5 +71,32 @@ router.patch(
 );
 
 router.delete("/tasks/:id", [param("id").isInt({ min: 1 })], validate, deleteTask);
+
+router.get("/wbs", listWBS);
+router.get("/wbs/:id", getWBSById);
+router.post(
+  "/wbs",
+  [
+    body("projectId").isInt({ min: 1 }),
+    body("title").trim().notEmpty(),
+    body("description").optional().trim(),
+    body("nodes").notEmpty()
+  ],
+  validate,
+  createWBS
+);
+router.put(
+  "/wbs/:id",
+  [
+    param("id").isInt({ min: 1 }),
+    body("projectId").optional().isInt({ min: 1 }),
+    body("title").optional().trim().notEmpty(),
+    body("description").optional().trim(),
+    body("nodes").optional().notEmpty()
+  ],
+  validate,
+  updateWBS
+);
+router.delete("/wbs/:id", [param("id").isInt({ min: 1 })], validate, deleteWBS);
 
 module.exports = router;

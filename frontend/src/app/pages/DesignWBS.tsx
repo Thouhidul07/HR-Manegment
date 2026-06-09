@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Network,
   Plus,
@@ -7,14 +7,16 @@ import {
   ChevronDown,
   Save,
   FileDown,
-  Upload,
   AlertCircle,
   CheckCircle2,
   DollarSign,
   Clock,
   Users,
   Edit2,
+  RefreshCw,
+  FolderOpen
 } from "lucide-react";
+import api from "../services/api";
 
 interface WBSNode {
   id: string;
@@ -26,24 +28,92 @@ interface WBSNode {
   children: WBSNode[];
 }
 
+interface WbsDesign {
+  id: number;
+  projectId: number;
+  projectName: string;
+  title: string;
+  description: string;
+  nodes: WBSNode[];
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export function DesignWBS() {
-  const [projectName, setProjectName] = useState("");
-  const [projectDescription, setProjectDescription] = useState("");
-  const [totalBudget, setTotalBudget] = useState("");
-  const [projectStatus, setProjectStatus] = useState<'current' | 'planning'>('planning');
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [teamSize, setTeamSize] = useState("");
+  const [projects, setProjects] = useState<any[]>([]);
+  const [savedWbsList, setSavedWbsList] = useState<WbsDesign[]>([]);
+  const [activeWbsId, setActiveWbsId] = useState<number | null>(null);
+
+  // Form states
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+  const [wbsTitle, setWbsTitle] = useState("");
+  const [wbsDescription, setWbsDescription] = useState("");
   const [wbsTree, setWbsTree] = useState<WBSNode[]>([]);
+  
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   const [editingNode, setEditingNode] = useState<string | null>(null);
-  const [showSuccess, setShowSuccess] = useState(false);
 
-  // Generate unique ID
-  const generateId = () => `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  // UI state
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
 
   // Maximum WBS levels
   const MAX_WBS_LEVEL = 4;
+
+  const loadInitialData = () => {
+    setLoading(true);
+    setError(null);
+    
+    // Fetch projects and WBS lists in parallel
+    Promise.all([
+      api.get("/projects"),
+      api.get("/projects/wbs")
+    ])
+    .then(([projectsRes, wbsRes]) => {
+      setProjects(projectsRes.data.projects || []);
+      if (wbsRes.data?.success) {
+        setSavedWbsList(wbsRes.data.data || []);
+      } else {
+        setError("Failed to parse WBS list from server.");
+      }
+      setLoading(false);
+    })
+    .catch((err) => {
+      console.error(err);
+      setError("Failed to load WBS data. Please check connection and try again.");
+      setLoading(false);
+    });
+  };
+
+  useEffect(() => {
+    loadInitialData();
+  }, []);
+
+  const handleSelectWbs = (wbs: WbsDesign) => {
+    setActiveWbsId(wbs.id);
+    setSelectedProjectId(String(wbs.projectId));
+    setWbsTitle(wbs.title);
+    setWbsDescription(wbs.description);
+    setWbsTree(wbs.nodes || []);
+    setExpandedNodes(new Set());
+    setEditingNode(null);
+  };
+
+  const handleStartNew = () => {
+    setActiveWbsId(null);
+    setSelectedProjectId("");
+    setWbsTitle("");
+    setWbsDescription("");
+    setWbsTree([]);
+    setExpandedNodes(new Set());
+    setEditingNode(null);
+  };
+
+  // Generate unique ID
+  const generateId = () => `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
   // Calculate node level
   const getNodeLevel = (nodeId: string, nodes: WBSNode[] = wbsTree, level: number = 1): number => {
@@ -103,7 +173,7 @@ export function DesignWBS() {
   const handleAddChild = (parentId: string) => {
     const currentLevel = getNodeLevel(parentId);
     if (currentLevel >= MAX_WBS_LEVEL) {
-      alert(`Maximum WBS level (${MAX_WBS_LEVEL}) reached. Cannot add more sub-levels.`);
+      alert(`Maximum WBS level (${MAX_WBS_LEVEL}) reached. Cannot add sub-levels.`);
       return;
     }
     setWbsTree(addChildNode(parentId));
@@ -167,85 +237,108 @@ export function DesignWBS() {
     }, 0);
   };
 
-  // Save WBS
+  // Save/Update WBS
   const handleSave = () => {
-    if (!projectName || !startDate || !endDate || !totalBudget) {
-      alert("Please fill in all required fields: Project Name, Start Date, End Date, and Total Budget");
+    if (!selectedProjectId || !wbsTitle) {
+      alert("Please select a Project and enter a WBS Title.");
       return;
     }
 
-    const wbsData = {
-      id: Date.now(),
-      name: projectName,
-      description: projectDescription,
-      status: projectStatus,
-      startDate,
-      endDate,
-      budget: totalBudget,
-      spent: "$0",
-      team: parseInt(teamSize) || 0,
-      completion: projectStatus === 'planning' ? 0 : calculateCompletion(wbsTree),
-      wbs: wbsTree,
-      createdAt: new Date().toISOString()
+    const payload = {
+      projectId: parseInt(selectedProjectId),
+      title: wbsTitle,
+      description: wbsDescription,
+      nodes: wbsTree
     };
 
-    // Get existing projects from localStorage
-    const existingProjects = JSON.parse(localStorage.getItem('wbsProjects') || '[]');
+    setLoading(true);
 
-    // Add new project
-    const updatedProjects = [...existingProjects, wbsData];
+    const apiCall = activeWbsId 
+      ? api.put(`/projects/wbs/${activeWbsId}`, payload)
+      : api.post('/projects/wbs', payload);
 
-    // Save to localStorage
-    localStorage.setItem('wbsProjects', JSON.stringify(updatedProjects));
-
-    console.log("Saving WBS:", wbsData);
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 3000);
-
-    // Reset form
-    setTimeout(() => {
-      setProjectName("");
-      setProjectDescription("");
-      setTotalBudget("");
-      setProjectStatus('planning');
-      setStartDate("");
-      setEndDate("");
-      setTeamSize("");
-      setWbsTree([]);
-    }, 1000);
+    apiCall.then((response) => {
+      if (response.data?.success) {
+        setSuccessMessage(activeWbsId ? "WBS updated successfully!" : "WBS created successfully!");
+        setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 3000);
+        
+        // Refresh WBS list and set active WBS
+        api.get("/projects/wbs")
+        .then(wbsRes => {
+          if (wbsRes.data?.success) {
+            setSavedWbsList(wbsRes.data.data || []);
+            const matched = wbsRes.data.data.find((w: any) => 
+              activeWbsId ? w.id === activeWbsId : w.title === wbsTitle
+            );
+            if (matched) {
+              handleSelectWbs(matched);
+            }
+          }
+          setLoading(false);
+        })
+        .catch(() => setLoading(false));
+      } else {
+        alert(response.data?.message || "Failed to save WBS.");
+        setLoading(false);
+      }
+    })
+    .catch((err) => {
+      console.error(err);
+      alert("Failed to save WBS structure. Please verify connection and fields.");
+      setLoading(false);
+    });
   };
 
-  // Calculate completion percentage based on completed tasks
-  const calculateCompletion = (nodes: WBSNode[]): number => {
-    let total = 0;
-    let completed = 0;
+  // Delete WBS
+  const handleDeleteWBS = () => {
+    if (!activeWbsId) return;
+    if (!confirm("Are you sure you want to delete this WBS structure? This action cannot be undone.")) return;
 
-    const countNodes = (nodeList: WBSNode[]) => {
-      nodeList.forEach(node => {
-        total++;
-        if (node.status === 'completed') completed++;
-        if (node.children.length > 0) countNodes(node.children);
-      });
-    };
-
-    countNodes(nodes);
-    return total > 0 ? Math.round((completed / total) * 100) : 0;
+    setLoading(true);
+    api.delete(`/projects/wbs/${activeWbsId}`)
+    .then((response) => {
+      if (response.data?.success) {
+        setSuccessMessage("WBS deleted successfully!");
+        setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 3000);
+        handleStartNew();
+        
+        // Refresh WBS list
+        api.get("/projects/wbs")
+        .then(wbsRes => {
+          if (wbsRes.data?.success) {
+            setSavedWbsList(wbsRes.data.data || []);
+          }
+          setLoading(false);
+        })
+        .catch(() => setLoading(false));
+      } else {
+        alert(response.data?.message || "Failed to delete WBS.");
+        setLoading(false);
+      }
+    })
+    .catch((err) => {
+      console.error(err);
+      alert("Failed to delete WBS.");
+      setLoading(false);
+    });
   };
 
   // Export to JSON
   const handleExport = () => {
     const wbsData = {
-      projectName,
-      projectDescription,
-      totalBudget,
+      title: wbsTitle,
+      description: wbsDescription,
+      projectId: selectedProjectId,
       wbsTree,
-      createdAt: new Date().toISOString()
+      exportedAt: new Date().toISOString()
     };
     const blob = new Blob([JSON.stringify(wbsData, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${projectName || 'wbs'}-${Date.now()}.json`;
+    a.download = `${wbsTitle || 'wbs'}-${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -258,13 +351,11 @@ export function DesignWBS() {
     const currentLevel = level + 1; // Level starts from 1
     const canAddChild = currentLevel < MAX_WBS_LEVEL;
 
-    // Level labels for WBS
     const getLevelLabel = (lvl: number): string => {
       const labels = ['Phase', 'Activity', 'Task', 'Sub-task'];
       return labels[lvl - 1] || 'Item';
     };
 
-    // Level colors
     const getLevelColor = (lvl: number): string => {
       const colors = [
         'bg-purple-500/10 text-purple-600 border-purple-500/20',
@@ -303,7 +394,6 @@ export function DesignWBS() {
             <div className="flex-1">
               {isEditing ? (
                 <div className="space-y-3">
-                  {/* Level Badge */}
                   <div className="flex items-center gap-2 mb-2">
                     <span className={`px-2 py-1 rounded text-xs font-semibold border ${getLevelColor(currentLevel)}`}>
                       Level {currentLevel}: {getLevelLabel(currentLevel)}
@@ -391,9 +481,7 @@ export function DesignWBS() {
                       <button
                         onClick={() => handleAddChild(node.id)}
                         className={`p-1.5 rounded transition-colors ${
-                          canAddChild
-                            ? 'hover:bg-accent'
-                            : 'opacity-50 cursor-not-allowed'
+                          canAddChild ? 'hover:bg-accent' : 'opacity-50 cursor-not-allowed'
                         }`}
                         title={canAddChild ? "Add sub-task" : `Maximum level (${MAX_WBS_LEVEL}) reached`}
                         disabled={!canAddChild}
@@ -441,198 +529,239 @@ export function DesignWBS() {
 
   const totalEstimatedCost = calculateTotalCost();
 
+  if (loading && savedWbsList.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <p className="text-sm text-muted-foreground animate-pulse">Loading WBS configs...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+        <AlertCircle className="w-12 h-12 text-destructive" />
+        <h3 className="font-semibold text-foreground text-lg">Failed to load WBS</h3>
+        <p className="text-sm text-muted-foreground max-w-md text-center">{error}</p>
+        <button
+          onClick={loadInitialData}
+          className="px-4 py-2 bg-gradient-to-r from-[#543884] to-[#9A77CF] text-white rounded-lg text-sm font-semibold hover:brightness-110 transition-all flex items-center gap-2"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Retry Connection
+        </button>
+      </div>
+    );
+  }
+
+  // Find active project details to show budget comparison
+  const activeProject = projects.find(p => String(p.id) === selectedProjectId);
+  const activeProjectBudgetStr = activeProject?.budget || "$0";
+  const activeProjectBudget = parseFloat(activeProjectBudgetStr.replace(/[$,]/g, '')) || 0;
+
   return (
-    <div className="p-8 max-w-[1400px] mx-auto">
-      {/* Success Message */}
+    <div className="p-8 max-w-[1400px] mx-auto space-y-6">
+      {/* Success Notification */}
       {showSuccess && (
         <div className="fixed top-4 right-4 bg-green-500 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-in slide-in-from-top z-50">
           <CheckCircle2 className="w-5 h-5" />
-          <span>WBS saved successfully! Project added to Project History.</span>
+          <span>{successMessage}</span>
         </div>
       )}
 
       {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#543884] to-[#9A77CF] flex items-center justify-center">
-            <Network className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold">Design WBS</h1>
-            <p className="text-muted-foreground">Create and design Work Breakdown Structure with cost and time estimations</p>
-          </div>
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#543884] to-[#9A77CF] flex items-center justify-center">
+          <Network className="w-5 h-5 text-white" />
+        </div>
+        <div>
+          <h1 className="text-3xl font-bold">Design WBS</h1>
+          <p className="text-muted-foreground">Construct and schedule WBS configurations and sync them with MySQL</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Panel - Project Info */}
-        <div className="lg:col-span-1 space-y-6">
-          {/* Project Details */}
-          <div className="bg-card rounded-xl border border-border p-6">
-            <h3 className="font-semibold mb-4">Project Information</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm text-muted-foreground mb-1 block">
-                  Project Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={projectName}
-                  onChange={(e) => setProjectName(e.target.value)}
-                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#9A77CF]"
-                  placeholder="Enter project name"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-muted-foreground mb-1 block">Description</label>
-                <textarea
-                  value={projectDescription}
-                  onChange={(e) => setProjectDescription(e.target.value)}
-                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#9A77CF] resize-none"
-                  placeholder="Project description"
-                  rows={3}
-                />
-              </div>
-              <div>
-                <label className="text-sm text-muted-foreground mb-1 block">
-                  Status <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={projectStatus}
-                  onChange={(e) => setProjectStatus(e.target.value as 'current' | 'planning')}
-                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#9A77CF]"
-                >
-                  <option value="planning">Planning</option>
-                  <option value="current">Current</option>
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-sm text-muted-foreground mb-1 block">
-                    Start Date <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#9A77CF]"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm text-muted-foreground mb-1 block">
-                    End Date <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#9A77CF]"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="text-sm text-muted-foreground mb-1 block">
-                  Total Budget <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={totalBudget}
-                  onChange={(e) => setTotalBudget(e.target.value)}
-                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#9A77CF]"
-                  placeholder="e.g., $100,000"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-muted-foreground mb-1 block">Team Size</label>
-                <input
-                  type="number"
-                  value={teamSize}
-                  onChange={(e) => setTeamSize(e.target.value)}
-                  className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#9A77CF]"
-                  placeholder="Number of team members"
-                  min="0"
-                />
-              </div>
-            </div>
-          </div>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Leftmost Sidebar - Saved WBS configs list */}
+        <div className="lg:col-span-1 space-y-4 max-h-[700px] overflow-y-auto pr-1">
+          <button
+            onClick={handleStartNew}
+            className="w-full px-4 py-2.5 bg-gradient-to-r from-[#543884] to-[#9A77CF] text-white rounded-lg hover:shadow-lg transition-all flex items-center justify-center gap-2 text-sm font-semibold"
+          >
+            <Plus className="w-4 h-4" />
+            Create New WBS
+          </button>
 
-          {/* Cost Summary */}
-          <div className="bg-card rounded-xl border border-border p-6">
-            <h3 className="font-semibold mb-4 flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-[#9A77CF]" />
-              Cost Summary
+          <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+            <h3 className="text-xs font-bold uppercase text-muted-foreground tracking-wider flex items-center gap-2">
+              <FolderOpen className="w-4 h-4 text-[#9A77CF]" />
+              Saved Designs ({savedWbsList.length})
             </h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 bg-accent rounded-lg">
-                <span className="text-sm text-muted-foreground">Total Budget</span>
-                <span className="font-semibold">{totalBudget || "$0"}</span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-accent rounded-lg">
-                <span className="text-sm text-muted-foreground">Estimated Cost</span>
-                <span className="font-semibold">${totalEstimatedCost.toLocaleString()}</span>
-              </div>
-              <div className={`flex items-center justify-between p-3 rounded-lg ${
-                totalEstimatedCost > parseFloat(totalBudget?.replace(/[$,]/g, '') || '0')
-                  ? 'bg-red-500/10 text-red-600'
-                  : 'bg-green-500/10 text-green-600'
-              }`}>
-                <span className="text-sm font-medium">
-                  {totalEstimatedCost > parseFloat(totalBudget?.replace(/[$,]/g, '') || '0')
-                    ? 'Over Budget'
-                    : 'Within Budget'}
-                </span>
-                <span className="font-semibold">
-                  {totalBudget
-                    ? `${((totalEstimatedCost / parseFloat(totalBudget.replace(/[$,]/g, '') || '1')) * 100).toFixed(1)}%`
-                    : '0%'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="bg-card rounded-xl border border-border p-6">
-            <h3 className="font-semibold mb-4">Actions</h3>
-            <div className="space-y-2">
-              <button
-                onClick={handleSave}
-                className="w-full px-4 py-2.5 bg-gradient-to-r from-[#543884] to-[#9A77CF] text-white rounded-lg hover:shadow-lg transition-all flex items-center justify-center gap-2"
-              >
-                <Save className="w-4 h-4" />
-                Save WBS
-              </button>
-              <button
-                onClick={handleExport}
-                className="w-full px-4 py-2.5 bg-card border border-border text-foreground rounded-lg hover:bg-accent transition-all flex items-center justify-center gap-2"
-              >
-                <FileDown className="w-4 h-4" />
-                Export to JSON
-              </button>
-            </div>
-            <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-              <p className="text-xs text-blue-600 dark:text-blue-400">
-                💡 Saved projects will automatically appear in <strong>Project History</strong> page
+            
+            {savedWbsList.length === 0 ? (
+              <p className="text-xs text-muted-foreground pt-2 text-center">
+                No WBS designs found yet. Create one to start planning work structure.
               </p>
-            </div>
+            ) : (
+              <div className="space-y-2">
+                {savedWbsList.map(wbs => (
+                  <div
+                    key={wbs.id}
+                    onClick={() => handleSelectWbs(wbs)}
+                    className={`p-3 rounded-lg border text-left cursor-pointer transition-all hover:bg-accent ${
+                      activeWbsId === wbs.id
+                        ? 'border-purple-500 bg-[#543884]/5 font-semibold'
+                        : 'border-border bg-card'
+                    }`}
+                  >
+                    <p className="text-sm text-foreground line-clamp-1">{wbs.title}</p>
+                    <p className="text-[10px] text-[#9A77CF] mt-1 truncate">{wbs.projectName}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Right Panel - WBS Tree */}
+        {/* Center Panel - Metadata & Info */}
+        <div className="lg:col-span-1 space-y-6">
+          {/* Metadata Form */}
+          <div className="bg-card rounded-xl border border-border p-6 space-y-4">
+            <h3 className="font-semibold text-foreground border-b border-border pb-2">
+              {activeWbsId ? 'Edit Configuration' : 'WBS Configuration'}
+            </h3>
+            
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                Link to Project <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={selectedProjectId}
+                onChange={(e) => setSelectedProjectId(e.target.value)}
+                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#9A77CF]"
+              >
+                <option value="">Select real project...</option>
+                {projects.map(proj => (
+                  <option key={proj.id} value={proj.id}>{proj.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground mb-1 block">
+                WBS Title <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={wbsTitle}
+                onChange={(e) => setWbsTitle(e.target.value)}
+                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#9A77CF]"
+                placeholder="e.g. Next-Gen Portal WBS"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground mb-1 block">Description</label>
+              <textarea
+                value={wbsDescription}
+                onChange={(e) => setWbsDescription(e.target.value)}
+                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#9A77CF] resize-none"
+                placeholder="Scope or planning guidelines..."
+                rows={4}
+              />
+            </div>
+
+            {activeProject && (
+              <div className="bg-accent/40 border border-border rounded-lg p-3 space-y-2 text-xs">
+                <p className="font-bold text-foreground">Active Linked Project Details:</p>
+                <p><span className="text-muted-foreground">Status:</span> <span className="font-semibold">{activeProject.status}</span></p>
+                <p><span className="text-muted-foreground">Timeline:</span> <span className="font-semibold">{new Date(activeProject.startDate).toLocaleDateString()} - {new Date(activeProject.endDate).toLocaleDateString()}</span></p>
+                <p><span className="text-muted-foreground">Budget Limit:</span> <span className="font-semibold">{activeProject.budget || "No limit set"}</span></p>
+              </div>
+            )}
+          </div>
+
+          {/* Costs Summary */}
+          <div className="bg-card rounded-xl border border-border p-6 space-y-4">
+            <h3 className="font-semibold flex items-center gap-2 text-foreground border-b border-border pb-2">
+              <DollarSign className="w-5 h-5 text-[#9A77CF]" />
+              Cost Summary
+            </h3>
+            
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 bg-accent rounded-lg text-sm">
+                <span className="text-muted-foreground">Project Budget</span>
+                <span className="font-semibold text-foreground">{activeProjectBudgetStr}</span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-accent rounded-lg text-sm">
+                <span className="text-muted-foreground">Estimated WBS Cost</span>
+                <span className="font-semibold text-foreground">${totalEstimatedCost.toLocaleString()}</span>
+              </div>
+              
+              {activeProjectBudget > 0 && (
+                <div className={`flex items-center justify-between p-3 rounded-lg text-sm ${
+                  totalEstimatedCost > activeProjectBudget
+                    ? 'bg-red-500/10 text-red-600'
+                    : 'bg-green-500/10 text-green-600'
+                }`}>
+                  <span className="font-medium">
+                    {totalEstimatedCost > activeProjectBudget ? 'Over Budget' : 'Within Budget'}
+                  </span>
+                  <span className="font-semibold">
+                    {((totalEstimatedCost / activeProjectBudget) * 100).toFixed(1)}%
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Action Triggers */}
+          <div className="bg-card rounded-xl border border-border p-6 space-y-3">
+            <button
+              onClick={handleSave}
+              className="w-full px-4 py-2.5 bg-gradient-to-r from-[#543884] to-[#9A77CF] text-white rounded-lg hover:shadow-lg transition-all flex items-center justify-center gap-2 font-semibold"
+            >
+              <Save className="w-4 h-4" />
+              {activeWbsId ? 'Update WBS' : 'Save WBS'}
+            </button>
+            
+            {activeWbsId && (
+              <button
+                onClick={handleDeleteWBS}
+                className="w-full px-4 py-2.5 bg-red-500/10 border border-red-500/20 text-red-500 rounded-lg hover:bg-red-500/20 transition-all flex items-center justify-center gap-2 font-semibold"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete WBS Design
+              </button>
+            )}
+
+            <button
+              onClick={handleExport}
+              disabled={wbsTree.length === 0}
+              className="w-full px-4 py-2.5 bg-card border border-border text-foreground rounded-lg hover:bg-accent transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              <FileDown className="w-4 h-4" />
+              Export to JSON
+            </button>
+          </div>
+        </div>
+
+        {/* Right Panel - Tree Builder */}
         <div className="lg:col-span-2">
           <div className="bg-card rounded-xl border border-border p-6">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between mb-6 border-b border-border pb-4">
               <div>
-                <h3 className="font-semibold flex items-center gap-2">
+                <h3 className="font-semibold flex items-center gap-2 text-foreground text-lg">
                   <Network className="w-5 h-5 text-[#9A77CF]" />
-                  WBS Tree Structure
+                  WBS Tree Builder
                 </h3>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Build your project breakdown structure with phases and tasks
+                  Click Add Phase to begin building your task structural breakdown hierarchy.
                 </p>
               </div>
               <button
                 onClick={addRootNode}
-                className="px-4 py-2 bg-gradient-to-r from-[#543884] to-[#9A77CF] text-white rounded-lg hover:shadow-lg transition-all flex items-center gap-2 text-sm"
+                className="px-4 py-2 bg-gradient-to-r from-[#543884] to-[#9A77CF] text-white rounded-lg hover:shadow-lg transition-all flex items-center gap-2 text-sm font-semibold"
               >
                 <Plus className="w-4 h-4" />
                 Add Phase
@@ -644,7 +773,7 @@ export function DesignWBS() {
                 <Network className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
                 <h3 className="text-lg font-semibold mb-2">No WBS Structure Yet</h3>
                 <p className="text-sm text-muted-foreground mb-6">
-                  Start by adding a phase to begin building your Work Breakdown Structure
+                  Add a root level phase, then construct activities, tasks, and sub-tasks.
                 </p>
                 <button
                   onClick={addRootNode}
@@ -655,45 +784,45 @@ export function DesignWBS() {
                 </button>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
                 {wbsTree.map(node => renderWBSNode(node))}
               </div>
             )}
 
             {wbsTree.length > 0 && (
               <div className="mt-6 pt-6 border-t border-border space-y-4">
-                <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                <div className="flex items-start gap-2 text-xs text-muted-foreground">
                   <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                   <p>
-                    Click <strong>Edit</strong> to modify a task, <strong>+</strong> to add a sub-task, or <strong>Delete</strong> to remove.
-                    Use the expand/collapse arrows for nodes with children.
+                    Click <strong>Edit</strong> to modify node attributes, <strong>+</strong> to add a sub-task, or <strong>Delete</strong> to remove.
+                    Use collapsible arrows on nodes that contain children.
                   </p>
                 </div>
 
-                {/* WBS Level Guide */}
+                {/* Level Guide Legend */}
                 <div className="bg-accent/50 rounded-lg p-4">
-                  <h4 className="text-sm font-semibold mb-3">WBS Level Structure (Max 4 Levels)</h4>
+                  <h4 className="text-xs font-bold uppercase text-foreground mb-3">WBS Level Reference</h4>
                   <div className="grid grid-cols-2 gap-2">
                     <div className="flex items-center gap-2">
-                      <span className="px-2 py-1 rounded text-xs font-semibold border bg-purple-500/10 text-purple-600 border-purple-500/20">
+                      <span className="px-2 py-0.5 rounded text-xs font-semibold border bg-purple-500/10 text-purple-600 border-purple-500/20">
                         Level 1
                       </span>
                       <span className="text-xs text-muted-foreground">Phase</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="px-2 py-1 rounded text-xs font-semibold border bg-blue-500/10 text-blue-600 border-blue-500/20">
+                      <span className="px-2 py-0.5 rounded text-xs font-semibold border bg-blue-500/10 text-blue-600 border-blue-500/20">
                         Level 2
                       </span>
                       <span className="text-xs text-muted-foreground">Activity</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="px-2 py-1 rounded text-xs font-semibold border bg-green-500/10 text-green-600 border-green-500/20">
+                      <span className="px-2 py-0.5 rounded text-xs font-semibold border bg-green-500/10 text-green-600 border-green-500/20">
                         Level 3
                       </span>
                       <span className="text-xs text-muted-foreground">Task</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="px-2 py-1 rounded text-xs font-semibold border bg-orange-500/10 text-orange-600 border-orange-500/20">
+                      <span className="px-2 py-0.5 rounded text-xs font-semibold border bg-orange-500/10 text-orange-600 border-orange-500/20">
                         Level 4
                       </span>
                       <span className="text-xs text-muted-foreground">Sub-task</span>

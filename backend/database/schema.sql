@@ -345,3 +345,87 @@ CREATE TABLE IF NOT EXISTS tasks (
   FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS work_breakdown_structures (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  project_id INT NOT NULL,
+  title VARCHAR(180) NOT NULL,
+  description TEXT,
+  nodes_json JSON NOT NULL,
+  created_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS job_circulars (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  company_id INT NOT NULL DEFAULT 1,
+  title VARCHAR(180) NOT NULL,
+  department VARCHAR(100) NOT NULL,
+  employment_type ENUM('Full-time', 'Part-time', 'Contract') NOT NULL DEFAULT 'Full-time',
+  location VARCHAR(160) NOT NULL,
+  salary_range VARCHAR(100),
+  description TEXT,
+  requirements JSON,
+  responsibilities JSON,
+  benefits JSON,
+  deadline DATE,
+  status ENUM('draft', 'published', 'closed') NOT NULL DEFAULT 'draft',
+  created_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS job_applications (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  company_id INT NOT NULL DEFAULT 1,
+  circular_id INT NOT NULL,
+  applicant_name VARCHAR(140) NOT NULL,
+  email VARCHAR(160) NOT NULL,
+  phone VARCHAR(60) NOT NULL,
+  cover_letter TEXT,
+  cv_file VARCHAR(255),
+  skills JSON,
+  experience_years DECIMAL(4, 1) NOT NULL DEFAULT 0,
+  status ENUM('submitted', 'reviewing', 'shortlisted', 'rejected', 'hired') NOT NULL DEFAULT 'submitted',
+  score INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+  FOREIGN KEY (circular_id) REFERENCES job_circulars(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  actor_id INT,
+  actor_name VARCHAR(120),
+  actor_role VARCHAR(50),
+  action VARCHAR(80) NOT NULL,
+  module VARCHAR(80) NOT NULL,
+  entity_type VARCHAR(80),
+  entity_id INT,
+  description TEXT,
+  metadata_json JSON,
+  ip_address VARCHAR(45),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS user_documents (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  document_type VARCHAR(80) NOT NULL,
+  document_name VARCHAR(180) NOT NULL,
+  file_path VARCHAR(255) NOT NULL,
+  file_size INT,
+  mime_type VARCHAR(100),
+  uploaded_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+

@@ -9,6 +9,7 @@ router.use("/payroll", require("../main/payroll/payroll.routes"));
 router.use("/expenses", require("../main/expenses/expenses.routes"));
 router.use("/training", require("../main/training/training.routes"));
 router.use("/roles-permissions", require("../main/rolesPermissions/rolesPermissions.routes"));
+router.use("/audit-logs", require("../main/auditLogs/auditLogs.routes"));
 router.use("/onboarding", require("../main/onboarding/onboarding.routes"));
 router.use("/profile", require("../main/profile/profile.routes"));
 router.use("/notifications", require("../main/notifications/notifications.routes"));
@@ -18,6 +19,7 @@ router.use("/cv-filter", require("../main/cvFilter/cvFilter.routes"));
 router.use("/projects", require("../main/projects/projects.routes"));
 router.use("/forum", require("../main/forum/forum.routes"));
 router.use("/tasks", require("../main/tasks/tasks.routes"));
+router.use("/jobs", require("../main/jobs/jobs.routes"));
 
 router.use("/admin", require("../roles/admin/admin.routes"));
 router.use("/hr-manager", require("../roles/hrManager/hrManager.routes"));

@@ -92,6 +92,15 @@ export function RolesPermissions() {
   const [error, setError] = useState("");
   const [usersError, setUsersError] = useState("");
 
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [loadingAudit, setLoadingAudit] = useState(false);
+  const [auditError, setAuditError] = useState("");
+  const [auditFilters, setAuditFilters] = useState({
+    module: "",
+    action: "",
+    actor: "",
+  });
+
   const selectedRole = roles.find((role) => role.code === selectedRoleCode) || roles[0];
 
   useEffect(() => {
@@ -146,6 +155,32 @@ export function RolesPermissions() {
     fetchRoleUsers();
     return () => { isMounted = false; };
   }, [selectedRoleCode]);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchAuditLogs() {
+      setLoadingAudit(true);
+      setAuditError("");
+      try {
+        const params: any = {};
+        if (auditFilters.module) params.module = auditFilters.module;
+        if (auditFilters.actor) params.actor = auditFilters.actor;
+
+        const response = await api.get("/audit-logs", { params });
+        if (!isMounted) return;
+        setAuditLogs(response.data.logs || []);
+      } catch (err: any) {
+        if (!isMounted) return;
+        setAuditError(err?.response?.data?.message || "Failed to load audit logs");
+      } finally {
+        if (isMounted) setLoadingAudit(false);
+      }
+    }
+    if (activeTab === "audit") {
+      fetchAuditLogs();
+    }
+    return () => { isMounted = false; };
+  }, [activeTab, auditFilters]);
 
   const filteredRoles = useMemo(() => roles.filter((role) =>
     role.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -443,12 +478,102 @@ export function RolesPermissions() {
 
       {activeTab === "audit" && (
         <Card>
-          <CardContent>
-            <div className="py-12 text-center text-muted-foreground">
-              <History className="w-12 h-12 mx-auto mb-3 opacity-30" />
-              <p className="text-sm">No audit log records are available.</p>
-              <p className="text-xs mt-1">Backend audit logging is not enabled in this version.</p>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <CardTitle>Platform Audit Logs</CardTitle>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Track user and system activities across the platform
+                </p>
+              </div>
+              <div className="flex gap-2 flex-wrap items-center">
+                <input
+                  type="text"
+                  placeholder="Search actor..."
+                  value={auditFilters.actor}
+                  onChange={(e) => setAuditFilters(prev => ({ ...prev, actor: e.target.value }))}
+                  className="px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent w-48"
+                />
+                <select
+                  value={auditFilters.module}
+                  onChange={(e) => setAuditFilters(prev => ({ ...prev, module: e.target.value }))}
+                  className="px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">All Modules</option>
+                  <option value="auth">Auth</option>
+                  <option value="account_approvals">Account Approvals</option>
+                  <option value="profile">Profile & Documents</option>
+                  <option value="forum_moderation">Forum Moderation</option>
+                  <option value="forum">Forum</option>
+                  <option value="projects">Work & Projects</option>
+                  <option value="tasks">Tasks</option>
+                </select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAuditFilters({ module: "", action: "", actor: "" })}
+                >
+                  Reset
+                </Button>
+              </div>
             </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            {auditError && (
+              <div className="m-4 rounded-lg border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                {auditError}
+              </div>
+            )}
+            {loadingAudit ? (
+              <div className="py-12 text-center text-sm text-muted-foreground">
+                Loading audit logs...
+              </div>
+            ) : auditLogs.length ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Actor</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Module</TableHead>
+                    <TableHead>Action</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>IP Address</TableHead>
+                    <TableHead>Timestamp</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {auditLogs.map((log) => (
+                    <TableRow key={log.id}>
+                      <TableCell className="font-medium text-foreground">{log.actor_name || "System"}</TableCell>
+                      <TableCell>
+                        {log.actor_role ? (
+                          <Badge variant="secondary" className="capitalize">
+                            {log.actor_role}
+                          </Badge>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                      <TableCell className="capitalize text-sm text-muted-foreground">{log.module.replace("_", " ")}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs font-mono uppercase text-foreground border-border">
+                          {log.action}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm max-w-xs truncate text-foreground" title={log.description}>{log.description}</TableCell>
+                      <TableCell className="text-sm font-mono text-muted-foreground">{log.ip_address || "—"}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {new Date(log.created_at).toLocaleString()}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <div className="py-12 text-center text-sm text-muted-foreground">
+                No audit log records found matching the criteria.
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

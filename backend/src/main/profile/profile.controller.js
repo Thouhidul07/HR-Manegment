@@ -330,10 +330,115 @@ const updatePassword = asyncHandler(async (req, res) => {
   res.json({ message: "Password updated successfully" });
 });
 
+async function ensureUserDocumentsTable() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS user_documents (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      document_type VARCHAR(80) NOT NULL,
+      document_name VARCHAR(180) NOT NULL,
+      file_path VARCHAR(255) NOT NULL,
+      file_size INT,
+      mime_type VARCHAR(100),
+      uploaded_by INT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL
+    )
+  `);
+}
+
+const getMyDocuments = asyncHandler(async (req, res) => {
+  await ensureUserDocumentsTable();
+  const [docs] = await query(
+    "SELECT * FROM user_documents WHERE user_id = ? ORDER BY id DESC",
+    [req.user.id]
+  );
+  res.json({ success: true, documents: docs });
+});
+
+const uploadDocument = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: "No document file was uploaded" });
+  }
+
+  await ensureUserDocumentsTable();
+  const { documentType } = req.body;
+  if (!documentType) {
+    return res.status(400).json({ message: "documentType is required" });
+  }
+
+  const [result] = await query(
+    `INSERT INTO user_documents (user_id, document_type, document_name, file_path, file_size, mime_type, uploaded_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [
+      req.user.id,
+      documentType,
+      req.file.originalname,
+      req.file.filename,
+      req.file.size,
+      req.file.mimetype,
+      req.user.id,
+    ]
+  );
+
+  const { logAudit } = require("../../utils/auditLogger");
+  await logAudit({
+    actorId: req.user.id,
+    actorName: req.user.name,
+    actorRole: req.user.role,
+    action: "upload_document",
+    module: "profile",
+    entityType: "user_document",
+    entityId: result.insertId,
+    description: `Uploaded document of type "${documentType}": ${req.file.originalname}`,
+    ipAddress: req.ip
+  });
+
+  const [newDoc] = await query("SELECT * FROM user_documents WHERE id = ? LIMIT 1", [result.insertId]);
+
+  res.json({ success: true, message: "Document uploaded successfully", document: newDoc[0] });
+});
+
+const deleteDocument = asyncHandler(async (req, res) => {
+  await ensureUserDocumentsTable();
+  const docId = req.params.id;
+
+  const [docs] = await query("SELECT * FROM user_documents WHERE id = ? LIMIT 1", [docId]);
+  if (!docs.length) {
+    return res.status(404).json({ message: "Document not found" });
+  }
+
+  if (docs[0].user_id !== req.user.id && req.user.role !== "admin") {
+    return res.status(403).json({ message: "You do not have permission to delete this document" });
+  }
+
+  await query("DELETE FROM user_documents WHERE id = ?", [docId]);
+
+  const { logAudit } = require("../../utils/auditLogger");
+  await logAudit({
+    actorId: req.user.id,
+    actorName: req.user.name,
+    actorRole: req.user.role,
+    action: "delete_document",
+    module: "profile",
+    entityType: "user_document",
+    entityId: parseInt(docId, 10),
+    description: `Deleted document of type "${docs[0].document_type}": ${docs[0].document_name}`,
+    ipAddress: req.ip
+  });
+
+  res.json({ success: true, message: "Document deleted successfully" });
+});
+
 module.exports = {
   ensureProfileTable,
   getMyProfile,
   updateMyProfile,
   updatePreferences,
   updatePassword,
+  getMyDocuments,
+  uploadDocument,
+  deleteDocument,
 };

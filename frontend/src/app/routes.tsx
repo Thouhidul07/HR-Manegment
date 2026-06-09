@@ -3,6 +3,7 @@ import type { ReactElement } from "react";
 import { Layout } from "./components/layout/Layout";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { useAuth } from "./contexts/AuthContext";
+import { LandingPage } from "./pages/LandingPage";
 import { Features } from "./pages/Features";
 import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
@@ -65,25 +66,26 @@ function DevOnlyRoute({ children }: { children: ReactElement }) {
   return children;
 }
 
+/** Catch-all: authenticated → /dashboard, guests → / */
+function CatchAllRedirect() {
+  const { isAuthenticated } = useAuth();
+  return <Navigate to={isAuthenticated ? "/dashboard" : "/"} replace />;
+}
+
 const adminHr: UserRole[] = ["admin", "hr_manager"];
 const allRoles: UserRole[] = ["admin", "hr_manager", "employee"];
 const employeesOnly: UserRole[] = ["employee"];
-const forumRoles: UserRole[] = ["hr_manager", "employee"];
+const forumRoles: UserRole[] = ["admin", "hr_manager", "employee"];
 
 function ForumRoute({ children }: { children: ReactElement }) {
-  const { user } = useAuth();
-
-  if (user?.role === "admin") {
-    return <Navigate to="/dashboard/forum/moderation" replace />;
-  }
-
   return <RoleRoute allowed={forumRoles}>{children}</RoleRoute>;
 }
 
 export const router = createBrowserRouter([
+  // ── Public routes ──────────────────────────────────────────────────────────
   {
     path: "/",
-    element: <Navigate to="/login" replace />,
+    Component: LandingPage,
   },
   {
     path: "/features",
@@ -97,6 +99,12 @@ export const router = createBrowserRouter([
     path: "/register",
     Component: Register,
   },
+  {
+    path: "/jobs",
+    Component: CircularApply,
+  },
+
+  // ── Protected dashboard routes ─────────────────────────────────────────────
   {
     path: "/dashboard",
     Component: ProtectedRoute,
@@ -125,7 +133,7 @@ export const router = createBrowserRouter([
           { path: "peer-review", element: <RoleRoute allowed={adminHr}><PeerReview /></RoleRoute> },
           { path: "my-peer-review", element: <RoleRoute allowed={["employee"]}><EmployeePeerReview /></RoleRoute> },
           { path: "cv-filter", element: <RoleRoute allowed={adminHr}><CVFilter /></RoleRoute> },
-          { path: "circular-apply", element: <RoleRoute allowed={["employee"]}><CircularApply /></RoleRoute> },
+          { path: "circular-apply", element: <RoleRoute allowed={allRoles}><CircularApply /></RoleRoute> },
           { path: "project-management", element: <RoleRoute allowed={adminHr}><ProjectManagement /></RoleRoute> },
           { path: "new-task", element: <RoleRoute allowed={adminHr}><NewTask /></RoleRoute> },
           { path: "project-reports", element: <RoleRoute allowed={adminHr}><ProjectReports /></RoleRoute> },
@@ -137,8 +145,10 @@ export const router = createBrowserRouter([
       },
     ],
   },
+
+  // ── Catch-all ──────────────────────────────────────────────────────────────
   {
     path: "*",
-    element: <Navigate to="/" replace />,
+    element: <CatchAllRedirect />,
   },
 ]);

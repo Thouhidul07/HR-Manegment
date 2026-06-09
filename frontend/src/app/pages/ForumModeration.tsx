@@ -9,6 +9,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/Card"
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { useAuth } from "../contexts/AuthContext";
+import { Modal } from "../components/ui/Modal";
 import api from "../services/api";
 
 const reportedContent = [
@@ -102,37 +103,81 @@ export function ForumModeration() {
   const { user } = useAuth();
   const backPath = user?.role === "admin" ? "/dashboard" : "/dashboard/forum";
   const [activeTab, setActiveTab] = useState<'pending' | 'reviewed' | 'activity'>('pending');
-  const [selectedReport, setSelectedReport] = useState<number | null>(null);
-  const [reports, setReports] = useState(reportedContent);
+  const [reports, setReports] = useState<any[]>([]);
+  const [filters, setFilters] = useState({
+    status: "",
+    type: "",
+    severity: "",
+    keyword: "",
+  });
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const [isContextModalOpen, setIsContextModalOpen] = useState(false);
+  const [contextReportId, setContextReportId] = useState<number | null>(null);
+  const [contextData, setContextData] = useState<any>(null);
+  const [loadingContext, setLoadingContext] = useState(false);
+  const [contextError, setContextError] = useState("");
+
+  const fetchReports = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const params: any = {};
+      if (filters.status) params.status = filters.status;
+      if (filters.type) params.type = filters.type;
+      if (filters.severity) params.severity = filters.severity;
+      if (filters.keyword) params.keyword = filters.keyword;
+
+      const response = await api.get("/forum/reports", { params });
+      const mapped = (response.data.reports || []).map((report: any) => ({
+        id: report.id,
+        type: report.target_type,
+        title: `${report.target_type} #${report.target_id}`,
+        reportReason: report.reason,
+        reporter: "Anonymous User Report",
+        timestamp: new Date(report.created_at).toLocaleString(),
+        status: report.status,
+        action: report.action_taken,
+        toxicityScore: report.toxicityScore || 0.25,
+        sentimentScore: -0.25,
+        content: report.notes || "Reported forum content awaiting review.",
+        flags: [report.reason],
+        severity: report.severity || "low",
+      }));
+      setReports(mapped);
+    } catch (err: any) {
+      setError("Failed to load reports");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    let isMounted = true;
+    fetchReports();
+  }, [filters]);
 
-    api.get("/forum/reports")
-      .then((response) => {
-        if (!isMounted || !response.data.reports?.length) return;
+  const fetchContext = async (reportId: number) => {
+    setLoadingContext(true);
+    setContextError("");
+    setContextData(null);
+    try {
+      const response = await api.get(`/forum/reports/${reportId}/context`);
+      setContextData(response.data);
+    } catch (err: any) {
+      setContextError(err?.response?.data?.message || "Failed to load report context");
+    } finally {
+      setLoadingContext(false);
+    }
+  };
 
-        setReports(response.data.reports.map((report: any) => ({
-          id: report.id,
-          type: report.target_type,
-          title: `${report.target_type} #${report.target_id}`,
-          reportReason: report.reason,
-          reporter: "Anonymous User Report",
-          timestamp: new Date(report.created_at).toLocaleString(),
-          status: report.status === "pending" ? "pending" : "reviewed",
-          action: report.action_taken,
-          toxicityScore: 0.25,
-          sentimentScore: -0.25,
-          content: report.notes || "Reported forum content awaiting review.",
-          flags: [report.reason],
-        })));
-      })
-      .catch(() => {});
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  useEffect(() => {
+    if (contextReportId) {
+      fetchContext(contextReportId);
+      setIsContextModalOpen(true);
+    }
+  }, [contextReportId]);
 
   const handleModerationAction = async (reportId: number, action: "approve" | "remove" | "dismiss") => {
     await api.patch(`/forum/reports/${reportId}`, { action });
@@ -169,11 +214,89 @@ export function ForumModeration() {
             AI-powered content moderation and community safety tools
           </p>
         </div>
-        <Button variant="outline" className="gap-2">
+        <Button variant="outline" className="gap-2" onClick={() => setIsFilterOpen(!isFilterOpen)}>
           <Filter className="w-4 h-4" />
-          Filters
+          {isFilterOpen ? "Hide Filters" : "Filters"}
         </Button>
       </div>
+
+      {isFilterOpen && (
+        <Card className="p-4 border border-border bg-card">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1 block">
+                Status
+              </label>
+              <select
+                value={filters.status}
+                onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
+                className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground"
+              >
+                <option value="">All Statuses</option>
+                <option value="pending">Pending Review</option>
+                <option value="reviewed">Reviewed</option>
+                <option value="dismissed">Dismissed</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1 block">
+                Content Type
+              </label>
+              <select
+                value={filters.type}
+                onChange={(e) => setFilters(prev => ({ ...prev, type: e.target.value }))}
+                className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground"
+              >
+                <option value="">All Types</option>
+                <option value="post">Post</option>
+                <option value="reply">Reply</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1 block">
+                Severity / Risk
+              </label>
+              <select
+                value={filters.severity}
+                onChange={(e) => setFilters(prev => ({ ...prev, severity: e.target.value }))}
+                className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground"
+              >
+                <option value="">All Severities</option>
+                <option value="low">Low Risk</option>
+                <option value="medium">Medium Risk</option>
+                <option value="high">High Toxicity</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1 block">
+                Search Keyword
+              </label>
+              <input
+                type="text"
+                placeholder="Reason or notes..."
+                value={filters.keyword}
+                onChange={(e) => setFilters(prev => ({ ...prev, keyword: e.target.value }))}
+                className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 mt-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setFilters({ status: "", type: "", severity: "", keyword: "" })
+              }
+            >
+              Clear Filters
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {/* Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -186,7 +309,7 @@ export function ForumModeration() {
               Urgent
             </Badge>
           </div>
-          <p className="text-2xl mb-1">{moderationStats.pendingReview}</p>
+          <p className="text-2xl mb-1">{reports.filter(r => r.status === 'pending').length}</p>
           <p className="text-sm text-white/80">Pending Review</p>
         </Card>
 
@@ -197,7 +320,7 @@ export function ForumModeration() {
             </div>
             <Badge variant="success" className="text-xs">Today</Badge>
           </div>
-          <p className="text-2xl text-foreground mb-1">{moderationStats.resolvedToday}</p>
+          <p className="text-2xl text-foreground mb-1">{reports.filter(r => r.status === 'reviewed' || r.status === 'dismissed').length}</p>
           <p className="text-sm text-muted-foreground">Resolved</p>
         </Card>
 
@@ -207,7 +330,7 @@ export function ForumModeration() {
               <Clock className="w-5 h-5 text-[var(--info)]" />
             </div>
           </div>
-          <p className="text-2xl text-foreground mb-1">{moderationStats.averageResponseTime}</p>
+          <p className="text-2xl text-foreground mb-1">1.2h</p>
           <p className="text-sm text-muted-foreground">Avg Response Time</p>
         </Card>
 
@@ -218,7 +341,7 @@ export function ForumModeration() {
             </div>
             <Badge variant="success" className="text-xs">-8%</Badge>
           </div>
-          <p className="text-2xl text-foreground mb-1">{moderationStats.sentimentScore}%</p>
+          <p className="text-2xl text-foreground mb-1">78%</p>
           <p className="text-sm text-muted-foreground">Health Score</p>
         </Card>
       </div>
@@ -258,7 +381,7 @@ export function ForumModeration() {
           {(activeTab === 'pending' || activeTab === 'reviewed') && (
             <div className="space-y-4">
               {reports
-                .filter(item => activeTab === 'pending' ? item.status === 'pending' : item.status === 'reviewed')
+                .filter(item => activeTab === 'pending' ? item.status === 'pending' : (item.status === 'reviewed' || item.status === 'dismissed'))
                 .map((item) => (
                   <Card key={item.id} className="overflow-hidden">
                     <div className="p-5">
@@ -354,7 +477,11 @@ export function ForumModeration() {
                       {/* Actions */}
                       {item.status === 'pending' ? (
                         <div className="flex gap-2">
-                          <Button variant="outline" className="flex-1 gap-2">
+                          <Button
+                            variant="outline"
+                            className="flex-1 gap-2"
+                            onClick={() => setContextReportId(item.id)}
+                          >
                             <Eye className="w-4 h-4" />
                             View Full Context
                           </Button>
@@ -372,10 +499,10 @@ export function ForumModeration() {
                           <div className="flex items-center gap-2">
                             <CheckCircle className="w-5 h-5 text-[var(--success)]" />
                             <span className="text-sm text-foreground">
-                              Action taken: <strong>{item.action}</strong>
+                              Action taken: <strong className="capitalize">{item.action}</strong>
                             </span>
                           </div>
-                          <Button variant="ghost" size="sm">
+                          <Button variant="ghost" size="sm" onClick={() => setContextReportId(item.id)}>
                             View Details
                           </Button>
                         </div>
@@ -500,6 +627,145 @@ export function ForumModeration() {
           </Card>
         </div>
       </div>
+
+      <Modal
+        isOpen={isContextModalOpen}
+        onClose={() => {
+          setIsContextModalOpen(false);
+          setContextReportId(null);
+        }}
+        title="Reported Content Context"
+        size="lg"
+        footer={
+          <div className="flex gap-2 w-full justify-between items-center">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsContextModalOpen(false);
+                setContextReportId(null);
+              }}
+            >
+              Close
+            </Button>
+            {contextData?.report?.status === "pending" && (
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="text-[var(--success)] border-[var(--success)]/30 hover:bg-[var(--success)]/10"
+                  onClick={async () => {
+                    await handleModerationAction(contextData.report.id, "approve");
+                    setIsContextModalOpen(false);
+                    setContextReportId(null);
+                  }}
+                >
+                  Approve / Dismiss
+                </Button>
+                <Button
+                  variant="outline"
+                  className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                  onClick={async () => {
+                    await handleModerationAction(contextData.report.id, "remove");
+                    setIsContextModalOpen(false);
+                    setContextReportId(null);
+                  }}
+                >
+                  Remove Content
+                </Button>
+              </div>
+            )}
+          </div>
+        }
+      >
+        {loadingContext ? (
+          <div className="py-12 text-center text-sm text-muted-foreground">
+            Loading context details...
+          </div>
+        ) : contextError ? (
+          <div className="rounded-lg border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            {contextError}
+          </div>
+        ) : contextData ? (
+          <div className="space-y-6 text-foreground">
+            {/* Report Summary */}
+            <div className="p-4 rounded-xl bg-[var(--warning)]/10 border border-[var(--warning)]/20">
+              <h3 className="text-sm font-bold flex items-center gap-2 mb-2 text-foreground">
+                <Flag className="w-4 h-4 text-[var(--warning)]" />
+                Report Details
+              </h3>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Reason:</span>{" "}
+                  <span className="font-semibold">{contextData.report.reason}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Reporter:</span>{" "}
+                  <span>{contextData.report.reporter_name || "Anonymous"}</span>
+                </div>
+                <div className="col-span-2">
+                  <span className="text-muted-foreground">Reporter Notes:</span>{" "}
+                  <span className="italic">{contextData.report.notes || "No additional notes provided."}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Reported Item Content */}
+            <div className="space-y-2">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+                Reported {contextData.report.target_type} content
+              </h3>
+              <div className="p-5 rounded-xl border border-border bg-card">
+                <div className="flex justify-between items-center mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">{contextData.author?.name || "Anonymous"}</span>
+                    <Badge variant="secondary" className="capitalize">
+                      {contextData.author?.role}
+                    </Badge>
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(contextData.content?.created_at || contextData.report.created_at).toLocaleString()}
+                  </span>
+                </div>
+                {contextData.content?.title && (
+                  <h4 className="text-base font-bold mb-2">{contextData.content.title}</h4>
+                )}
+                <p className="text-sm whitespace-pre-wrap leading-relaxed">
+                  {contextData.content?.body || "Content not found or deleted."}
+                </p>
+              </div>
+            </div>
+
+            {/* Thread/Parent Context */}
+            {contextData.threadContext && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
+                  Original Post Thread Context
+                </h3>
+                <div className="p-5 rounded-xl border border-border bg-accent/20">
+                  <div className="flex justify-between items-center mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">{contextData.threadContext.postAuthor?.name}</span>
+                      <Badge variant="secondary" className="capitalize">
+                        {contextData.threadContext.postAuthor?.role}
+                      </Badge>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(contextData.threadContext.post.created_at).toLocaleString()}
+                    </span>
+                  </div>
+                  <h4 className="text-sm font-bold mb-2">{contextData.threadContext.post.title}</h4>
+                  <p className="text-xs text-muted-foreground line-clamp-3">
+                    {contextData.threadContext.post.body}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="py-8 text-center text-sm text-muted-foreground">
+            No context data available.
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

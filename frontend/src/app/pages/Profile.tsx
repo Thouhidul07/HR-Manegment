@@ -247,11 +247,12 @@ export function Profile() {
   const tabs = [
     { id: "personal", label: "Personal Info", icon: User, roles: ["all"] },
     { id: "work", label: "Work Information", icon: Briefcase, roles: ["all"] },
+    { id: "documents", label: "My Documents", icon: FileText, roles: ["all"] },
     { id: "security", label: "Password & Security", icon: Lock, roles: ["all"] },
     { id: "notifications", label: "Notifications", icon: Bell, roles: ["all"] },
     { id: "attendance", label: "Attendance", icon: Clock, roles: ["employee", "hr_manager"] },
     { id: "payroll", label: "Payroll & Financial", icon: DollarSign, roles: ["employee", "hr_manager"] },
-    { id: "leave", label: "Leave & Documents", icon: FileText, roles: ["employee", "hr_manager"] },
+    { id: "leave", label: "Leave Balance", icon: Calendar, roles: ["employee", "hr_manager"] },
     { id: "forum", label: "Forum Preferences", icon: MessageSquare, roles: ["all"] },
     { id: "appearance", label: "Appearance", icon: Moon, roles: ["all"] },
     { id: "privacy", label: "Privacy", icon: ShieldCheck, roles: ["all"] },
@@ -289,10 +290,11 @@ export function Profile() {
           </div>
 
           <div className="flex-1 min-w-0">
-            <QuickActions user={payload.user} />
+            <QuickActions user={payload.user} setActiveTab={setActiveTab} />
             <motion.div key={activeTab} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22 }}>
               {activeTab === "personal" && <PersonalInfoTab payload={payload} onSave={saveProfile} />}
               {activeTab === "work" && <WorkInfoTab payload={payload} onSave={saveProfile} />}
+              {activeTab === "documents" && <DocumentsTab />}
               {activeTab === "security" && <SecurityTab />}
               {activeTab === "notifications" && <NotificationsTab settings={payload.settings} onSave={savePreferences} />}
               {activeTab === "attendance" && <AttendanceTab settings={payload.settings} onSave={savePreferences} />}
@@ -397,7 +399,7 @@ function ProfileSidebar({ user, completion, tabs, activeTab, setActiveTab, loadi
   );
 }
 
-function QuickActions({ user }: { user: ProfileUser }) {
+function QuickActions({ user, setActiveTab }: { user: ProfileUser; setActiveTab: (tab: string) => void }) {
   const navigate = useNavigate();
   const isEmployeeOrHR = user.role === "employee" || user.role === "hr_manager";
   const isAdmin = user.role === "admin";
@@ -447,7 +449,7 @@ function QuickActions({ user }: { user: ProfileUser }) {
           <BarChart2 className="w-4 h-4" />
           Export Profile
         </button>
-        <button onClick={() => navigate("/dashboard/profile")} className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-[#543884] border border-[#543884]/20 hover:bg-[#543884]/5 transition-colors">
+        <button onClick={() => setActiveTab("documents")} className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-[#543884] border border-[#543884]/20 hover:bg-[#543884]/5 transition-colors">
           <Upload className="w-4 h-4" />
           Update Documents
         </button>
@@ -822,11 +824,210 @@ function LeaveDocumentsTab() {
           <SmallStat label="Unpaid Leave" value="0 days" />
         </div>
       </div>
+    </>
+  );
+}
+
+function DocumentsTab() {
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [docType, setDocType] = useState("CV / Resume");
+  const [file, setFile] = useState<File | null>(null);
+
+  const fetchDocuments = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await api.get("/profile/documents");
+      setDocuments(response.data.documents || []);
+    } catch (err: any) {
+      setError(err?.response?.data?.message || "Failed to load documents");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDocuments();
+  }, []);
+
+  const handleUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file) {
+      setError("Please select a file to upload");
+      return;
+    }
+
+    setUploading(true);
+    setError("");
+    setSuccess("");
+
+    const formData = new FormData();
+    formData.append("document", file);
+    formData.append("documentType", docType);
+
+    try {
+      const response = await api.post("/profile/documents", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      setSuccess(response.data.message || "Document uploaded successfully");
+      setFile(null);
+      const fileInput = document.getElementById("doc-file-input") as HTMLInputElement;
+      if (fileInput) fileInput.value = "";
+      
+      await fetchDocuments();
+    } catch (err: any) {
+      setError(err?.response?.data?.message || "Failed to upload document");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!window.confirm("Are you sure you want to delete this document?")) return;
+
+    setDeletingId(id);
+    setError("");
+    setSuccess("");
+    try {
+      const response = await api.delete(`/profile/documents/${id}`);
+      setSuccess(response.data.message || "Document deleted successfully");
+      await fetchDocuments();
+    } catch (err: any) {
+      setError(err?.response?.data?.message || "Failed to delete document");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-card border border-[#543884]/10 rounded-2xl p-6 md:p-8 shadow-sm">
+        <h2 className="text-xl font-semibold text-[#262254] dark:text-white mb-2">Upload Document</h2>
+        <p className="text-sm text-muted-foreground mb-6">
+          Upload ID cards, certificates, CVs, or contracts (PDF, DOC, DOCX, JPG, PNG up to 5MB)
+        </p>
+
+        {error && (
+          <div className="mb-4 rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            {error}
+          </div>
+        )}
+        {success && (
+          <div className="mb-4 rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-300">
+            {success}
+          </div>
+        )}
+
+        <form onSubmit={handleUpload} className="space-y-4">
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-medium text-[#262254]/70 dark:text-white/60 uppercase tracking-wider mb-1 block">
+                Document Type
+              </label>
+              <select
+                value={docType}
+                onChange={(e) => setDocType(e.target.value)}
+                className="w-full px-4 py-2.5 text-sm rounded-xl border border-[#543884]/20 bg-white dark:bg-[#1a0f2e] text-[#262254] dark:text-white focus:ring-2 focus:ring-[#9A77CF] focus:border-transparent outline-none"
+              >
+                <option value="NID / National ID">NID / National ID</option>
+                <option value="CV / Resume">CV / Resume</option>
+                <option value="Certificate">Certificate</option>
+                <option value="Contract">Contract</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-[#262254]/70 dark:text-white/60 uppercase tracking-wider mb-1 block">
+                Select File
+              </label>
+              <input
+                id="doc-file-input"
+                type="file"
+                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                onChange={(e) => setFile(e.target.files ? e.target.files[0] : null)}
+                className="w-full px-4 py-2 text-sm rounded-xl border border-[#543884]/20 bg-white dark:bg-[#1a0f2e] text-[#262254] dark:text-white focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={uploading || !file}
+              className="px-6 py-2 rounded-xl text-sm font-medium text-white shadow-md transition-all disabled:opacity-60"
+              style={{ background: "linear-gradient(135deg, #543884, #A13670, #EC4176)" }}
+            >
+              {uploading ? "Uploading..." : "Upload File"}
+            </button>
+          </div>
+        </form>
+      </div>
+
       <div className="bg-card border border-[#543884]/10 rounded-2xl p-6 md:p-8 shadow-sm">
         <h2 className="text-xl font-semibold text-[#262254] dark:text-white mb-4">My Documents</h2>
-        <p className="text-sm text-muted-foreground">Documents uploaded here are reflected in your HR profile records.</p>
+        {loading ? (
+          <div className="py-8 text-center text-sm text-muted-foreground">Loading documents...</div>
+        ) : documents.length ? (
+          <div className="divide-y divide-border">
+            {documents.map((doc) => (
+              <div key={doc.id} className="flex items-center justify-between py-4 first:pt-0 last:pb-0">
+                <div className="flex items-start gap-3">
+                  <div className="p-2.5 rounded-xl bg-[#543884]/10 text-[#543884] flex-shrink-0">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground">{doc.document_name}</h4>
+                    <div className="flex gap-2 items-center mt-1">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-accent text-accent-foreground">
+                        {doc.document_type}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {(doc.file_size / 1024 / 1024).toFixed(2)} MB
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        Uploaded {new Date(doc.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={`http://localhost:5000/uploads/${doc.file_path}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-2 rounded-lg hover:bg-accent text-[#9A77CF] transition-colors"
+                    title="View file"
+                  >
+                    <Eye className="w-4 h-4" />
+                  </a>
+                  <button
+                    type="button"
+                    disabled={deletingId === doc.id}
+                    onClick={() => handleDelete(doc.id)}
+                    className="p-2 rounded-lg hover:bg-rose-50 text-rose-500 transition-colors"
+                    title="Delete document"
+                  >
+                    {deletingId === doc.id ? "..." : <X className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="py-8 text-center text-sm text-muted-foreground">
+            No documents uploaded yet.
+          </div>
+        )}
       </div>
-    </>
+    </div>
   );
 }
 

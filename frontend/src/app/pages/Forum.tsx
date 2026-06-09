@@ -149,7 +149,8 @@ const DISCUSSIONS_PAGE_SIZE = 4;
 export function Forum() {
   const { user } = useAuth();
   const location = useLocation();
-  const canModerateForum = user?.role === "hr_manager";
+  const isAdmin = user?.role === "admin";
+  const canModerateForum = user?.role === "hr_manager" || isAdmin;
   const canCreatePost = user?.role === "employee" || user?.role === "hr_manager";
   const [discussionList, setDiscussionList] = useState(discussions);
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -368,6 +369,30 @@ export function Forum() {
           )}
         </div>
       </div>
+
+      {/* Admin view-only notice */}
+      {isAdmin && (
+        <div className="flex items-center gap-3 rounded-lg border border-[var(--info)]/40 bg-[var(--info)]/8 px-4 py-3">
+          <Shield className="w-4 h-4 text-[var(--info)] flex-shrink-0" />
+          <p className="text-sm text-[var(--info)] flex-1">
+            <span className="font-semibold">Admin view-only mode.</span>{" "}
+            You can read all posts and replies. Use{" "}
+            <Link
+              to="/dashboard/forum/moderation"
+              className="underline font-medium hover:opacity-80"
+            >
+              Forum Moderation
+            </Link>{" "}
+            to review, remove, or manage reported content.
+          </p>
+          <Link to="/dashboard/forum/moderation">
+            <Button variant="outline" size="sm" className="gap-2 flex-shrink-0 text-[var(--info)] border-[var(--info)]/40 hover:bg-[var(--info)]/10">
+              <Shield className="w-3.5 h-3.5" />
+              Go to Moderation
+            </Button>
+          </Link>
+        </div>
+      )}
 
       {forumMessage && (
         <div className="rounded-lg border border-[var(--success)]/30 bg-[var(--success)]/10 px-4 py-3 text-sm text-[var(--success)]">

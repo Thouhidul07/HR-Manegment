@@ -54,6 +54,20 @@ const approveAccount = asyncHandler(async (req, res) => {
     [req.params.id, req.user.company_id]
   );
 
+  const userToApprove = rows[0];
+  const { logAudit } = require("../../utils/auditLogger");
+  await logAudit({
+    actorId: req.user.id,
+    actorName: req.user.name,
+    actorRole: req.user.role,
+    action: "approve_account",
+    module: "account_approvals",
+    entityType: "user",
+    entityId: userToApprove.id,
+    description: `Approved account request for ${userToApprove.name} (${userToApprove.email})`,
+    ipAddress: req.ip
+  });
+
   res.json({ message: "Account approved", account: mapAccount(rows[0]) });
 });
 
@@ -79,6 +93,20 @@ const rejectAccount = asyncHandler(async (req, res) => {
     "SELECT id, name, email, role, phone, department, status, created_at FROM users WHERE id = ? AND company_id = ?",
     [req.params.id, req.user.company_id]
   );
+
+  const userToReject = rows[0];
+  const { logAudit } = require("../../utils/auditLogger");
+  await logAudit({
+    actorId: req.user.id,
+    actorName: req.user.name,
+    actorRole: req.user.role,
+    action: "reject_account",
+    module: "account_approvals",
+    entityType: "user",
+    entityId: userToReject.id,
+    description: `Rejected account request for ${userToReject.name} (${userToReject.email})`,
+    ipAddress: req.ip
+  });
 
   res.json({ message: "Account rejected", account: mapAccount(rows[0]) });
 });

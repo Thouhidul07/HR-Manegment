@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import api from '../../services/api';
+import { Modal } from '../ui/Modal';
 import {
   Users, UserCheck, UserX, Briefcase,
   FileText, UserPlus, Calendar, Receipt,
@@ -33,6 +35,16 @@ export function AdminDashboard({ userName }: { userName: string }) {
   const navigate = useNavigate();
   const [summary, setSummary] = useState<RoleDashboardSummary | null>(null);
   const [reporting, setReporting] = useState(false);
+  const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
+  const [modalLogs, setModalLogs] = useState<any[]>([]);
+  const [loadingModalLogs, setLoadingModalLogs] = useState(false);
+  const [modalLogsError, setModalLogsError] = useState("");
+  const [modalFilters, setModalFilters] = useState({
+    module: "",
+    actor: "",
+    keyword: "",
+  });
+
   const stats    = getAdminStats();
   const trend    = getAdminAttendanceTrend();
   const depts    = getDepartmentBreakdown();
@@ -56,6 +68,36 @@ export function AdminDashboard({ userName }: { userName: string }) {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchModalLogs = async () => {
+      setLoadingModalLogs(true);
+      setModalLogsError("");
+      try {
+        const params: any = {};
+        if (modalFilters.module) params.module = modalFilters.module;
+        if (modalFilters.actor) params.actor = modalFilters.actor;
+        if (modalFilters.keyword) params.search = modalFilters.keyword;
+
+        const response = await api.get("/audit-logs", { params });
+        if (!isMounted) return;
+        setModalLogs(response.data.logs || []);
+      } catch (err: any) {
+        if (!isMounted) return;
+        setModalLogsError(err?.response?.data?.message || "Failed to load activity logs");
+      } finally {
+        if (isMounted) setLoadingModalLogs(false);
+      }
+    };
+
+    if (isActivityModalOpen) {
+      fetchModalLogs();
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [isActivityModalOpen, modalFilters]);
 
   const liveStats = {
     ...stats,
@@ -275,7 +317,7 @@ export function AdminDashboard({ userName }: { userName: string }) {
 
       {/* ── Row 4: Activity + Events ─────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <SectionCard title="Recent Activity" action={<GhostLink onClick={() => navigate('/dashboard/profile')}>View All →</GhostLink>}>
+        <SectionCard title="Recent Activity" action={<GhostLink onClick={() => setIsActivityModalOpen(true)}>View All →</GhostLink>}>
           <div className="space-y-0">
             {activity.map(a => {
               const cfg = activityConfig[a.type];
@@ -321,6 +363,101 @@ export function AdminDashboard({ userName }: { userName: string }) {
           </div>
         </SectionCard>
       </div>
+
+      <Modal
+        isOpen={isActivityModalOpen}
+        onClose={() => setIsActivityModalOpen(false)}
+        title="All Platform Activities"
+        size="lg"
+        footer={
+          <OutlineButton onClick={() => setIsActivityModalOpen(false)}>
+            Close
+          </OutlineButton>
+        }
+      >
+        <div className="space-y-4">
+          <div className="flex gap-2 items-center flex-wrap">
+            <input
+              type="text"
+              placeholder="Search actor..."
+              value={modalFilters.actor}
+              onChange={(e) => setModalFilters(prev => ({ ...prev, actor: e.target.value }))}
+              className="px-3 py-1.5 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary w-40"
+            />
+            <input
+              type="text"
+              placeholder="Search keyword..."
+              value={modalFilters.keyword || ""}
+              onChange={(e) => setModalFilters(prev => ({ ...prev, keyword: e.target.value }))}
+              className="px-3 py-1.5 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary w-40"
+            />
+            <select
+              value={modalFilters.module}
+              onChange={(e) => setModalFilters(prev => ({ ...prev, module: e.target.value }))}
+              className="px-3 py-1.5 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option value="">All Modules</option>
+              <option value="Leave Management">Leave Management</option>
+              <option value="Onboarding & Offboarding">Onboarding &amp; Offboarding</option>
+              <option value="Expense Management">Expense Management</option>
+              <option value="Training & Development">Training &amp; Development</option>
+              <option value="Profile & Documents">Profile &amp; Documents</option>
+              <option value="Payroll Management">Payroll Management</option>
+              <option value="Recruitment">Recruitment</option>
+              <option value="Forum Moderation">Forum Moderation</option>
+              <option value="Attendance & Time">Attendance &amp; Time</option>
+              <option value="Work Management">Work Management</option>
+              <option value="Account Approvals">Account Approvals</option>
+              <option value="Auth">Auth</option>
+            </select>
+            <OutlineButton
+              onClick={() => setModalFilters({ module: "", actor: "", keyword: "" })}
+            >
+              Reset
+            </OutlineButton>
+          </div>
+
+          {modalLogsError && (
+            <div className="rounded-lg border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {modalLogsError}
+            </div>
+          )}
+
+          {loadingModalLogs ? (
+            <div className="py-12 text-center text-sm text-muted-foreground">
+              Loading activities...
+            </div>
+          ) : modalLogs.length ? (
+            <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
+              {modalLogs.map((log) => (
+                <div key={log.id} className="flex items-start gap-3 py-3 border-b border-border last:border-0">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-foreground">
+                      <span className="font-semibold text-primary">{log.actor_name || "System"}</span> (
+                      <span className="text-xs text-muted-foreground capitalize">{log.actor_role || "system"}</span>) - {log.description}
+                    </p>
+                    <div className="flex gap-3 mt-1 items-center">
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-accent text-accent-foreground uppercase font-semibold">
+                        {log.module}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(log.created_at).toLocaleString()}
+                      </span>
+                      {log.ip_address && (
+                        <span className="text-xs font-mono text-muted-foreground">IP: {log.ip_address}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="py-12 text-center text-sm text-muted-foreground">
+              No activity logs found.
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }

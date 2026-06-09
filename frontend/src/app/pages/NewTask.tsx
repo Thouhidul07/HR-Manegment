@@ -26,22 +26,15 @@ export function NewTask() {
     deadline: '',
     priority: 'medium' as TaskPriority,
     status: 'todo' as TaskStatus,
-    project: 'Website Redesign',
+    project: '',
     tags: [] as string[],
     estimatedHours: ''
   });
 
   const [tagInput, setTagInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const fallbackEmployees: Employee[] = [
-    { id: 1, name: "Sarah Johnson", role: "Frontend Developer", avatar: "SJ" },
-    { id: 2, name: "Michael Chen", role: "Backend Developer", avatar: "MC" },
-    { id: 3, name: "Emily Rodriguez", role: "UI/UX Designer", avatar: "ER" },
-    { id: 4, name: "David Kim", role: "Full Stack Developer", avatar: "DK" },
-    { id: 5, name: "Jessica Martinez", role: "QA Engineer", avatar: "JM" }
-  ];
-  const [employees, setEmployees] = useState<Employee[]>(fallbackEmployees);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [projectsList, setProjectsList] = useState<string[]>([]);
 
   useEffect(() => {
     let isMounted = true;
@@ -53,7 +46,7 @@ export function NewTask() {
         setEmployees(response.data.employees.map((employee: any) => ({
           id: employee.id,
           name: employee.name,
-          role: employee.position || employee.department || "Team Member",
+          role: employee.designation || employee.department || "Team Member",
           avatar: employee.name
             .split(" ")
             .map((part: string) => part[0])
@@ -64,12 +57,23 @@ export function NewTask() {
       })
       .catch(() => {});
 
+    api.get("/projects")
+      .then((response) => {
+        if (!isMounted) return;
+        const names = (response.data.projects || []).map((p: any) => p.name);
+        setProjectsList(names);
+        if (names.length > 0) {
+          setFormData(prev => ({ ...prev, project: names[0] }));
+        }
+      })
+      .catch(() => {});
+
     return () => {
       isMounted = false;
     };
   }, []);
 
-  const projects = ['Website Redesign', 'User Portal', 'Mobile App', 'API Integration'];
+
 
   const handleAddTag = () => {
     if (tagInput.trim() && !formData.tags.includes(tagInput.trim())) {
@@ -188,9 +192,13 @@ export function NewTask() {
                   onChange={(e) => setFormData({ ...formData, project: e.target.value })}
                   className="w-full px-4 py-3 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 >
-                  {projects.map(project => (
-                    <option key={project} value={project}>{project}</option>
-                  ))}
+                  {projectsList.length === 0 ? (
+                    <option value="">No projects available</option>
+                  ) : (
+                    projectsList.map(project => (
+                      <option key={project} value={project}>{project}</option>
+                    ))
+                  )}
                 </select>
               </div>
 

@@ -95,6 +95,20 @@ const login = asyncHandler(async (req, res) => {
     company_name: users[0].company_name,
     company_domain: users[0].company_domain,
   };
+
+  const { logAudit } = require("../../utils/auditLogger");
+  await logAudit({
+    actorId: user.id,
+    actorName: user.name,
+    actorRole: user.role,
+    action: "login_success",
+    module: "auth",
+    entityType: "user",
+    entityId: user.id,
+    description: `User ${user.name} logged in successfully`,
+    ipAddress: req.ip
+  });
+
   res.json({ user, token: signToken(user) });
 });
 

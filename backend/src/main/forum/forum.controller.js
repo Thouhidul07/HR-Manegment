@@ -552,16 +552,75 @@ const reportContent = asyncHandler(async (req, res) => {
 
 const listReports = asyncHandler(async (req, res) => {
   await ensureForumTables();
-  const [rows] = await query(
-    `SELECT fr.*, reporter.name AS reporter_name, reviewer.name AS reviewer_name
-     FROM forum_reports fr
-     JOIN users reporter ON reporter.id = fr.reporter_id
-     LEFT JOIN users reviewer ON reviewer.id = fr.reviewed_by
-     WHERE reporter.company_id = ?
-     ORDER BY fr.created_at DESC`,
-    [req.user.company_id]
-  );
-  res.json({ reports: rows });
+  
+  let sql = `
+    SELECT fr.*, reporter.name AS reporter_name, reviewer.name AS reviewer_name
+    FROM forum_reports fr
+    JOIN users reporter ON reporter.id = fr.reporter_id
+    LEFT JOIN users reviewer ON reviewer.id = fr.reviewed_by
+    WHERE reporter.company_id = ?
+  `;
+  const params = [req.user.company_id];
+  const conditions = [];
+
+  const { status, type, keyword, severity, reportedBy, dateRange } = req.query;
+
+  if (status) {
+    conditions.push("fr.status = ?");
+    params.push(status);
+  }
+  if (type) {
+    conditions.push("fr.target_type = ?");
+    params.push(type);
+  }
+  if (keyword) {
+    conditions.push("(fr.reason LIKE ? OR fr.notes LIKE ?)");
+    params.push(`%${keyword}%`);
+    params.push(`%${keyword}%`);
+  }
+  if (reportedBy) {
+    conditions.push("reporter.name LIKE ?");
+    params.push(`%${reportedBy}%`);
+  }
+  if (dateRange) {
+    const parts = dateRange.split(",");
+    if (parts.length === 2 && parts[0] && parts[1]) {
+      conditions.push("fr.created_at >= ? AND fr.created_at <= ?");
+      params.push(parts[0]);
+      params.push(parts[1] + " 23:59:59");
+    } else if (parts[0]) {
+      conditions.push("fr.created_at >= ?");
+      params.push(parts[0]);
+    }
+  }
+
+  if (conditions.length > 0) {
+    sql += " AND " + conditions.join(" AND ");
+  }
+
+  sql += " ORDER BY fr.created_at DESC";
+
+  const [rows] = await query(sql, params);
+
+  // Map simulated severity for the filtering
+  const reports = rows.map(r => {
+    let toxicityScore = 0.25;
+    if (r.reason.toLowerCase().includes("hostile") || r.reason.toLowerCase().includes("inappropriate") || r.reason.toLowerCase().includes("policy")) {
+      toxicityScore = 0.75;
+    } else if (r.reason.toLowerCase().includes("identifying") || r.reason.toLowerCase().includes("personal")) {
+      toxicityScore = 0.45;
+    }
+    const computedSeverity = toxicityScore > 0.6 ? "high" : toxicityScore > 0.3 ? "medium" : "low";
+    return { ...r, toxicityScore, severity: computedSeverity };
+  });
+
+  // Filter by simulated severity if requested
+  let filteredReports = reports;
+  if (severity) {
+    filteredReports = reports.filter(r => r.severity === severity);
+  }
+
+  res.json({ reports: filteredReports });
 });
 
 const moderateReport = asyncHandler(async (req, res) => {
@@ -599,7 +658,90 @@ const moderateReport = asyncHandler(async (req, res) => {
     );
   }
 
+  const { logAudit } = require("../../utils/auditLogger");
+  await logAudit({
+    actorId: req.user.id,
+    actorName: req.user.name,
+    actorRole: req.user.role,
+    action: "moderate_forum_report",
+    module: "forum_moderation",
+    entityType: "forum_report",
+    entityId: parseInt(req.params.id, 10),
+    description: `Moderated forum report #${req.params.id} with action "${action}"`,
+    ipAddress: req.ip
+  });
+
   res.json({ message: "Moderation action saved" });
+});
+
+const getReportContext = asyncHandler(async (req, res) => {
+  await ensureForumTables();
+  const reportId = req.params.id;
+
+  const [reports] = await query(
+    `SELECT fr.*, reporter.name AS reporter_name, reporter.role AS reporter_role
+     FROM forum_reports fr
+     JOIN users reporter ON reporter.id = fr.reporter_id
+     WHERE fr.id = ? AND reporter.company_id = ? LIMIT 1`,
+    [reportId, req.user.company_id]
+  );
+
+  if (!reports.length) {
+    return res.status(404).json({ message: "Report not found" });
+  }
+
+  const report = reports[0];
+  let content = null;
+  let author = null;
+  let threadContext = null;
+
+  if (report.target_type === "post") {
+    const [posts] = await query(
+      `SELECT fp.*, u.name AS author_name, u.role AS author_role
+       FROM forum_posts fp
+       LEFT JOIN users u ON u.id = fp.user_id
+       WHERE fp.id = ? LIMIT 1`,
+      [report.target_id]
+    );
+    if (posts.length) {
+      content = posts[0];
+      author = { name: posts[0].author_name || (posts[0].is_anonymous ? posts[0].anonymous_alias : "Unknown"), role: posts[0].author_role || "employee" };
+    }
+  } else if (report.target_type === "reply") {
+    const [replies] = await query(
+      `SELECT fr.*, u.name AS author_name, u.role AS author_role
+       FROM forum_replies fr
+       LEFT JOIN users u ON u.id = fr.user_id
+       WHERE fr.id = ? LIMIT 1`,
+      [report.target_id]
+    );
+    if (replies.length) {
+      content = replies[0];
+      author = { name: replies[0].author_name || (replies[0].is_anonymous ? replies[0].anonymous_alias : "Unknown"), role: replies[0].author_role || "employee" };
+
+      const [originalPost] = await query(
+        `SELECT fp.*, u.name AS author_name, u.role AS author_role
+         FROM forum_posts fp
+         LEFT JOIN users u ON u.id = fp.user_id
+         WHERE fp.id = ? LIMIT 1`,
+        [replies[0].post_id]
+      );
+      if (originalPost.length) {
+        threadContext = {
+          post: originalPost[0],
+          postAuthor: { name: originalPost[0].author_name || (originalPost[0].is_anonymous ? originalPost[0].anonymous_alias : "Unknown"), role: originalPost[0].author_role || "employee" }
+        };
+      }
+    }
+  }
+
+  return res.json({
+    success: true,
+    report,
+    content,
+    author,
+    threadContext
+  });
 });
 
 module.exports = {
@@ -615,4 +757,5 @@ module.exports = {
   reportContent,
   listReports,
   moderateReport,
+  getReportContext,
 };
