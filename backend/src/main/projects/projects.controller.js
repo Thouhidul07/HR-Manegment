@@ -17,6 +17,16 @@ function auditFromRequest(req, action, entityType, entityId, description, metada
   });
 }
 
+function parseAuditMetadata(value) {
+  if (!value) return null;
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
 async function ensureProjectTasksTable() {
   await query(`
     CREATE TABLE IF NOT EXISTS project_tasks (
@@ -280,6 +290,9 @@ const createProject = asyncHandler(async (req, res) => {
 
 const updateProject = asyncHandler(async (req, res) => {
   await ensureProjectManagementTables();
+  const [existingProjects] = await query("SELECT * FROM projects WHERE id = ? LIMIT 1", [req.params.id]);
+  if (!existingProjects.length) return res.status(404).json({ message: "Project not found" });
+  const existingProject = existingProjects[0];
   const fields = [];
   const params = [];
   const allowed = {
@@ -311,7 +324,12 @@ const updateProject = asyncHandler(async (req, res) => {
      FROM projects p LEFT JOIN users owner ON owner.id = p.owner_id WHERE p.id = ?`,
     [req.params.id]
   );
-  await auditFromRequest(req, "project_updated", "project", req.params.id, "Updated project " + rows[0].name, { fields: Object.keys(req.body) });
+  const action = req.body.status !== undefined && req.body.status !== existingProject.status ? "project_status_changed" : "project_updated";
+  await auditFromRequest(req, action, "project", req.params.id, "Updated project " + rows[0].name, {
+    fields: Object.keys(req.body),
+    previousStatus: existingProject.status,
+    status: rows[0].status,
+  });
   res.json({ project: mapProject(rows[0]) });
 });
 
@@ -370,12 +388,17 @@ const getAdminOverview = asyncHandler(async (req, res) => {
   await seedProjectsFromTasks();
   await ensureProjectManagementTables();
 
-  const [[projectCounts], [taskOverdueRows], [wbsRows], [activityRows], [managerRows]] = await Promise.all([
+  const [[projectCounts], [taskOverdueRows], [historyRows], [wbsRows], [activityRows], [managerRows]] = await Promise.all([
     query(`SELECT COUNT(*) AS total,
                   SUM(status = 'active') AS active,
                   SUM(status = 'completed') AS completed
            FROM projects`),
     query("SELECT COUNT(*) AS overdue FROM project_tasks WHERE deadline < CURDATE() AND status <> 'completed'"),
+    query(`SELECT
+                  SUM(status = 'completed') AS completed_tasks,
+                  SUM(status = 'completed' AND deadline >= DATE(updated_at)) AS completed_on_time_tasks,
+                  SUM(status = 'completed' AND deadline < DATE(updated_at)) AS completed_late_tasks
+           FROM project_tasks`),
     query(`SELECT
                   SUM(status IN ('todo', 'in-progress', 'in-review')) AS active_wbs_items,
                   SUM(due_date < CURDATE() AND status <> 'completed') AS overdue_wbs_items,
@@ -400,6 +423,9 @@ const getAdminOverview = asyncHandler(async (req, res) => {
     activeProjects: Number(projectCounts[0]?.active || 0),
     completedProjects: Number(projectCounts[0]?.completed || 0),
     overdueTasks: Number(taskOverdueRows[0]?.overdue || 0),
+    completedHistoryTasks: Number(historyRows[0]?.completed_tasks || 0),
+    completedOnTimeTasks: Number(historyRows[0]?.completed_on_time_tasks || 0),
+    completedLateTasks: Number(historyRows[0]?.completed_late_tasks || 0),
     activeWbsItems: Number(wbsRows[0]?.active_wbs_items || 0),
     overdueWbsItems: Number(wbsRows[0]?.overdue_wbs_items || 0),
     completedWbsItems: Number(wbsRows[0]?.completed_wbs_items || 0),
@@ -422,7 +448,7 @@ const getAdminOverview = asyncHandler(async (req, res) => {
   });
 });
 
-const getProjectHistory = asyncHandler(async (req, res) => {
+const getProjectHistoryLegacy = asyncHandler(async (req, res) => {
   await ensureProjectTasksTable();
   await seedProjectsFromTasks();
   const [projects] = await query(
@@ -443,6 +469,144 @@ const getProjectHistory = asyncHandler(async (req, res) => {
     lastActivity: row.last_activity,
   })) });
 });
+
+const getProjectHistory = asyncHandler(async (req, res) => {
+  await ensureProjectTasksTable();
+  await ensureProjectManagementTables();
+  await seedProjectsFromTasks();
+
+  const projectConditions = [];
+  const projectParams = [];
+  const taskConditions = [];
+  const taskParams = [];
+
+  if (req.params.id) {
+    projectConditions.push("p.id = ?");
+    projectParams.push(req.params.id);
+    taskConditions.push("p.id = ?");
+    taskParams.push(req.params.id);
+  }
+
+  const { project, assignee, status, priority, startDate, endDate } = req.query;
+
+  if (project) {
+    projectConditions.push("p.name = ?");
+    projectParams.push(project);
+    taskConditions.push("p.name = ?");
+    taskParams.push(project);
+  }
+  if (assignee) {
+    taskConditions.push("pt.assignee = ?");
+    taskParams.push(assignee);
+  }
+  if (status) {
+    taskConditions.push("pt.status = ?");
+    taskParams.push(status);
+  }
+  if (priority) {
+    taskConditions.push("pt.priority = ?");
+    taskParams.push(priority);
+  }
+  if (startDate) {
+    taskConditions.push("pt.updated_at >= ?");
+    taskParams.push(startDate);
+  }
+  if (endDate) {
+    taskConditions.push("pt.updated_at <= ?");
+    taskParams.push(String(endDate).length <= 10 ? String(endDate) + " 23:59:59" : endDate);
+  }
+  if (req.user.role === "employee") {
+    taskConditions.push("pt.status = 'completed'");
+    taskConditions.push("pt.assignee = ?");
+    taskParams.push(req.user.name);
+  }
+
+  const projectWhere = projectConditions.length ? "WHERE " + projectConditions.join(" AND ") : "";
+  const taskWhere = taskConditions.length ? "WHERE " + taskConditions.join(" AND ") : "";
+
+  const [projects] = await query(
+    `SELECT p.*, owner.name AS owner_name,
+            COUNT(pt.id) AS task_count,
+            SUM(pt.status = 'completed') AS completed_tasks,
+            SUM(pt.deadline < CURDATE() AND pt.status <> 'completed') AS overdue_tasks,
+            MAX(CASE WHEN pt.status = 'completed' THEN pt.updated_at END) AS completion_date,
+            GREATEST(p.updated_at, COALESCE(MAX(pt.updated_at), p.updated_at)) AS last_activity
+     FROM projects p
+     LEFT JOIN users owner ON owner.id = p.owner_id
+     LEFT JOIN project_tasks pt ON pt.project = p.name
+     ${projectWhere}
+     GROUP BY p.id
+     ORDER BY last_activity DESC`,
+    projectParams
+  );
+
+  const [tasks] = await query(
+    `SELECT pt.*, p.id AS project_id, p.name AS project_name
+     FROM project_tasks pt
+     LEFT JOIN projects p ON p.name = pt.project
+     ${taskWhere}
+     ORDER BY pt.updated_at DESC, pt.id DESC`,
+    taskParams
+  );
+
+  const projectIds = projects.map((row) => Number(row.id));
+  const [wbsRows] = projectIds.length
+    ? await query(
+        `SELECT w.*, p.name AS project_name, assignee.name AS assigned_to_name, creator.name AS created_by_name
+         FROM work_breakdown_structures w
+         JOIN projects p ON p.id = w.project_id
+         LEFT JOIN users assignee ON assignee.id = w.assigned_to
+         LEFT JOIN users creator ON creator.id = w.created_by
+         WHERE w.project_id IN (${projectIds.map(() => "?").join(",")})
+         ORDER BY w.updated_at DESC`,
+        projectIds
+      )
+    : [[]];
+
+  const [activityRows] = await query(
+    `SELECT id, actor_id, actor_name, actor_role, action, entity_type, entity_id, description, metadata_json, created_at
+     FROM audit_logs
+     WHERE module = 'Project Management'
+     ORDER BY created_at DESC, id DESC
+     LIMIT 100`
+  );
+
+  const mappedProjects = projects.map((row) => {
+    const projectTasks = tasks.filter((task) => task.project_name === row.name);
+    const completedTasks = projectTasks.filter((task) => task.status === "completed");
+    const projectWbs = wbsRows.filter((item) => Number(item.project_id) === Number(row.id)).map(mapWbsItem);
+    const activities = activityRows.filter((activity) => {
+      if (activity.entity_type === "project" && Number(activity.entity_id) === Number(row.id)) return true;
+      const metadata = parseAuditMetadata(activity.metadata_json);
+      return Number(metadata?.projectId) === Number(row.id) || metadata?.project === row.name;
+    });
+
+    return {
+      ...mapProject({ ...row, members: 0, milestones: 0, tasks: row.task_count }),
+      overdueTasks: Number(row.overdue_tasks || 0),
+      lastActivity: row.last_activity,
+      completionDate: row.status === "completed" ? row.updated_at : row.completion_date,
+      tasks: projectTasks.map(mapTask),
+      completedTasksList: completedTasks.map(mapTask),
+      wbsItems: projectWbs,
+      activities,
+    };
+  });
+
+  res.json({
+    projects: mappedProjects,
+    tasks: tasks.map(mapTask),
+    completedTasks: tasks.filter((task) => task.status === "completed").map(mapTask),
+    filters: {
+      projects: [...new Set(projects.map((row) => row.name).filter(Boolean))],
+      assignees: [...new Set(tasks.map((task) => task.assignee).filter(Boolean))],
+      statuses: [...new Set(tasks.map((task) => task.status).filter(Boolean))],
+      priorities: [...new Set(tasks.map((task) => task.priority).filter(Boolean))],
+    },
+  });
+});
+
+const getProjectHistoryById = asyncHandler(async (req, res) => getProjectHistory(req, res));
 
 function normalizeWbsStatus(status) {
   if (status === "not-started") return "todo";
@@ -670,6 +834,11 @@ const createTask = asyncHandler(async (req, res) => {
 
 const updateTask = asyncHandler(async (req, res) => {
   await ensureProjectTasksTable();
+  const [existingRows] = await query("SELECT * FROM project_tasks WHERE id = ? LIMIT 1", [req.params.id]);
+  if (!existingRows.length) {
+    return res.status(404).json({ message: "Task not found" });
+  }
+  const existingTask = existingRows[0];
   const fields = [];
   const params = [];
   const allowed = {
@@ -708,7 +877,15 @@ const updateTask = asyncHandler(async (req, res) => {
   }
 
   const [rows] = await query("SELECT * FROM project_tasks WHERE id = ?", [req.params.id]);
-  await auditFromRequest(req, "project_task_updated", "project_task", req.params.id, "Updated project task " + rows[0].title, { fields: Object.keys(req.body) });
+  const statusChanged = req.body.status !== undefined && req.body.status !== existingTask.status;
+  const action = statusChanged ? "project_task_status_changed" : "project_task_updated";
+  await auditFromRequest(req, action, "project_task", req.params.id, "Updated project task " + rows[0].title, {
+    fields: Object.keys(req.body),
+    project: rows[0].project,
+    previousStatus: existingTask.status,
+    status: rows[0].status,
+    completedAt: rows[0].status === "completed" ? rows[0].updated_at : null,
+  });
   res.json({ task: mapTask(rows[0]) });
 });
 
@@ -733,6 +910,7 @@ module.exports = {
   listTasks,
   getProjectStats,
   getProjectHistory,
+  getProjectHistoryById,
   createTask,
   updateTask,
   deleteTask,

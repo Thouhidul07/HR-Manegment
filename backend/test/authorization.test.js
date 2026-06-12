@@ -187,6 +187,9 @@ test("admin sees project overview but cannot access detailed project management"
   const wbsResponse = await request("/api/projects/wbs", {
     token: tokens.admin,
   });
+  const historyResponse = await request("/api/projects/history", {
+    token: tokens.admin,
+  });
 
   assert.equal(overviewResponse.status, 200);
   assert.equal(typeof overviewResponse.data.totalProjects, "number");
@@ -195,6 +198,7 @@ test("admin sees project overview but cannot access detailed project management"
   assert.equal(typeof overviewResponse.data.completedWbsItems, "number");
   assert.equal(projectsResponse.status, 403);
   assert.equal(wbsResponse.status, 403);
+  assert.equal(historyResponse.status, 403);
 });
 
 test("project manager can access detailed project management and assign tasks", async () => {
@@ -269,6 +273,56 @@ test("project manager can create persistent WBS items and admin cannot mutate th
   assert.ok(auditResponse.data.logs.some((log) => log.action === "wbs_status_changed" && Number(log.entity_id) === Number(createResponse.data.wbsItem.id)));
 
   const deleteResponse = await request(`/api/projects/wbs/${createResponse.data.wbsItem.id}`, {
+    method: "DELETE",
+    token: tokens.projectManager,
+  });
+  assert.equal(deleteResponse.status, 200);
+});
+
+test("project manager completion appears in project history and audit logs", async () => {
+  const createResponse = await request("/api/projects/tasks", {
+    method: "POST",
+    token: tokens.projectManager,
+    body: {
+      title: "History completion " + Date.now(),
+      description: "Task created to verify project history persistence",
+      status: "todo",
+      priority: "high",
+      assignee: "Project Manager 01",
+      deadline: "2026-12-31",
+      project: "Website Redesign",
+      tags: ["history"],
+    },
+  });
+  assert.equal(createResponse.status, 201);
+
+  const updateResponse = await request(`/api/projects/tasks/${createResponse.data.task.id}`, {
+    method: "PATCH",
+    token: tokens.projectManager,
+    body: { status: "completed" },
+  });
+  assert.equal(updateResponse.status, 200);
+  assert.equal(updateResponse.data.task.status, "completed");
+
+  const historyResponse = await request("/api/projects/history?status=completed&assignee=Project%20Manager%2001", {
+    token: tokens.projectManager,
+  });
+  assert.equal(historyResponse.status, 200);
+  assert.ok(historyResponse.data.completedTasks.some((task) => Number(task.id) === Number(createResponse.data.task.id)));
+
+  const projectHistoryResponse = await request(`/api/projects/1/history?status=completed&assignee=Project%20Manager%2001`, {
+    token: tokens.projectManager,
+  });
+  assert.equal(projectHistoryResponse.status, 200);
+  assert.ok(projectHistoryResponse.data.projects.some((project) => project.completedTasksList.some((task) => Number(task.id) === Number(createResponse.data.task.id))));
+
+  const auditResponse = await request("/api/audit-logs?module=Project%20Management&action=project_task_status_changed&limit=25", {
+    token: tokens.admin,
+  });
+  assert.equal(auditResponse.status, 200);
+  assert.ok(auditResponse.data.logs.some((log) => Number(log.entity_id) === Number(createResponse.data.task.id)));
+
+  const deleteResponse = await request(`/api/projects/tasks/${createResponse.data.task.id}`, {
     method: "DELETE",
     token: tokens.projectManager,
   });

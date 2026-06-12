@@ -8,6 +8,7 @@ const {
   listTasks,
   getProjectStats,
   getProjectHistory,
+  getProjectHistoryById,
   createTask,
   updateTask,
   deleteTask,
@@ -23,6 +24,8 @@ const { protect, authorize } = require("../../middleware/authMiddleware");
 
 router.use(protect);
 router.get("/overview", authorize("admin"), getAdminOverview);
+router.get("/history", authorize("project_manager", "employee"), getProjectHistory);
+router.get("/:id/history", authorize("project_manager", "employee"), [param("id").isInt({ min: 1 })], validate, getProjectHistoryById);
 
 router.get("/wbs", authorize("project_manager", "employee"), listWBS);
 router.get("/:id/wbs", authorize("project_manager", "employee"), [param("id").isInt({ min: 1 })], validate, listProjectWBS);
@@ -99,8 +102,6 @@ router.delete("/:id", [param("id").isInt({ min: 1 })], validate, deleteProject);
 
 router.get("/tasks", listTasks);
 router.get("/stats", getProjectStats);
-router.get("/history", getProjectHistory);
-
 router.post(
   "/tasks",
   [
