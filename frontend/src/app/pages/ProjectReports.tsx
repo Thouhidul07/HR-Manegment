@@ -1,501 +1,235 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import {
-  ArrowLeft, Download, Filter, Calendar, TrendingUp,
-  Users, CheckCircle2, Clock, Target, BarChart3,
-  AlertCircle, Award, Zap
-} from "lucide-react";
-import {
-  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
-} from "recharts";
+import { useEffect, useMemo, useState } from "react";
+import { AlertCircle, BarChart3, CheckCircle2, Clock, Download, Filter, Loader2, RefreshCw, Target, Users, Zap } from "lucide-react";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import api from "../services/api";
 
+interface ReportSummary {
+  totalProjects: number;
+  activeProjects: number;
+  completedProjects: number;
+  overdueProjects: number;
+  totalTasks: number;
+  completedTasks: number;
+  inProgressTasks: number;
+  overdueTasks: number;
+  completionRate: number;
+  teamVelocity: number;
+  averageCompletionDays: number;
+  totalWbsItems: number;
+  completedWbsItems: number;
+  overdueWbsItems: number;
+}
+
+interface ProjectMetric {
+  id: number;
+  name: string;
+  status: string;
+  total: number;
+  completed: number;
+  inProgress: number;
+  overdue: number;
+  completionRate: number;
+}
+
+interface AssigneeMetric {
+  name: string;
+  total: number;
+  completed: number;
+  pending: number;
+  efficiency: number;
+}
+
+interface TrendPoint {
+  date: string;
+  completed: number;
+  inProgress: number;
+  todo: number;
+}
+
+interface ReportData {
+  summary: ReportSummary;
+  byStatus: Record<string, number>;
+  byPriority: Record<string, number>;
+  projects: ProjectMetric[];
+  assignees: AssigneeMetric[];
+  trend: TrendPoint[];
+  filters: { projects: string[]; assignees: string[]; statuses: string[] };
+}
+
+const emptySummary: ReportSummary = {
+  totalProjects: 0,
+  activeProjects: 0,
+  completedProjects: 0,
+  overdueProjects: 0,
+  totalTasks: 0,
+  completedTasks: 0,
+  inProgressTasks: 0,
+  overdueTasks: 0,
+  completionRate: 0,
+  teamVelocity: 0,
+  averageCompletionDays: 0,
+  totalWbsItems: 0,
+  completedWbsItems: 0,
+  overdueWbsItems: 0,
+};
+
+const colors = ["#543884", "#9A77CF", "#EC4176", "#FFA45E", "#00C853", "#2196F3"];
+
 export function ProjectReports() {
-  const navigate = useNavigate();
-  const [dateRange, setDateRange] = useState('last-30-days');
-  const [selectedProject, setSelectedProject] = useState('all');
-  const [reportData, setReportData] = useState<any>({ byStatus: {}, projects: [] });
+  const [data, setData] = useState<ReportData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [filters, setFilters] = useState({ project: "", assignee: "", status: "", startDate: "", endDate: "" });
+
+  const summary = data?.summary || emptySummary;
+  const priorityData = useMemo(() => Object.entries(data?.byPriority || {}).map(([name, value], index) => ({ name, value, color: colors[index % colors.length] })), [data]);
+  const statusData = useMemo(() => Object.entries(data?.byStatus || {}).map(([name, value], index) => ({ name, value, color: colors[index % colors.length] })), [data]);
+
+  async function loadReports(nextFilters = filters) {
+    setLoading(true);
+    setError("");
+    try {
+      const params = Object.fromEntries(Object.entries(nextFilters).filter(([, value]) => value));
+      const response = await api.get("/projects/reports", { params });
+      setData(response.data);
+    } catch (err: any) {
+      setError(err?.response?.data?.message || "Unable to load project reports.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    api.get("/projects/stats")
-      .then((response) => setReportData(response.data || { byStatus: {}, projects: [] }))
-      .catch((error) => console.warn("Unable to load project reports", error));
+    loadReports();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const projects = ['all', ...(reportData.projects || []).map((project: any) => project.name)];
+  function updateFilter(key: keyof typeof filters, value: string) {
+    setFilters((current) => ({ ...current, [key]: value }));
+  }
 
-  // Sample data for charts
-  const taskCompletionData = [
-    { date: 'May 1', completed: 12, inProgress: 8, todo: 5 },
-    { date: 'May 8', completed: 18, inProgress: 10, todo: 7 },
-    { date: 'May 15', completed: 25, inProgress: 12, todo: 6 },
-    { date: 'May 22', completed: 32, inProgress: 9, todo: 4 },
-    { date: 'May 29', completed: 38, inProgress: 8, todo: 3 }
-  ];
-
-  const reportTotalTasks = (reportData.projects || []).reduce((sum: number, project: any) => sum + Number(project.total || 0), 0);
-  const projectDistribution: Array<{ name: string; value: number; color: string }> = (reportData.projects || []).map((project: any, index: number) => ({
-    name: project.name,
-    value: reportTotalTasks ? Math.round((Number(project.total || 0) / reportTotalTasks) * 100) : 0,
-    color: ['#543884', '#9A77CF', '#EC4176', '#FFA45E'][index % 4],
-  }));
-
-  const teamPerformance = [
-    { name: 'Sarah Johnson', completed: 18, pending: 3, efficiency: 94 },
-    { name: 'Michael Chen', completed: 15, pending: 5, efficiency: 88 },
-    { name: 'Emily Rodriguez', completed: 12, pending: 2, efficiency: 92 },
-    { name: 'David Kim', completed: 10, pending: 4, efficiency: 85 },
-    { name: 'Jessica Martinez', completed: 8, pending: 3, efficiency: 90 }
-  ];
-
-  const priorityBreakdown = [
-    { priority: 'Urgent', count: 5, color: '#EC4176' },
-    { priority: 'High', count: 12, color: '#FFA45E' },
-    { priority: 'Medium', count: 18, color: '#9A77CF' },
-    { priority: 'Low', count: 8, color: '#543884' }
-  ];
-
-  const velocityData = [
-    { week: 'Week 1', planned: 20, completed: 18 },
-    { week: 'Week 2', planned: 22, completed: 20 },
-    { week: 'Week 3', planned: 25, completed: 23 },
-    { week: 'Week 4', planned: 20, completed: 22 }
-  ];
-
-  const stats = [
-    {
-      label: 'Total Tasks',
-      value: String(reportTotalTasks),
-      change: 'Live',
-      trend: 'up',
-      icon: CheckCircle2,
-      color: '#543884'
-    },
-    {
-      label: 'Completed',
-      value: String(reportData.byStatus?.completed || 0),
-      change: 'Live',
-      trend: 'up',
-      icon: Target,
-      color: '#00C853'
-    },
-    {
-      label: 'In Progress',
-      value: String(reportData.byStatus?.['in-progress'] || 0),
-      change: 'Live',
-      trend: 'down',
-      icon: Clock,
-      color: '#2196F3'
-    },
-    {
-      label: 'Overdue',
-      value: String((reportData.projects || []).reduce((sum: number, project: any) => sum + Number(project.overdue || 0), 0)),
-      change: 'Live',
-      trend: 'down',
-      icon: AlertCircle,
-      color: '#EC4176'
-    },
-    {
-      label: 'Team Velocity',
-      value: '22.5',
-      change: '+8%',
-      trend: 'up',
-      icon: Zap,
-      color: '#FFA45E'
-    },
-    {
-      label: 'Avg Completion',
-      value: '4.2 days',
-      change: '-12%',
-      trend: 'up',
-      icon: Award,
-      color: '#9A77CF'
-    }
-  ];
-
-  const csvCell = (value: string | number) => `"${String(value).replace(/"/g, '""')}"`;
-
-  const downloadTextFile = (fileName: string, content: string, type: string) => {
-    const blob = new Blob([content], { type });
+  function exportCsv() {
+    const rows: Array<Array<string | number>> = [
+      ["Metric", "Value"],
+      ["Total Projects", summary.totalProjects],
+      ["Active Projects", summary.activeProjects],
+      ["Completed Projects", summary.completedProjects],
+      ["Overdue Projects", summary.overdueProjects],
+      ["Total Tasks", summary.totalTasks],
+      ["Completed Tasks", summary.completedTasks],
+      ["In Progress Tasks", summary.inProgressTasks],
+      ["Overdue Tasks", summary.overdueTasks],
+      ["Completion Rate", summary.completionRate + "%"],
+      ["Team Velocity", summary.teamVelocity],
+      ["Average Completion Days", summary.averageCompletionDays],
+      [],
+      ["Project", "Total", "Completed", "In Progress", "Overdue", "Completion Rate"],
+      ...(data?.projects || []).map((project) => [project.name, project.total, project.completed, project.inProgress, project.overdue, project.completionRate + "%"]),
+    ];
+    const csv = rows.map((row) => row.map((cell) => '"' + String(cell ?? "").replace(/"/g, '""') + '"').join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = fileName;
+    anchor.download = "project-report-" + new Date().toISOString().slice(0, 10) + ".csv";
     anchor.click();
     URL.revokeObjectURL(url);
-  };
+  }
 
-  const reportRows = (): Array<Array<string | number>> => [
-    ["Report", "Project Reports & Analytics"],
-    ["Date Range", dateRange],
-    ["Project", selectedProject === "all" ? "All Projects" : selectedProject],
-    ["Generated At", new Date().toLocaleString()],
-    [],
-    ["Metric", "Value", "Change"],
-    ...stats.map((stat) => [stat.label, stat.value, stat.change]),
-    [],
-    ["Task Completion Trend"],
-    ["Date", "Completed", "In Progress", "Todo"],
-    ...taskCompletionData.map((item: { date: string; completed: number; inProgress: number; todo: number }) => [item.date, item.completed, item.inProgress, item.todo]),
-    [],
-    ["Project Distribution"],
-    ["Project", "Percent"],
-    ...projectDistribution.map((item: { name: string; value: number }) => [item.name, item.value]),
-    [],
-    ["Team Performance"],
-    ["Name", "Completed", "Pending", "Efficiency"],
-    ...teamPerformance.map((member) => [member.name, member.completed, member.pending, `${member.efficiency}%`]),
-    [],
-    ["Priority Breakdown"],
-    ["Priority", "Count"],
-    ...priorityBreakdown.map((item) => [item.priority, item.count]),
-    [],
-    ["Sprint Velocity"],
-    ["Week", "Planned", "Completed"],
-    ...velocityData.map((item) => [item.week, item.planned, item.completed]),
+  const cards = [
+    { label: "Total Projects", value: summary.totalProjects, icon: BarChart3, color: "#543884" },
+    { label: "Active Projects", value: summary.activeProjects, icon: Target, color: "#2196F3" },
+    { label: "Completed Tasks", value: summary.completedTasks, icon: CheckCircle2, color: "#00C853" },
+    { label: "In Progress", value: summary.inProgressTasks, icon: Clock, color: "#9A77CF" },
+    { label: "Overdue Tasks", value: summary.overdueTasks, icon: AlertCircle, color: "#EC4176" },
+    { label: "Velocity", value: summary.teamVelocity, icon: Zap, color: "#FFA45E" },
   ];
 
-  const exportCsv = () => {
-    const csv = reportRows().map((row) => row.map((cell: string | number) => csvCell(cell ?? "")).join(",")).join("\n");
-    downloadTextFile(`project-report-${new Date().toISOString().slice(0, 10)}.csv`, csv, "text/csv;charset=utf-8;");
-  };
-
-  const exportPdf = () => {
-    const printableRows = reportRows()
-      .map((row) => {
-        if (!row.length) return "<tr><td colspan=\"4\" class=\"spacer\"></td></tr>";
-        if (row.length === 1) return `<tr><th colspan="4" class="section">${row[0]}</th></tr>`;
-        return `<tr>${row.map((cell: string | number) => `<td>${String(cell)}</td>`).join("")}</tr>`;
-      })
-      .join("");
-    const html = `<!doctype html>
-      <html>
-        <head>
-          <title>Project Reports & Analytics</title>
-          <style>
-            body { font-family: Arial, sans-serif; color: #262254; margin: 32px; }
-            h1 { margin: 0 0 8px; }
-            p { color: #6f5b96; margin: 0 0 24px; }
-            table { width: 100%; border-collapse: collapse; font-size: 12px; }
-            td, th { border: 1px solid #ded7ea; padding: 8px; text-align: left; }
-            .section { background: #f2edf8; color: #543884; font-size: 14px; }
-            .spacer { border: 0; height: 12px; }
-            @media print { button { display: none; } }
-          </style>
-        </head>
-        <body>
-          <h1>Project Reports & Analytics</h1>
-          <p>${dateRange} · ${selectedProject === "all" ? "All Projects" : selectedProject}</p>
-          <table>${printableRows}</table>
-          <script>window.onload = () => window.print();</script>
-        </body>
-      </html>`;
-    const printWindow = window.open("", "_blank", "noopener,noreferrer");
-    if (!printWindow) {
-      downloadTextFile(`project-report-${new Date().toISOString().slice(0, 10)}.html`, html, "text/html;charset=utf-8;");
-      return;
-    }
-    printWindow.document.write(html);
-    printWindow.document.close();
-  };
-
-  const handleExport = (format: "pdf" | "csv") => {
-    if (format === "csv") exportCsv();
-    else exportPdf();
-  };
-
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="p-2 hover:bg-accent rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Project Reports & Analytics</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Comprehensive insights into project performance and team productivity
-            </p>
-          </div>
+    <div className="space-y-6 p-8">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Project Reports & Analytics</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Live database-backed project, task, WBS, and team performance reports.</p>
         </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => handleExport('pdf')}
-            className="px-4 py-2 border border-border rounded-lg hover:bg-accent transition-all flex items-center gap-2 text-sm font-medium"
-          >
-            <Download className="w-4 h-4" />
-            Export PDF
-          </button>
-          <button
-            onClick={() => handleExport('csv')}
-            className="px-4 py-2 bg-gradient-to-r from-[#543884] to-[#9A77CF] text-white rounded-lg hover:brightness-110 transition-all flex items-center gap-2 text-sm font-medium"
-          >
-            <Download className="w-4 h-4" />
-            Export CSV
-          </button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => loadReports()} className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm hover:bg-accent"><RefreshCw className="h-4 w-4" /> Retry</button>
+          <button type="button" onClick={exportCsv} className="inline-flex items-center gap-2 rounded-lg bg-[#543884] px-4 py-2 text-sm font-medium text-white"><Download className="h-4 w-4" /> Export CSV</button>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-card border border-border rounded-xl p-4">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-muted-foreground" />
-            <span className="text-sm font-semibold text-foreground">Filters:</span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-muted-foreground" />
-            <select
-              value={dateRange}
-              onChange={(e) => setDateRange(e.target.value)}
-              className="px-3 py-2 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              <option value="last-7-days">Last 7 Days</option>
-              <option value="last-30-days">Last 30 Days</option>
-              <option value="last-90-days">Last 90 Days</option>
-              <option value="this-month">This Month</option>
-              <option value="last-month">Last Month</option>
-              <option value="this-quarter">This Quarter</option>
-            </select>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-muted-foreground" />
-            <select
-              value={selectedProject}
-              onChange={(e) => setSelectedProject(e.target.value)}
-              className="px-3 py-2 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              {projects.map(project => (
-                <option key={project} value={project}>
-                  {project === 'all' ? 'All Projects' : project}
-                </option>
-              ))}
-            </select>
-          </div>
+      <section className="rounded-xl border border-border bg-card p-5">
+        <div className="mb-4 flex items-center gap-2"><Filter className="h-4 w-4 text-[#9A77CF]" /><h2 className="font-semibold">Filters</h2></div>
+        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
+          <select value={filters.project} onChange={(event) => updateFilter("project", event.target.value)} className="rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="">All projects</option>{(data?.filters?.projects || []).map((item) => <option key={item} value={item}>{item}</option>)}</select>
+          <select value={filters.assignee} onChange={(event) => updateFilter("assignee", event.target.value)} className="rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="">All assignees</option>{(data?.filters?.assignees || []).map((item) => <option key={item} value={item}>{item}</option>)}</select>
+          <select value={filters.status} onChange={(event) => updateFilter("status", event.target.value)} className="rounded-lg border border-border bg-background px-3 py-2 text-sm"><option value="">All statuses</option>{(data?.filters?.statuses || []).map((item) => <option key={item} value={item}>{item}</option>)}</select>
+          <input type="date" value={filters.startDate} onChange={(event) => updateFilter("startDate", event.target.value)} className="rounded-lg border border-border bg-background px-3 py-2 text-sm" />
+          <input type="date" value={filters.endDate} onChange={(event) => updateFilter("endDate", event.target.value)} className="rounded-lg border border-border bg-background px-3 py-2 text-sm" />
         </div>
-      </div>
-
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        {stats.map((stat, idx) => (
-          <div key={idx} className="bg-card border border-border rounded-xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${stat.color}1A` }}>
-                <stat.icon className="w-5 h-5" style={{ color: stat.color }} />
-              </div>
-              <span className={`text-xs font-semibold ${stat.trend === 'up' ? 'text-green-500' : 'text-red-500'}`}>
-                {stat.change}
-              </span>
-            </div>
-            <p className="text-2xl font-bold text-foreground mb-1">{stat.value}</p>
-            <p className="text-xs text-muted-foreground">{stat.label}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Task Completion Trend */}
-        <div className="bg-card border border-border rounded-xl p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="font-semibold text-foreground">Task Completion Trend</h3>
-              <p className="text-xs text-muted-foreground mt-1">Tasks completed over time</p>
-            </div>
-          </div>
-          <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={taskCompletionData}>
-              <defs>
-                <linearGradient id="completedGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#00C853" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#00C853" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="inProgressGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#2196F3" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#2196F3" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#543884" strokeOpacity={0.1} />
-              <XAxis dataKey="date" stroke="#9A77CF" fontSize={12} />
-              <YAxis stroke="#9A77CF" fontSize={12} />
-              <Tooltip contentStyle={{ backgroundColor: 'var(--card)', borderColor: '#543884', borderRadius: '0.75rem' }} />
-              <Legend />
-              <Area type="monotone" dataKey="completed" stroke="#00C853" fillOpacity={1} fill="url(#completedGradient)" strokeWidth={2} />
-              <Area type="monotone" dataKey="inProgress" stroke="#2196F3" fillOpacity={1} fill="url(#inProgressGradient)" strokeWidth={2} />
-            </AreaChart>
-          </ResponsiveContainer>
+        <div className="mt-4 flex gap-2">
+          <button type="button" onClick={() => loadReports(filters)} className="rounded-lg bg-[#543884] px-4 py-2 text-sm font-medium text-white">Apply</button>
+          <button type="button" onClick={() => { const empty = { project: "", assignee: "", status: "", startDate: "", endDate: "" }; setFilters(empty); loadReports(empty); }} className="rounded-lg border border-border px-4 py-2 text-sm hover:bg-accent">Reset</button>
         </div>
+      </section>
 
-        {/* Project Distribution */}
-        <div className="bg-card border border-border rounded-xl p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="font-semibold text-foreground">Task Distribution by Project</h3>
-              <p className="text-xs text-muted-foreground mt-1">Percentage of tasks per project</p>
-            </div>
+      {error && <div className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-600"><AlertCircle className="h-4 w-4" /> {error}</div>}
+
+      {loading ? (
+        <div className="flex min-h-[360px] items-center justify-center rounded-xl border border-border bg-card text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading live reports...</div>
+      ) : !data || summary.totalTasks === 0 ? (
+        <div className="min-h-[360px] rounded-xl border border-dashed border-border bg-card p-12 text-center"><BarChart3 className="mx-auto mb-3 h-12 w-12 text-muted-foreground" /><h2 className="font-semibold">No report data found</h2><p className="mt-1 text-sm text-muted-foreground">Add project tasks or adjust filters, then retry.</p></div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            {cards.map((card) => {
+              const Icon = card.icon;
+              return <div key={card.label} className="rounded-xl border border-border bg-card p-4"><div className="mb-3 flex items-center justify-between"><div className="flex h-10 w-10 items-center justify-center rounded-lg" style={{ backgroundColor: card.color + "1A" }}><Icon className="h-5 w-5" style={{ color: card.color }} /></div><span className="text-xs text-muted-foreground">Live</span></div><p className="text-2xl font-bold">{card.value}</p><p className="text-xs text-muted-foreground">{card.label}</p></div>;
+            })}
           </div>
-          <ResponsiveContainer width="100%" height={280}>
-            <PieChart>
-              <Pie
-                data={projectDistribution}
-                cx="50%"
-                cy="50%"
-                innerRadius={60}
-                outerRadius={100}
-                paddingAngle={5}
-                dataKey="value"
-              >
-                {projectDistribution.map((entry: { color: string }, index: number) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip contentStyle={{ backgroundColor: 'var(--card)', borderColor: '#543884', borderRadius: '0.75rem' }} />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
 
-      {/* Team Performance & Velocity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Team Performance */}
-        <div className="bg-card border border-border rounded-xl p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="font-semibold text-foreground">Team Performance</h3>
-              <p className="text-xs text-muted-foreground mt-1">Individual task completion rates</p>
-            </div>
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <section className="rounded-xl border border-border bg-card p-6">
+              <h3 className="mb-1 font-semibold">Task Completion Trend</h3>
+              <p className="mb-4 text-xs text-muted-foreground">Grouped by task update date</p>
+              <ResponsiveContainer width="100%" height={280}>
+                <AreaChart data={data.trend || []}><CartesianGrid strokeDasharray="3 3" stroke="#543884" strokeOpacity={0.1} /><XAxis dataKey="date" fontSize={12} /><YAxis fontSize={12} /><Tooltip /><Legend /><Area type="monotone" dataKey="completed" stroke="#00C853" fill="#00C85333" /><Area type="monotone" dataKey="inProgress" stroke="#2196F3" fill="#2196F333" /><Area type="monotone" dataKey="todo" stroke="#9A77CF" fill="#9A77CF33" /></AreaChart>
+              </ResponsiveContainer>
+            </section>
+
+            <section className="rounded-xl border border-border bg-card p-6">
+              <h3 className="mb-1 font-semibold">Task Distribution by Status</h3>
+              <p className="mb-4 text-xs text-muted-foreground">Live status totals</p>
+              <ResponsiveContainer width="100%" height={280}>
+                <PieChart><Pie data={statusData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={100}>{statusData.map((entry) => <Cell key={entry.name} fill={entry.color} />)}</Pie><Tooltip /><Legend /></PieChart>
+              </ResponsiveContainer>
+            </section>
           </div>
-          <div className="space-y-4">
-            {teamPerformance.map((member, idx) => (
-              <div key={idx} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#543884] to-[#9A77CF] flex items-center justify-center text-white text-xs font-semibold">
-                      {member.name.split(' ').map(n => n[0]).join('')}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{member.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {member.completed} completed · {member.pending} pending
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-sm font-semibold text-[#543884]">{member.efficiency}%</span>
-                </div>
-                <div className="h-2 bg-border rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-[#543884] to-[#9A77CF] rounded-full transition-all"
-                    style={{ width: `${member.efficiency}%` }}
-                  />
-                </div>
+
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <section className="rounded-xl border border-border bg-card p-6">
+              <h3 className="mb-4 font-semibold">Project Completion</h3>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={data.projects || []}><CartesianGrid strokeDasharray="3 3" stroke="#543884" strokeOpacity={0.1} /><XAxis dataKey="name" fontSize={12} /><YAxis fontSize={12} /><Tooltip /><Legend /><Bar dataKey="completed" fill="#543884" /><Bar dataKey="overdue" fill="#EC4176" /></BarChart>
+              </ResponsiveContainer>
+            </section>
+
+            <section className="rounded-xl border border-border bg-card p-6">
+              <h3 className="mb-4 font-semibold">Team Performance</h3>
+              <div className="space-y-4">
+                {(data.assignees || []).map((member) => <div key={member.name}><div className="mb-2 flex items-center justify-between"><div className="flex items-center gap-3"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#543884] text-xs font-semibold text-white">{member.name.split(" ").map((part) => part[0]).join("").slice(0, 2)}</div><div><p className="text-sm font-medium">{member.name}</p><p className="text-xs text-muted-foreground">{member.completed} completed - {member.pending} pending</p></div></div><span className="text-sm font-semibold text-[#543884]">{member.efficiency}%</span></div><div className="h-2 overflow-hidden rounded-full bg-border"><div className="h-full rounded-full bg-gradient-to-r from-[#543884] to-[#9A77CF]" style={{ width: member.efficiency + "%" }} /></div></div>)}
               </div>
-            ))}
+            </section>
           </div>
-        </div>
 
-        {/* Sprint Velocity */}
-        <div className="bg-card border border-border rounded-xl p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="font-semibold text-foreground">Sprint Velocity</h3>
-              <p className="text-xs text-muted-foreground mt-1">Planned vs completed tasks</p>
+          <section className="rounded-xl border border-border bg-card p-6">
+            <h3 className="mb-4 font-semibold">Priority Breakdown</h3>
+            <div className="grid gap-3 md:grid-cols-4">
+              {priorityData.map((item) => <div key={item.name} className="rounded-lg border border-border p-4"><p className="text-sm capitalize text-muted-foreground">{item.name}</p><p className="text-2xl font-bold" style={{ color: item.color }}>{item.value}</p></div>)}
             </div>
-          </div>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={velocityData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#543884" strokeOpacity={0.1} />
-              <XAxis dataKey="week" stroke="#9A77CF" fontSize={12} />
-              <YAxis stroke="#9A77CF" fontSize={12} />
-              <Tooltip contentStyle={{ backgroundColor: 'var(--card)', borderColor: '#543884', borderRadius: '0.75rem' }} />
-              <Legend />
-              <Bar dataKey="planned" fill="#9A77CF" radius={[8, 8, 0, 0]} />
-              <Bar dataKey="completed" fill="#543884" radius={[8, 8, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Priority Breakdown and Insights */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Priority Breakdown */}
-        <div className="bg-card border border-border rounded-xl p-6">
-          <h3 className="font-semibold text-foreground mb-4">Task Priority Breakdown</h3>
-          <div className="space-y-3">
-            {priorityBreakdown.map((item, idx) => (
-              <div key={idx}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-foreground">{item.priority}</span>
-                  <span className="text-sm font-semibold text-foreground">{item.count}</span>
-                </div>
-                <div className="h-2 bg-border rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{
-                      width: `${(item.count / 43) * 100}%`,
-                      backgroundColor: item.color
-                    }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Key Insights */}
-        <div className="lg:col-span-2 bg-card border border-border rounded-xl p-6">
-          <h3 className="font-semibold text-foreground mb-4">Key Insights</h3>
-          <div className="space-y-4">
-            <div className="flex items-start gap-3 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
-              <TrendingUp className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-semibold text-foreground">Team Productivity Up 18%</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Your team completed 18% more tasks this month compared to last month. Great work!
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-              <Target className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-semibold text-foreground">On Track for Sprint Goal</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Current velocity indicates you'll complete 95% of planned tasks by sprint end.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3 p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg">
-              <AlertCircle className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-semibold text-foreground">8 Tasks Overdue</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Consider reviewing task assignments and deadlines to prevent delays.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3 p-3 bg-purple-500/10 border border-purple-500/20 rounded-lg">
-              <Users className="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-semibold text-foreground">Sarah Johnson - Top Performer</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Completed 18 tasks with 94% efficiency rating this month.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+          </section>
+        </>
+      )}
     </div>
   );
 }

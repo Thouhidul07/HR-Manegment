@@ -7,6 +7,7 @@ const {
   deleteProject,
   listTasks,
   getProjectStats,
+  getProjectReports,
   getProjectHistory,
   getProjectHistoryById,
   createTask,
@@ -102,6 +103,7 @@ router.delete("/:id", [param("id").isInt({ min: 1 })], validate, deleteProject);
 
 router.get("/tasks", listTasks);
 router.get("/stats", getProjectStats);
+router.get("/reports", getProjectReports);
 router.post(
   "/tasks",
   [

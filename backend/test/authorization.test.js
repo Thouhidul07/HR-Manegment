@@ -329,6 +329,68 @@ test("project manager completion appears in project history and audit logs", asy
   assert.equal(deleteResponse.status, 200);
 });
 
+test("project manager can view live reports and other roles cannot", async () => {
+  const beforeResponse = await request("/api/projects/reports", {
+    token: tokens.projectManager,
+  });
+  assert.equal(beforeResponse.status, 200);
+  const beforeTotal = Number(beforeResponse.data.summary.totalTasks || 0);
+
+  const createResponse = await request("/api/projects/tasks", {
+    method: "POST",
+    token: tokens.projectManager,
+    body: {
+      title: "Reports live metric " + Date.now(),
+      description: "Task created to verify live reports",
+      status: "in-progress",
+      priority: "urgent",
+      assignee: "Project Manager 01",
+      deadline: "2026-12-31",
+      project: "Website Redesign",
+      tags: ["reports"],
+    },
+  });
+  assert.equal(createResponse.status, 201);
+
+  const afterResponse = await request("/api/projects/reports?project=Website%20Redesign&assignee=Project%20Manager%2001", {
+    token: tokens.projectManager,
+  });
+  assert.equal(afterResponse.status, 200);
+  assert.ok(Number(afterResponse.data.summary.totalTasks || 0) >= 1);
+  assert.ok(afterResponse.data.assignees.some((assignee) => assignee.name === "Project Manager 01"));
+
+  const globalAfterResponse = await request("/api/projects/reports", {
+    token: tokens.projectManager,
+  });
+  assert.equal(globalAfterResponse.status, 200);
+  assert.equal(Number(globalAfterResponse.data.summary.totalTasks || 0), beforeTotal + 1);
+
+  const adminResponse = await request("/api/projects/reports", {
+    token: tokens.admin,
+  });
+  const hrResponse = await request("/api/projects/reports", {
+    token: tokens.hrManager,
+  });
+  const employeeResponse = await request("/api/projects/reports", {
+    token: tokens.employee,
+  });
+  assert.equal(adminResponse.status, 403);
+  assert.equal(hrResponse.status, 403);
+  assert.equal(employeeResponse.status, 403);
+
+  const overviewResponse = await request("/api/projects/overview", {
+    token: tokens.admin,
+  });
+  assert.equal(overviewResponse.status, 200);
+  assert.equal(typeof overviewResponse.data.activeProjects, "number");
+
+  const deleteResponse = await request(`/api/projects/tasks/${createResponse.data.task.id}`, {
+    method: "DELETE",
+    token: tokens.projectManager,
+  });
+  assert.equal(deleteResponse.status, 200);
+});
+
 test("project manager cannot access admin or HR-only controls", async () => {
   const adminResponse = await request("/api/admin/dashboard", {
     token: tokens.projectManager,

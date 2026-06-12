@@ -237,6 +237,65 @@ function mapProject(row) {
   };
 }
 
+function rowsToObject(rows, key) {
+  return rows.reduce((stats, row) => {
+    stats[row[key]] = Number(row.total || 0);
+    return stats;
+  }, {});
+}
+
+function buildReportFilters(queryParams) {
+  const conditions = [];
+  const params = [];
+  const projectConditions = [];
+  const projectParams = [];
+  const { project, status, assignee, startDate, endDate } = queryParams;
+
+  if (project) {
+    conditions.push("p.name = ?");
+    params.push(project);
+    projectConditions.push("p.name = ?");
+    projectParams.push(project);
+  }
+  if (status) {
+    conditions.push("pt.status = ?");
+    params.push(status);
+  }
+  if (assignee) {
+    conditions.push("pt.assignee = ?");
+    params.push(assignee);
+  }
+  if (startDate) {
+    conditions.push("pt.updated_at >= ?");
+    params.push(startDate);
+  }
+  if (endDate) {
+    conditions.push("pt.updated_at <= ?");
+    params.push(String(endDate).length <= 10 ? String(endDate) + " 23:59:59" : endDate);
+  }
+
+  return {
+    conditions,
+    params,
+    projectWhere: projectConditions.length ? "WHERE " + projectConditions.join(" AND ") : "",
+    projectParams,
+  };
+}
+
+async function getProjectReportFilterOptions() {
+  const [[projects], [assignees], [statuses]] = await Promise.all([
+    query("SELECT name FROM projects ORDER BY name"),
+    query("SELECT DISTINCT assignee FROM project_tasks WHERE assignee IS NOT NULL AND assignee <> '' ORDER BY assignee"),
+    query("SELECT DISTINCT status FROM project_tasks ORDER BY status"),
+  ]);
+
+  return {
+    projects: projects.map((row) => row.name),
+    assignees: assignees.map((row) => row.assignee),
+    statuses: statuses.map((row) => row.status),
+  };
+}
+
 const listProjects = asyncHandler(async (req, res) => {
   await ensureProjectTasksTable();
   await seedProjectTasksIfEmpty();
@@ -351,7 +410,7 @@ const listTasks = asyncHandler(async (req, res) => {
   res.json({ tasks: tasks.map(mapTask) });
 });
 
-const getProjectStats = asyncHandler(async (req, res) => {
+const getProjectStatsLegacy = asyncHandler(async (req, res) => {
   await ensureProjectTasksTable();
   const [statusRows] = await query(
     `SELECT status, COUNT(*) AS total
@@ -381,6 +440,99 @@ const getProjectStats = asyncHandler(async (req, res) => {
     })),
   });
 });
+
+const getProjectStats = asyncHandler(async (req, res) => {
+  await ensureProjectTasksTable();
+  await ensureProjectManagementTables();
+  await seedProjectTasksIfEmpty();
+  await seedProjectsFromTasks();
+
+  const filters = buildReportFilters(req.query);
+  const filteredWhere = filters.conditions.length ? "WHERE " + filters.conditions.join(" AND ") : "";
+
+  const [[projectCounts], [taskCounts], [statusRows], [priorityRows], [assigneeRows], [projectRows], [trendRows], [wbsRows], [activityRows]] = await Promise.all([
+    query(`SELECT COUNT(*) AS total_projects,
+              SUM(status = 'active') AS active_projects,
+              SUM(status = 'completed') AS completed_projects,
+              SUM(end_date < CURDATE() AND status <> 'completed') AS overdue_projects
+       FROM projects`),
+    query(`SELECT COUNT(*) AS total_tasks,
+              SUM(pt.status = 'completed') AS completed_tasks,
+              SUM(pt.status = 'in-progress') AS in_progress_tasks,
+              SUM(pt.deadline < CURDATE() AND pt.status <> 'completed') AS overdue_tasks,
+              AVG(CASE WHEN pt.status = 'completed' THEN DATEDIFF(DATE(pt.updated_at), DATE(pt.created_at)) END) AS average_completion_days
+       FROM project_tasks pt
+       LEFT JOIN projects p ON p.name = pt.project
+       ${filteredWhere}`, filters.params),
+    query(`SELECT pt.status, COUNT(*) AS total FROM project_tasks pt LEFT JOIN projects p ON p.name = pt.project ${filteredWhere} GROUP BY pt.status`, filters.params),
+    query(`SELECT pt.priority, COUNT(*) AS total FROM project_tasks pt LEFT JOIN projects p ON p.name = pt.project ${filteredWhere} GROUP BY pt.priority`, filters.params),
+    query(`SELECT pt.assignee, COUNT(*) AS total, SUM(pt.status = 'completed') AS completed, SUM(pt.status <> 'completed') AS pending
+       FROM project_tasks pt LEFT JOIN projects p ON p.name = pt.project ${filteredWhere}
+       GROUP BY pt.assignee ORDER BY completed DESC, total DESC`, filters.params),
+    query(`SELECT p.id, p.name, p.status, COUNT(pt.id) AS total, SUM(pt.status = 'completed') AS completed,
+              SUM(pt.status = 'in-progress') AS in_progress, SUM(pt.deadline < CURDATE() AND pt.status <> 'completed') AS overdue
+       FROM projects p LEFT JOIN project_tasks pt ON pt.project = p.name
+       ${filters.projectWhere}
+       GROUP BY p.id, p.name, p.status ORDER BY p.name`, filters.projectParams),
+    query(`SELECT DATE(pt.updated_at) AS date, SUM(pt.status = 'completed') AS completed,
+              SUM(pt.status = 'in-progress') AS in_progress, SUM(pt.status = 'todo') AS todo
+       FROM project_tasks pt LEFT JOIN projects p ON p.name = pt.project
+       ${filteredWhere}
+       GROUP BY DATE(pt.updated_at) ORDER BY DATE(pt.updated_at)`, filters.params),
+    query(`SELECT COUNT(*) AS total_wbs_items, SUM(status = 'completed') AS completed_wbs_items,
+              SUM(due_date < CURDATE() AND status <> 'completed') AS overdue_wbs_items
+       FROM work_breakdown_structures`),
+    query(`SELECT action, COUNT(*) AS total FROM audit_logs WHERE module = 'Project Management' GROUP BY action ORDER BY total DESC LIMIT 10`),
+  ]);
+
+  const byStatus = rowsToObject(statusRows, "status");
+  const totalTasks = Number(taskCounts[0]?.total_tasks || 0);
+  const completedTasks = Number(taskCounts[0]?.completed_tasks || 0);
+  const averageCompletionDays = Number(taskCounts[0]?.average_completion_days || 0);
+
+  res.json({
+    summary: {
+      totalProjects: Number(projectCounts[0]?.total_projects || 0),
+      activeProjects: Number(projectCounts[0]?.active_projects || 0),
+      completedProjects: Number(projectCounts[0]?.completed_projects || 0),
+      overdueProjects: Number(projectCounts[0]?.overdue_projects || 0),
+      totalTasks,
+      completedTasks,
+      inProgressTasks: Number(taskCounts[0]?.in_progress_tasks || 0),
+      overdueTasks: Number(taskCounts[0]?.overdue_tasks || 0),
+      completionRate: totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0,
+      teamVelocity: trendRows.length ? Number((completedTasks / trendRows.length).toFixed(1)) : 0,
+      averageCompletionDays: Number(averageCompletionDays.toFixed(1)),
+      totalWbsItems: Number(wbsRows[0]?.total_wbs_items || 0),
+      completedWbsItems: Number(wbsRows[0]?.completed_wbs_items || 0),
+      overdueWbsItems: Number(wbsRows[0]?.overdue_wbs_items || 0),
+    },
+    byStatus,
+    byPriority: rowsToObject(priorityRows, "priority"),
+    projects: projectRows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      status: row.status,
+      total: Number(row.total || 0),
+      completed: Number(row.completed || 0),
+      inProgress: Number(row.in_progress || 0),
+      overdue: Number(row.overdue || 0),
+      completionRate: Number(row.total || 0) ? Math.round((Number(row.completed || 0) / Number(row.total || 0)) * 100) : 0,
+    })),
+    assignees: assigneeRows.map((row) => ({
+      name: row.assignee || "Unassigned",
+      total: Number(row.total || 0),
+      completed: Number(row.completed || 0),
+      pending: Number(row.pending || 0),
+      efficiency: Number(row.total || 0) ? Math.round((Number(row.completed || 0) / Number(row.total || 0)) * 100) : 0,
+    })),
+    trend: trendRows.map((row) => ({ date: row.date, completed: Number(row.completed || 0), inProgress: Number(row.in_progress || 0), todo: Number(row.todo || 0) })),
+    activity: activityRows.map((row) => ({ action: row.action, total: Number(row.total || 0) })),
+    filters: await getProjectReportFilterOptions(),
+  });
+});
+
+const getProjectReports = asyncHandler(async (req, res) => getProjectStats(req, res));
 
 const getAdminOverview = asyncHandler(async (req, res) => {
   await ensureProjectTasksTable();
@@ -909,6 +1061,7 @@ module.exports = {
   deleteProject,
   listTasks,
   getProjectStats,
+  getProjectReports,
   getProjectHistory,
   getProjectHistoryById,
   createTask,
