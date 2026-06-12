@@ -427,13 +427,21 @@ CREATE TABLE IF NOT EXISTS project_tasks (
 CREATE TABLE IF NOT EXISTS work_breakdown_structures (
   id INT AUTO_INCREMENT PRIMARY KEY,
   project_id INT NOT NULL,
+  parent_id INT NULL,
   title VARCHAR(180) NOT NULL,
   description TEXT,
-  nodes_json JSON NOT NULL,
+  assigned_to INT NULL,
+  status ENUM('todo', 'in-progress', 'in-review', 'completed') NOT NULL DEFAULT 'todo',
+  priority ENUM('low', 'medium', 'high', 'urgent') NOT NULL DEFAULT 'medium',
+  start_date DATE NULL,
+  due_date DATE NULL,
+  progress TINYINT UNSIGNED NOT NULL DEFAULT 0,
   created_by INT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  FOREIGN KEY (parent_id) REFERENCES work_breakdown_structures(id) ON DELETE CASCADE,
+  FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL,
   FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 );
 

@@ -246,10 +246,10 @@ export function AdminDashboard({ userName }: { userName: string }) {
         subtitle="Read-only summary for admin oversight"
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-          <StatCard label="Total Projects" value={String(projectOverview?.totalProjects ?? 0)} subtitle="All project workspaces" trend={{ value: "Read only", isPositive: true }} icon={Briefcase} iconColor={C.primary} iconBg={`${C.primary}18`} />
-          <StatCard label="Active Projects" value={String(projectOverview?.activeProjects ?? 0)} subtitle="Currently in progress" trend={{ value: "Overview", isPositive: true }} icon={UserCheck} iconColor={C.mid} iconBg={`${C.mid}18`} />
-          <StatCard label="Completed Projects" value={String(projectOverview?.completedProjects ?? 0)} subtitle="Closed delivery work" trend={{ value: "Overview", isPositive: true }} icon={FileText} iconColor={C.warm} iconBg={`${C.warm}20`} />
-          <StatCard label="Overdue Tasks" value={String(projectOverview?.overdueTasks ?? 0)} subtitle="Needs PM attention" trend={{ value: "Monitor", isPositive: false }} icon={UserX} iconColor={C.action} iconBg={`${C.action}15`} />
+          <StatCard label="Active WBS Items" value={String(projectOverview?.activeWbsItems ?? 0)} subtitle="Open PM-owned breakdown work" trend={{ value: "Summary only", isPositive: true }} icon={Briefcase} iconColor={C.primary} iconBg={`${C.primary}18`} />
+          <StatCard label="Overdue WBS Items" value={String(projectOverview?.overdueWbsItems ?? 0)} subtitle="Needs PM attention" trend={{ value: "Monitor", isPositive: false }} icon={UserX} iconColor={C.action} iconBg={`${C.action}15`} />
+          <StatCard label="Completed WBS Items" value={String(projectOverview?.completedWbsItems ?? 0)} subtitle="Finished WBS deliverables" trend={{ value: "Overview", isPositive: true }} icon={FileText} iconColor={C.warm} iconBg={`${C.warm}20`} />
+          <StatCard label="Active Projects" value={String(projectOverview?.activeProjects ?? 0)} subtitle="Read-only project count" trend={{ value: "Overview", isPositive: true }} icon={UserCheck} iconColor={C.mid} iconBg={`${C.mid}18`} />
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <div>
@@ -272,7 +272,7 @@ export function AdminDashboard({ userName }: { userName: string }) {
                     <p className="text-sm font-medium text-[#262254] dark:text-white">{manager.name}</p>
                     <p className="text-xs text-muted-foreground">{manager.email}</p>
                   </div>
-                  <span className="text-xs font-semibold text-[#543884]">{manager.activeProjects}/{manager.projects} active</span>
+                  <span className="text-xs font-semibold text-[#543884]">{manager.completedWbsItems}/{manager.wbsItems} WBS done</span>
                 </div>
               ))}
             </div>

@@ -13,7 +13,7 @@ const {
   deleteTask,
   getAdminOverview,
   listWBS,
-  getWBSById,
+  listProjectWBS,
   createWBS,
   updateWBS,
   deleteWBS,
@@ -23,6 +23,48 @@ const { protect, authorize } = require("../../middleware/authMiddleware");
 
 router.use(protect);
 router.get("/overview", authorize("admin"), getAdminOverview);
+
+router.get("/wbs", authorize("project_manager", "employee"), listWBS);
+router.get("/:id/wbs", authorize("project_manager", "employee"), [param("id").isInt({ min: 1 })], validate, listProjectWBS);
+router.post(
+  "/:id/wbs",
+  authorize("project_manager"),
+  [
+    param("id").isInt({ min: 1 }),
+    body("parentId").optional({ nullable: true }).isInt({ min: 1 }),
+    body("title").trim().notEmpty(),
+    body("description").optional({ nullable: true }).trim(),
+    body("assignedTo").optional({ nullable: true }).isInt({ min: 1 }),
+    body("status").optional().isIn(["todo", "not-started", "in-progress", "in-review", "completed"]),
+    body("priority").optional().isIn(["low", "medium", "high", "urgent"]),
+    body("startDate").optional({ nullable: true }).isISO8601(),
+    body("dueDate").optional({ nullable: true }).isISO8601(),
+    body("progress").optional().isInt({ min: 0, max: 100 }),
+  ],
+  validate,
+  createWBS
+);
+router.put(
+  "/wbs/:id",
+  authorize("project_manager"),
+  [
+    param("id").isInt({ min: 1 }),
+    body("projectId").optional().isInt({ min: 1 }),
+    body("parentId").optional({ nullable: true }).isInt({ min: 1 }),
+    body("title").optional().trim().notEmpty(),
+    body("description").optional({ nullable: true }).trim(),
+    body("assignedTo").optional({ nullable: true }).isInt({ min: 1 }),
+    body("status").optional().isIn(["todo", "not-started", "in-progress", "in-review", "completed"]),
+    body("priority").optional().isIn(["low", "medium", "high", "urgent"]),
+    body("startDate").optional({ nullable: true }).isISO8601(),
+    body("dueDate").optional({ nullable: true }).isISO8601(),
+    body("progress").optional().isInt({ min: 0, max: 100 }),
+  ],
+  validate,
+  updateWBS
+);
+router.delete("/wbs/:id", authorize("project_manager"), [param("id").isInt({ min: 1 })], validate, deleteWBS);
+
 router.use(authorize("project_manager"));
 
 router.get("/", listProjects);
@@ -91,32 +133,5 @@ router.patch(
 );
 
 router.delete("/tasks/:id", [param("id").isInt({ min: 1 })], validate, deleteTask);
-
-router.get("/wbs", listWBS);
-router.get("/wbs/:id", [param("id").isInt({ min: 1 })], validate, getWBSById);
-router.post(
-  "/wbs",
-  [
-    body("projectId").isInt({ min: 1 }),
-    body("title").trim().notEmpty(),
-    body("description").optional().trim(),
-    body("nodes").isArray(),
-  ],
-  validate,
-  createWBS
-);
-router.put(
-  "/wbs/:id",
-  [
-    param("id").isInt({ min: 1 }),
-    body("projectId").isInt({ min: 1 }),
-    body("title").trim().notEmpty(),
-    body("description").optional().trim(),
-    body("nodes").isArray(),
-  ],
-  validate,
-  updateWBS
-);
-router.delete("/wbs/:id", [param("id").isInt({ min: 1 })], validate, deleteWBS);
 
 module.exports = router;

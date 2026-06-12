@@ -92,16 +92,53 @@ async function ensureProjectManagementTables() {
     CREATE TABLE IF NOT EXISTS work_breakdown_structures (
       id INT AUTO_INCREMENT PRIMARY KEY,
       project_id INT NOT NULL,
+      parent_id INT NULL,
       title VARCHAR(180) NOT NULL,
       description TEXT,
-      nodes_json JSON NOT NULL,
+      assigned_to INT NULL,
+      status ENUM('todo', 'in-progress', 'in-review', 'completed') NOT NULL DEFAULT 'todo',
+      priority ENUM('low', 'medium', 'high', 'urgent') NOT NULL DEFAULT 'medium',
+      start_date DATE NULL,
+      due_date DATE NULL,
+      progress TINYINT UNSIGNED NOT NULL DEFAULT 0,
       created_by INT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (parent_id) REFERENCES work_breakdown_structures(id) ON DELETE CASCADE,
+      FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL,
       FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
     )
   `);
+
+  const requiredColumns = [
+    ["parent_id", "INT NULL"],
+    ["assigned_to", "INT NULL"],
+    ["status", "ENUM('todo', 'in-progress', 'in-review', 'completed') NOT NULL DEFAULT 'todo'"],
+    ["priority", "ENUM('low', 'medium', 'high', 'urgent') NOT NULL DEFAULT 'medium'"],
+    ["start_date", "DATE NULL"],
+    ["due_date", "DATE NULL"],
+    ["progress", "TINYINT UNSIGNED NOT NULL DEFAULT 0"],
+  ];
+
+  for (const [column, definition] of requiredColumns) {
+    const [rows] = await query(
+      `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'work_breakdown_structures' AND COLUMN_NAME = ?`,
+      [column]
+    );
+    if (!rows.length) {
+      await query(`ALTER TABLE work_breakdown_structures ADD COLUMN ${column} ${definition}`);
+    }
+  }
+
+  const [nodesJsonRows] = await query(
+    `SELECT COLUMN_NAME, IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'work_breakdown_structures' AND COLUMN_NAME = 'nodes_json'`
+  );
+  if (nodesJsonRows.length && nodesJsonRows[0].IS_NULLABLE === "NO") {
+    await query("ALTER TABLE work_breakdown_structures MODIFY nodes_json JSON NULL");
+  }
 }
 
 async function seedProjectsFromTasks() {
@@ -331,20 +368,29 @@ const getAdminOverview = asyncHandler(async (req, res) => {
   await ensureProjectTasksTable();
   await seedProjectTasksIfEmpty();
   await seedProjectsFromTasks();
+  await ensureProjectManagementTables();
 
-  const [[projectCounts], [overdueRows], [activityRows], [managerRows]] = await Promise.all([
+  const [[projectCounts], [taskOverdueRows], [wbsRows], [activityRows], [managerRows]] = await Promise.all([
     query(`SELECT COUNT(*) AS total,
                   SUM(status = 'active') AS active,
                   SUM(status = 'completed') AS completed
            FROM projects`),
     query("SELECT COUNT(*) AS overdue FROM project_tasks WHERE deadline < CURDATE() AND status <> 'completed'"),
+    query(`SELECT
+                  SUM(status IN ('todo', 'in-progress', 'in-review')) AS active_wbs_items,
+                  SUM(due_date < CURDATE() AND status <> 'completed') AS overdue_wbs_items,
+                  SUM(status = 'completed') AS completed_wbs_items
+           FROM work_breakdown_structures`),
     query(`SELECT id, title, project, status, updated_at
            FROM project_tasks ORDER BY updated_at DESC LIMIT 6`),
     query(`SELECT u.id, u.name, u.email,
                   COUNT(DISTINCT p.id) AS projects,
-                  COUNT(DISTINCT CASE WHEN p.status = 'active' THEN p.id END) AS active_projects
+                  COUNT(DISTINCT CASE WHEN p.status = 'active' THEN p.id END) AS active_projects,
+                  COUNT(DISTINCT w.id) AS wbs_items,
+                  COUNT(DISTINCT CASE WHEN w.status = 'completed' THEN w.id END) AS completed_wbs_items
            FROM users u
            LEFT JOIN projects p ON p.owner_id = u.id
+           LEFT JOIN work_breakdown_structures w ON w.created_by = u.id
            WHERE u.role = 'project_manager' AND u.status = 'active'
            GROUP BY u.id, u.name, u.email ORDER BY u.name`),
   ]);
@@ -353,7 +399,10 @@ const getAdminOverview = asyncHandler(async (req, res) => {
     totalProjects: Number(projectCounts[0]?.total || 0),
     activeProjects: Number(projectCounts[0]?.active || 0),
     completedProjects: Number(projectCounts[0]?.completed || 0),
-    overdueTasks: Number(overdueRows[0]?.overdue || 0),
+    overdueTasks: Number(taskOverdueRows[0]?.overdue || 0),
+    activeWbsItems: Number(wbsRows[0]?.active_wbs_items || 0),
+    overdueWbsItems: Number(wbsRows[0]?.overdue_wbs_items || 0),
+    completedWbsItems: Number(wbsRows[0]?.completed_wbs_items || 0),
     recentActivity: activityRows.map((row) => ({
       id: row.id,
       title: row.title,
@@ -367,6 +416,8 @@ const getAdminOverview = asyncHandler(async (req, res) => {
       email: row.email,
       projects: Number(row.projects || 0),
       activeProjects: Number(row.active_projects || 0),
+      wbsItems: Number(row.wbs_items || 0),
+      completedWbsItems: Number(row.completed_wbs_items || 0),
     })),
   });
 });
@@ -393,69 +444,202 @@ const getProjectHistory = asyncHandler(async (req, res) => {
   })) });
 });
 
-function mapWbs(row) {
+function normalizeWbsStatus(status) {
+  if (status === "not-started") return "todo";
+  return status || "todo";
+}
+
+function mapWbsItem(row) {
   return {
     id: row.id,
     projectId: row.project_id,
     projectName: row.project_name,
+    parentId: row.parent_id,
     title: row.title,
+    taskName: row.title,
     description: row.description || "",
-    nodes: typeof row.nodes_json === "string" ? JSON.parse(row.nodes_json) : row.nodes_json,
+    assignedTo: row.assigned_to,
+    assignedToName: row.assigned_to_name || null,
+    status: row.status,
+    priority: row.priority,
+    startDate: row.start_date,
+    dueDate: row.due_date,
+    progress: Number(row.progress || 0),
+    createdBy: row.created_by,
+    createdByName: row.created_by_name || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 }
 
+function buildWbsTree(items) {
+  const byId = new Map(items.map((item) => [Number(item.id), { ...item, children: [] }]));
+  const roots = [];
+
+  for (const item of byId.values()) {
+    if (item.parentId && byId.has(Number(item.parentId))) {
+      byId.get(Number(item.parentId)).children.push(item);
+    } else {
+      roots.push(item);
+    }
+  }
+
+  return roots;
+}
+
+function groupWbsByProject(items) {
+  const byProject = new Map();
+  for (const item of items) {
+    if (!byProject.has(item.projectId)) {
+      byProject.set(item.projectId, {
+        id: item.projectId,
+        projectId: item.projectId,
+        projectName: item.projectName,
+        title: item.projectName + " WBS",
+        description: "",
+        items: [],
+      });
+    }
+    byProject.get(item.projectId).items.push(item);
+  }
+
+  return Array.from(byProject.values()).map((project) => ({
+    ...project,
+    nodes: buildWbsTree(project.items),
+  }));
+}
+
+async function getWbsItems({ projectId, user }) {
+  const conditions = [];
+  const params = [];
+  if (projectId) {
+    conditions.push("w.project_id = ?");
+    params.push(projectId);
+  }
+  if (user.role === "employee") {
+    conditions.push("w.assigned_to = ?");
+    params.push(user.id);
+  }
+
+  const where = conditions.length ? "WHERE " + conditions.join(" AND ") : "";
+  const [rows] = await query(
+    `SELECT w.*, p.name AS project_name, assignee.name AS assigned_to_name, creator.name AS created_by_name
+     FROM work_breakdown_structures w
+     JOIN projects p ON p.id = w.project_id
+     LEFT JOIN users assignee ON assignee.id = w.assigned_to
+     LEFT JOIN users creator ON creator.id = w.created_by
+     ${where}
+     ORDER BY p.name, COALESCE(w.parent_id, 0), w.created_at, w.id`,
+    params
+  );
+  return rows.map(mapWbsItem);
+}
+
 const listWBS = asyncHandler(async (req, res) => {
   await ensureProjectManagementTables();
-  const [rows] = await query(
-    `SELECT w.*, p.name AS project_name FROM work_breakdown_structures w
-     JOIN projects p ON p.id = w.project_id ORDER BY w.updated_at DESC`
-  );
-  res.json({ workBreakdownStructures: rows.map(mapWbs) });
+  const items = await getWbsItems({ user: req.user });
+  res.json({ wbsItems: items, workBreakdownStructures: groupWbsByProject(items) });
 });
 
-const getWBSById = asyncHandler(async (req, res) => {
+const listProjectWBS = asyncHandler(async (req, res) => {
   await ensureProjectManagementTables();
-  const [rows] = await query(
-    `SELECT w.*, p.name AS project_name FROM work_breakdown_structures w
-     JOIN projects p ON p.id = w.project_id WHERE w.id = ?`,
-    [req.params.id]
-  );
-  if (!rows.length) return res.status(404).json({ message: "WBS not found" });
-  res.json({ workBreakdownStructure: mapWbs(rows[0]) });
+  const items = await getWbsItems({ projectId: req.params.id, user: req.user });
+  res.json({ wbsItems: items, nodes: buildWbsTree(items) });
 });
 
 const createWBS = asyncHandler(async (req, res) => {
   await ensureProjectManagementTables();
+  const [projectRows] = await query("SELECT id FROM projects WHERE id = ? LIMIT 1", [req.params.id]);
+  if (!projectRows.length) return res.status(404).json({ message: "Project not found" });
+
+  if (req.body.parentId) {
+    const [parentRows] = await query("SELECT id FROM work_breakdown_structures WHERE id = ? AND project_id = ? LIMIT 1", [req.body.parentId, req.params.id]);
+    if (!parentRows.length) return res.status(400).json({ message: "Parent WBS item does not belong to this project" });
+  }
+
   const [result] = await query(
-    `INSERT INTO work_breakdown_structures (project_id, title, description, nodes_json, created_by)
-     VALUES (?, ?, ?, ?, ?)`,
-    [req.body.projectId, req.body.title, req.body.description || null, JSON.stringify(req.body.nodes), req.user.id]
+    `INSERT INTO work_breakdown_structures
+      (project_id, parent_id, title, description, assigned_to, status, priority, start_date, due_date, progress, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      req.params.id,
+      req.body.parentId || null,
+      req.body.title,
+      req.body.description || null,
+      req.body.assignedTo || null,
+      normalizeWbsStatus(req.body.status),
+      req.body.priority || "medium",
+      req.body.startDate || null,
+      req.body.dueDate || null,
+      Number(req.body.progress || 0),
+      req.user.id,
+    ]
   );
-  await auditFromRequest(req, "wbs_created", "wbs", result.insertId, "Created WBS " + req.body.title, { projectId: req.body.projectId });
-  req.params.id = result.insertId;
-  return getWBSById(req, res);
+
+  await auditFromRequest(req, "wbs_created", "wbs", result.insertId, "Created WBS item " + req.body.title, { projectId: Number(req.params.id) });
+  const items = await getWbsItems({ projectId: req.params.id, user: req.user });
+  const item = items.find((entry) => Number(entry.id) === Number(result.insertId));
+  res.status(201).json({ wbsItem: item });
 });
 
 const updateWBS = asyncHandler(async (req, res) => {
   await ensureProjectManagementTables();
+  const [existingRows] = await query("SELECT * FROM work_breakdown_structures WHERE id = ? LIMIT 1", [req.params.id]);
+  if (!existingRows.length) return res.status(404).json({ message: "WBS item not found" });
+  const existing = existingRows[0];
+
+  const projectId = req.body.projectId || existing.project_id;
+  if (req.body.parentId) {
+    if (Number(req.body.parentId) === Number(req.params.id)) {
+      return res.status(400).json({ message: "A WBS item cannot be its own parent" });
+    }
+    const [parentRows] = await query("SELECT id FROM work_breakdown_structures WHERE id = ? AND project_id = ? LIMIT 1", [req.body.parentId, projectId]);
+    if (!parentRows.length) return res.status(400).json({ message: "Parent WBS item does not belong to this project" });
+  }
+
+  const nextStatus = normalizeWbsStatus(req.body.status || existing.status);
   const [result] = await query(
     `UPDATE work_breakdown_structures
-     SET project_id = ?, title = ?, description = ?, nodes_json = ? WHERE id = ?`,
-    [req.body.projectId, req.body.title, req.body.description || null, JSON.stringify(req.body.nodes), req.params.id]
+     SET project_id = ?, parent_id = ?, title = ?, description = ?, assigned_to = ?, status = ?, priority = ?,
+         start_date = ?, due_date = ?, progress = ?
+     WHERE id = ?`,
+    [
+      projectId,
+      req.body.parentId === undefined ? existing.parent_id : req.body.parentId || null,
+      req.body.title || existing.title,
+      req.body.description === undefined ? existing.description : req.body.description || null,
+      req.body.assignedTo === undefined ? existing.assigned_to : req.body.assignedTo || null,
+      nextStatus,
+      req.body.priority || existing.priority,
+      req.body.startDate === undefined ? existing.start_date : req.body.startDate || null,
+      req.body.dueDate === undefined ? existing.due_date : req.body.dueDate || null,
+      req.body.progress === undefined ? existing.progress : Number(req.body.progress || 0),
+      req.params.id,
+    ]
   );
-  if (!result.affectedRows) return res.status(404).json({ message: "WBS not found" });
-  await auditFromRequest(req, "wbs_updated", "wbs", req.params.id, "Updated WBS " + req.body.title, { projectId: req.body.projectId });
-  return getWBSById(req, res);
+  if (!result.affectedRows) return res.status(404).json({ message: "WBS item not found" });
+
+  const action = existing.status !== nextStatus ? "wbs_status_changed" : "wbs_updated";
+  await auditFromRequest(req, action, "wbs", req.params.id, "Updated WBS item " + (req.body.title || existing.title), {
+    projectId: Number(projectId),
+    previousStatus: existing.status,
+    status: nextStatus,
+    fields: Object.keys(req.body),
+  });
+
+  const items = await getWbsItems({ projectId, user: req.user });
+  const item = items.find((entry) => Number(entry.id) === Number(req.params.id));
+  res.json({ wbsItem: item });
 });
 
 const deleteWBS = asyncHandler(async (req, res) => {
   await ensureProjectManagementTables();
+  const [rows] = await query("SELECT project_id, title FROM work_breakdown_structures WHERE id = ? LIMIT 1", [req.params.id]);
+  if (!rows.length) return res.status(404).json({ message: "WBS item not found" });
   const [result] = await query("DELETE FROM work_breakdown_structures WHERE id = ?", [req.params.id]);
-  if (!result.affectedRows) return res.status(404).json({ message: "WBS not found" });
-  await auditFromRequest(req, "wbs_deleted", "wbs", req.params.id, "Deleted WBS");
-  res.json({ message: "WBS deleted" });
+  if (!result.affectedRows) return res.status(404).json({ message: "WBS item not found" });
+  await auditFromRequest(req, "wbs_deleted", "wbs", req.params.id, "Deleted WBS item " + rows[0].title, { projectId: rows[0].project_id });
+  res.json({ message: "WBS item deleted" });
 });
 
 const createTask = asyncHandler(async (req, res) => {
@@ -553,7 +737,7 @@ module.exports = {
   updateTask,
   deleteTask,
   listWBS,
-  getWBSById,
+  listProjectWBS,
   createWBS,
   updateWBS,
   deleteWBS,

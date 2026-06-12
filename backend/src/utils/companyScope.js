@@ -9,7 +9,7 @@ const DEMO_COMPANY = {
 const PASSWORD_HASHES = {
   admin: "$2a$10$7IAQrKRQwkIHv2eZSIRDj.S1O0ove29.KjCkCXD3369iJk9dTKngi",
   hr_manager: "$2a$10$cteqOigYNxjG6l8d.G7tNOSlBprtlBiCUvj03ljajfV.0CMwhd.Uq",
-  project_manager: "$2a$10$Mda0zoEZZ0k1Ai68Q3r2CeIiSOrQRBvtToTiXbuT3R3zdBTuiT0NS",
+  project_manager: "$2a$10$SKnkZVhCR5vH6phZVFL/3O5wF31zxgK7WZlxoz2gttFAj4x9ONdKS",
   employee: "$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy",
 };
 

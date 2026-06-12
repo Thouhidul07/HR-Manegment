@@ -46,7 +46,7 @@ test.before(async () => {
 
   await login("admin", "admin@nexoratech.com", "Admin@1234");
   await login("hrManager", "hr.manager01@nexoratech.com", "Hr@1234");
-  await login("projectManager", "pm01@nexoratech.com", "Pm@1234");
+  await login("projectManager", "pm01@nexoratech.com", "ProjectMgr@123");
   await login("employee", "employee01@nexoratech.com", "Emp@1234");
 });
 
@@ -190,6 +190,9 @@ test("admin sees project overview but cannot access detailed project management"
 
   assert.equal(overviewResponse.status, 200);
   assert.equal(typeof overviewResponse.data.totalProjects, "number");
+  assert.equal(typeof overviewResponse.data.activeWbsItems, "number");
+  assert.equal(typeof overviewResponse.data.overdueWbsItems, "number");
+  assert.equal(typeof overviewResponse.data.completedWbsItems, "number");
   assert.equal(projectsResponse.status, 403);
   assert.equal(wbsResponse.status, 403);
 });
@@ -212,6 +215,64 @@ test("project manager can access detailed project management and assign tasks", 
   assert.equal(historyResponse.status, 200);
   assert.equal(reportsResponse.status, 200);
   assert.equal(tasksResponse.status, 200);
+});
+
+test("project manager can create persistent WBS items and admin cannot mutate them", async () => {
+  const projectsResponse = await request("/api/projects", {
+    token: tokens.projectManager,
+  });
+  assert.equal(projectsResponse.status, 200);
+
+  const projectId = projectsResponse.data.projects[0].id;
+  const title = "Authorization WBS " + Date.now();
+  const createResponse = await request(`/api/projects/${projectId}/wbs`, {
+    method: "POST",
+    token: tokens.projectManager,
+    body: {
+      title,
+      description: "Created by authorization test",
+      status: "todo",
+      priority: "medium",
+      progress: 5,
+    },
+  });
+
+  assert.equal(createResponse.status, 201);
+  assert.equal(createResponse.data.wbsItem.title, title);
+
+  const reloadResponse = await request(`/api/projects/${projectId}/wbs`, {
+    token: tokens.projectManager,
+  });
+  assert.equal(reloadResponse.status, 200);
+  assert.ok(reloadResponse.data.wbsItems.some((item) => item.id === createResponse.data.wbsItem.id));
+
+  const adminCreateResponse = await request(`/api/projects/${projectId}/wbs`, {
+    method: "POST",
+    token: tokens.admin,
+    body: { title: "Admin should not create WBS" },
+  });
+  assert.equal(adminCreateResponse.status, 403);
+
+  const updateResponse = await request(`/api/projects/wbs/${createResponse.data.wbsItem.id}`, {
+    method: "PUT",
+    token: tokens.projectManager,
+    body: { status: "completed", progress: 100 },
+  });
+  assert.equal(updateResponse.status, 200);
+  assert.equal(updateResponse.data.wbsItem.status, "completed");
+
+  const auditResponse = await request("/api/audit-logs?module=Project%20Management&limit=25", {
+    token: tokens.admin,
+  });
+  assert.equal(auditResponse.status, 200);
+  assert.ok(auditResponse.data.logs.some((log) => log.action === "wbs_created" && log.description.includes(title)));
+  assert.ok(auditResponse.data.logs.some((log) => log.action === "wbs_status_changed" && Number(log.entity_id) === Number(createResponse.data.wbsItem.id)));
+
+  const deleteResponse = await request(`/api/projects/wbs/${createResponse.data.wbsItem.id}`, {
+    method: "DELETE",
+    token: tokens.projectManager,
+  });
+  assert.equal(deleteResponse.status, 200);
 });
 
 test("project manager cannot access admin or HR-only controls", async () => {
