@@ -3,23 +3,38 @@ const { protect } = require("../../middleware/authMiddleware");
 const controller = require("./profile.controller");
 const multer = require("multer");
 const path = require("path");
+const fs = require("fs");
+const crypto = require("crypto");
+
+const documentUploadDirectory = path.join(__dirname, "../../../uploads/profile-documents");
+fs.mkdirSync(documentUploadDirectory, { recursive: true });
+
+const allowedDocumentTypes = new Map([
+  [".pdf", ["application/pdf"]],
+  [".doc", ["application/msword"]],
+  [".docx", ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"]],
+  [".jpg", ["image/jpeg"]],
+  [".jpeg", ["image/jpeg"]],
+  [".png", ["image/png"]],
+]);
 
 const storage = multer.diskStorage({
   destination(req, file, cb) {
-    cb(null, path.join(__dirname, "../../../uploads"));
+    cb(null, documentUploadDirectory);
   },
   filename(req, file, cb) {
-    const extension = path.extname(file.originalname);
-    cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${extension}`);
+    const extension = path.extname(file.originalname).toLowerCase();
+    cb(null, crypto.randomUUID() + extension);
   },
 });
 
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter(req, file, cb) {
     const ext = path.extname(file.originalname).toLowerCase();
-    if (ext !== ".pdf" && ext !== ".doc" && ext !== ".docx" && ext !== ".jpg" && ext !== ".jpeg" && ext !== ".png") {
+    const allowedMimeTypes = allowedDocumentTypes.get(ext);
+    if (!allowedMimeTypes || !allowedMimeTypes.includes(file.mimetype)) {
       return cb(new Error("Only PDF, DOC, DOCX, JPG, and PNG files are allowed"));
     }
     cb(null, true);
@@ -43,7 +58,6 @@ router.get("/me", controller.getMyProfile);
 router.patch("/me", controller.updateMyProfile);
 router.patch("/preferences", controller.updatePreferences);
 router.patch("/password", controller.updatePassword);
-
 router.get("/documents", controller.getMyDocuments);
 router.post("/documents", handleUpload, controller.uploadDocument);
 router.delete("/documents/:id", controller.deleteDocument);

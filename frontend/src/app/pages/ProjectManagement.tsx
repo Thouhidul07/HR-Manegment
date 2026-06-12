@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import {
   Plus, Users, Calendar, Clock, AlertCircle,
   CheckCircle2, MoreVertical, Edit, Trash2,
-  X, User, Flag, Tag, MessageSquare, Paperclip, Folder
+  X, User, Flag, Tag, MessageSquare, Paperclip
 } from "lucide-react";
 import api from "../services/api";
 
@@ -37,30 +37,146 @@ export function ProjectManagement() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [filterProject, setFilterProject] = useState<string>('all');
   const [isSavingTask, setIsSavingTask] = useState(false);
-  const [projectsList, setProjectsList] = useState<any[]>([]);
-  const [loadingTasks, setLoadingTasks] = useState(true);
-  const [loadingEmployees, setLoadingEmployees] = useState(true);
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
+
+  const fallbackEmployees: Employee[] = [
+    { id: 1, name: "Sarah Johnson", role: "Frontend Developer", avatar: "SJ" },
+    { id: 2, name: "Michael Chen", role: "Backend Developer", avatar: "MC" },
+    { id: 3, name: "Emily Rodriguez", role: "UI/UX Designer", avatar: "ER" },
+    { id: 4, name: "David Kim", role: "Full Stack Developer", avatar: "DK" },
+    { id: 5, name: "Jessica Martinez", role: "QA Engineer", avatar: "JM" }
+  ];
+
+  const [employees, setEmployees] = useState<Employee[]>(fallbackEmployees);
+  const [tasks, setTasks] = useState<Task[]>([
+    {
+      id: 1,
+      title: "Design Homepage Mockup",
+      description: "Create high-fidelity mockups for the new homepage design",
+      status: 'in-progress',
+      priority: 'high',
+      assignee: "Emily Rodriguez",
+      assigneeAvatar: "ER",
+      deadline: "2026-06-05",
+      createdDate: "2026-05-25",
+      tags: ["Design", "UI/UX"],
+      comments: 3,
+      attachments: 2,
+      project: "Website Redesign"
+    },
+    {
+      id: 2,
+      title: "Implement Authentication API",
+      description: "Build JWT-based authentication endpoints with refresh token support",
+      status: 'in-progress',
+      priority: 'urgent',
+      assignee: "Michael Chen",
+      assigneeAvatar: "MC",
+      deadline: "2026-06-03",
+      createdDate: "2026-05-20",
+      tags: ["Backend", "Security"],
+      comments: 5,
+      attachments: 1,
+      project: "User Portal"
+    },
+    {
+      id: 3,
+      title: "Create Component Library",
+      description: "Build reusable React components following design system",
+      status: 'todo',
+      priority: 'medium',
+      assignee: "Sarah Johnson",
+      assigneeAvatar: "SJ",
+      deadline: "2026-06-10",
+      createdDate: "2026-05-28",
+      tags: ["Frontend", "React"],
+      comments: 1,
+      attachments: 0,
+      project: "Website Redesign"
+    },
+    {
+      id: 4,
+      title: "Database Schema Migration",
+      description: "Update database schema for new user role permissions",
+      status: 'in-review',
+      priority: 'high',
+      assignee: "David Kim",
+      assigneeAvatar: "DK",
+      deadline: "2026-06-02",
+      createdDate: "2026-05-22",
+      tags: ["Database", "Backend"],
+      comments: 2,
+      attachments: 1,
+      project: "User Portal"
+    },
+    {
+      id: 5,
+      title: "E2E Testing Suite",
+      description: "Set up end-to-end testing with Cypress for critical user flows",
+      status: 'todo',
+      priority: 'medium',
+      assignee: "Jessica Martinez",
+      assigneeAvatar: "JM",
+      deadline: "2026-06-12",
+      createdDate: "2026-05-29",
+      tags: ["Testing", "QA"],
+      comments: 0,
+      attachments: 0,
+      project: "User Portal"
+    },
+    {
+      id: 6,
+      title: "Landing Page Optimization",
+      description: "Improve performance and SEO for landing page",
+      status: 'completed',
+      priority: 'low',
+      assignee: "Sarah Johnson",
+      assigneeAvatar: "SJ",
+      deadline: "2026-05-30",
+      createdDate: "2026-05-15",
+      tags: ["Frontend", "Performance"],
+      comments: 4,
+      attachments: 3,
+      project: "Website Redesign"
+    },
+    {
+      id: 7,
+      title: "Mobile Responsive Design",
+      description: "Ensure all pages are mobile-friendly and responsive",
+      status: 'in-progress',
+      priority: 'high',
+      assignee: "Emily Rodriguez",
+      assigneeAvatar: "ER",
+      deadline: "2026-06-07",
+      createdDate: "2026-05-26",
+      tags: ["Design", "Mobile"],
+      comments: 2,
+      attachments: 1,
+      project: "Website Redesign"
+    },
+    {
+      id: 8,
+      title: "API Documentation",
+      description: "Write comprehensive API documentation with examples",
+      status: 'todo',
+      priority: 'low',
+      assignee: "Michael Chen",
+      assigneeAvatar: "MC",
+      deadline: "2026-06-15",
+      createdDate: "2026-05-30",
+      tags: ["Documentation", "Backend"],
+      comments: 0,
+      attachments: 0,
+      project: "User Portal"
+    }
+  ]);
 
   useEffect(() => {
     let isMounted = true;
 
     api.get("/projects/tasks")
       .then((response) => {
-        if (isMounted) {
-          setTasks(response.data.tasks || []);
-          setLoadingTasks(false);
-        }
-      })
-      .catch(() => {
-        if (isMounted) setLoadingTasks(false);
-      });
-
-    api.get("/projects")
-      .then((response) => {
-        if (isMounted && response.data.projects?.length) {
-          setProjectsList(response.data.projects);
+        if (isMounted && response.data.tasks?.length) {
+          setTasks(response.data.tasks);
         }
       })
       .catch(() => {});
@@ -68,11 +184,11 @@ export function ProjectManagement() {
     api.get("/employees")
       .then((response) => {
         if (!isMounted || !response.data.employees?.length) return;
-        setLoadingEmployees(false);
+
         setEmployees(response.data.employees.map((employee: any) => ({
           id: employee.id,
           name: employee.name,
-          role: employee.designation || employee.department || "Team Member",
+          role: employee.position || employee.department || "Team Member",
           avatar: employee.name
             .split(" ")
             .map((part: string) => part[0])
@@ -81,14 +197,14 @@ export function ProjectManagement() {
             .toUpperCase(),
         })));
       })
-      .catch(() => {
-        if (isMounted) setLoadingEmployees(false);
-      });
+      .catch(() => {});
 
     return () => {
       isMounted = false;
     };
   }, []);
+
+  const projects = ['all', 'Website Redesign', 'User Portal'];
 
   const filteredTasks = filterProject === 'all'
     ? tasks
@@ -101,97 +217,14 @@ export function ProjectManagement() {
     completed: filteredTasks.filter(t => t.status === 'completed')
   };
 
-  const activeProjectsCount = projectsList.filter(p => p.status === 'active').length;
-
-  const totalTasksCount = tasks.length;
-  const completedTasksCount = tasks.filter(t => t.status === 'completed').length;
-  const completionRate = totalTasksCount > 0
-    ? Math.round((completedTasksCount / totalTasksCount) * 100)
-    : 0;
-
-  const getDelayedProjectsCount = () => {
-    if (projectsList.length === 0) return 0;
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    return projectsList.filter(p => p.status === 'active' && p.endDate && new Date(p.endDate) < today).length;
+  const stats = {
+    total: tasks.length,
+    todo: tasks.filter(t => t.status === 'todo').length,
+    inProgress: tasks.filter(t => t.status === 'in-progress').length,
+    inReview: tasks.filter(t => t.status === 'in-review').length,
+    completed: tasks.filter(t => t.status === 'completed').length,
+    overdue: tasks.filter(t => new Date(t.deadline) < new Date() && t.status !== 'completed').length
   };
-  const delayedProjectsCount = getDelayedProjectsCount();
-
-  const getMilestonesThisWeekCount = () => {
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    const sevenDaysFromNow = new Date();
-    sevenDaysFromNow.setDate(today.getDate() + 7);
-    
-    return tasks.filter(t => {
-      if (t.status === 'completed') return false;
-      if (!t.deadline) return false;
-      const deadlineDate = new Date(t.deadline);
-      return deadlineDate >= today && deadlineDate <= sevenDaysFromNow;
-    }).length;
-  };
-  const milestonesThisWeekCount = getMilestonesThisWeekCount();
-
-  // Selected project details
-  const selectedProjInfo = projectsList.find(p => p.name === filterProject) || {
-    id: 0,
-    name: filterProject === 'all' ? "All Projects" : filterProject,
-    description: filterProject === 'all' 
-      ? "Multi-project tracking dashboard for operations and planning" 
-      : `${filterProject} delivery workspace and planning dashboard`,
-    startDate: null,
-    endDate: null,
-    owner: "System Administrator",
-    status: "active",
-    tasks: filterProject === 'all' ? tasks.length : tasks.filter(t => t.project === filterProject).length,
-    completedTasks: filterProject === 'all' ? tasks.filter(t => t.status === 'completed').length : tasks.filter(t => t.project === filterProject && t.status === 'completed').length
-  };
-
-  const getProjectHealth = (projName: string) => {
-    const projTasks = projName === 'all' ? tasks : tasks.filter(t => t.project === projName);
-    const overdueTasks = projTasks.filter(t => new Date(t.deadline) < new Date() && t.status !== 'completed');
-    
-    if (overdueTasks.length > 0) {
-      return { label: "At Risk", bg: "bg-amber-500/10", text: "text-amber-500", border: "border-amber-500/30" };
-    }
-    
-    if (projName !== 'all') {
-      const proj = projectsList.find(p => p.name === projName);
-      if (proj && proj.endDate && new Date(proj.endDate) < new Date() && proj.completedTasks < proj.tasks) {
-        return { label: "Delayed", bg: "bg-red-500/10", text: "text-red-500", border: "border-red-500/30" };
-      }
-    }
-    
-    return { label: "Stable", bg: "bg-green-500/10", text: "text-green-500", border: "border-green-500/30" };
-  };
-  const healthInfo = getProjectHealth(filterProject);
-  
-  const projProgress = selectedProjInfo.tasks > 0 
-    ? Math.round((selectedProjInfo.completedTasks / selectedProjInfo.tasks) * 100)
-    : 0;
-
-  // Team Workload calculation
-  const getTeamWorkload = () => {
-    const workloadMap: Record<string, { total: number; completed: number; avatar: string }> = {};
-    filteredTasks.forEach(task => {
-      if (!task.assignee) return;
-      if (!workloadMap[task.assignee]) {
-        workloadMap[task.assignee] = { total: 0, completed: 0, avatar: task.assigneeAvatar || "TM" };
-      }
-      workloadMap[task.assignee].total++;
-      if (task.status === 'completed') {
-        workloadMap[task.assignee].completed++;
-      }
-    });
-    return Object.entries(workloadMap).map(([name, stats]) => ({
-      name,
-      total: stats.total,
-      completed: stats.completed,
-      avatar: stats.avatar,
-      rate: stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0
-    }));
-  };
-  const teamWorkload = getTeamWorkload();
 
   const getPriorityColor = (priority: TaskPriority) => {
     switch (priority) {
@@ -245,13 +278,13 @@ export function ProjectManagement() {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4 flex-wrap pb-4 border-b border-border/40">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Work Management</h1>
+          <h1 className="text-2xl font-bold text-foreground">Project Management</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Plan and monitor work assignments, workflows, and team progress
+            Assign tasks, track progress, and manage project workflows
           </p>
         </div>
         <button
@@ -259,7 +292,7 @@ export function ProjectManagement() {
             setSelectedTask(null);
             setShowTaskModal(true);
           }}
-          className="px-4 py-2 bg-gradient-to-r from-[#543884] to-[#9A77CF] text-white rounded-lg hover:brightness-110 active:scale-95 transition-all flex items-center gap-2 text-sm font-semibold shadow-md"
+          className="px-4 py-2 bg-gradient-to-r from-[#543884] to-[#9A77CF] text-white rounded-lg hover:brightness-110 transition-all flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
           New Task
@@ -267,296 +300,157 @@ export function ProjectManagement() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="bg-card border border-border rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-200">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
-              <Folder className="w-5 h-5 text-purple-500" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground font-medium">Active Projects</p>
-              <p className="text-2xl font-bold text-foreground mt-0.5">{activeProjectsCount}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-card border border-border rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-200">
+      <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+        <div className="bg-card border border-border rounded-xl p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
               <Users className="w-5 h-5 text-blue-500" />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground font-medium">Total Work Items</p>
-              <p className="text-2xl font-bold text-foreground mt-0.5">{totalTasksCount}</p>
+              <p className="text-xs text-muted-foreground">Total Tasks</p>
+              <p className="text-2xl font-bold text-foreground">{stats.total}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-card border border-border rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-200">
+        <div className="bg-card border border-border rounded-xl p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-gray-500/10 flex items-center justify-center">
+              <Clock className="w-5 h-5 text-gray-500" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">To Do</p>
+              <p className="text-2xl font-bold text-foreground">{stats.todo}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-card border border-border rounded-xl p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+              <AlertCircle className="w-5 h-5 text-blue-500" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">In Progress</p>
+              <p className="text-2xl font-bold text-foreground">{stats.inProgress}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-card border border-border rounded-xl p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-yellow-500/10 flex items-center justify-center">
+              <Clock className="w-5 h-5 text-yellow-500" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">In Review</p>
+              <p className="text-2xl font-bold text-foreground">{stats.inReview}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-card border border-border rounded-xl p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
               <CheckCircle2 className="w-5 h-5 text-green-500" />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground font-medium">Completion Rate</p>
-              <p className="text-2xl font-bold text-foreground mt-0.5">{completionRate}%</p>
+              <p className="text-xs text-muted-foreground">Completed</p>
+              <p className="text-2xl font-bold text-foreground">{stats.completed}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-card border border-border rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-200">
+        <div className="bg-card border border-border rounded-xl p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center">
               <AlertCircle className="w-5 h-5 text-red-500" />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground font-medium">Delayed Projects</p>
-              <p className="text-2xl font-bold text-foreground mt-0.5">{delayedProjectsCount}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-card border border-border rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-200">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
-              <Clock className="w-5 h-5 text-amber-500" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground font-medium">Milestones This Week</p>
-              <p className="text-2xl font-bold text-foreground mt-0.5">{milestonesThisWeekCount}</p>
+              <p className="text-xs text-muted-foreground">Overdue</p>
+              <p className="text-2xl font-bold text-foreground">{stats.overdue}</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main Content Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
-        {/* Left Column: Context details, Selector, Kanban */}
-        <div className="lg:col-span-3 space-y-6">
-          {/* Project Selector tabs */}
-          <div className="bg-card border border-border rounded-xl p-3 shadow-sm">
-            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-2 px-1">Selected Project Workspace</span>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => setFilterProject('all')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-                  filterProject === 'all'
-                    ? 'bg-gradient-to-r from-[#543884] to-[#9A77CF] text-white shadow-md'
-                    : 'bg-background border border-border text-foreground hover:bg-accent'
-                }`}
-              >
-                <Users className="w-4 h-4" />
-                All Projects
-              </button>
-              
-              {projectsList.map(project => (
-                <button
-                  key={project.id}
-                  onClick={() => setFilterProject(project.name)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
-                    filterProject === project.name
-                      ? 'bg-gradient-to-r from-[#543884] to-[#9A77CF] text-white shadow-md'
-                      : 'bg-background border border-border text-foreground hover:bg-accent'
-                  }`}
-                >
-                  <Folder className="w-4 h-4" />
-                  {project.name}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Project Context Detail Card */}
-          <div className="bg-card border border-border rounded-xl p-5 shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-[#9A77CF]/5 to-[#EC4176]/5 rounded-full blur-3xl -z-10"></div>
-            
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 pb-4 border-b border-border/40">
-              <div>
-                <div className="flex items-center gap-3">
-                  <h2 className="text-xl font-bold text-foreground">{filterProject === 'all' ? 'All Projects' : filterProject}</h2>
-                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${healthInfo.bg} ${healthInfo.text} ${healthInfo.border}`}>
-                    {healthInfo.label}
-                  </span>
-                </div>
-                <p className="text-sm text-muted-foreground mt-1 max-w-2xl">{selectedProjInfo.description}</p>
-              </div>
-              
-              <div className="flex flex-col text-xs md:text-right text-muted-foreground gap-1">
-                <p>Owner: <span className="font-semibold text-foreground">{selectedProjInfo.owner || "Unassigned"}</span></p>
-                {selectedProjInfo.startDate && selectedProjInfo.endDate && (
-                  <p>Timeline: <span className="font-semibold text-foreground">
-                    {new Date(selectedProjInfo.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })} - {new Date(selectedProjInfo.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                  </span></p>
-                )}
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between items-center text-xs text-muted-foreground mb-1.5">
-                <span className="font-semibold">Workflow Completion Progress</span>
-                <span className="font-bold text-foreground">{projProgress}%</span>
-              </div>
-              <div className="w-full bg-accent rounded-full h-2 overflow-hidden">
-                <div 
-                  className="bg-gradient-to-r from-[#543884] via-[#9A77CF] to-[#EC4176] h-full rounded-full transition-all duration-500 ease-out" 
-                  style={{ width: `${projProgress}%` }}
-                ></div>
-              </div>
-              <div className="flex gap-4 mt-2 text-[11px] text-muted-foreground">
-                <span>Tasks: <strong>{selectedProjInfo.tasks}</strong></span>
-                <span>Completed: <strong className="text-green-500">{selectedProjInfo.completedTasks}</strong></span>
-                <span>Active: <strong className="text-[#9A77CF]">{selectedProjInfo.tasks - selectedProjInfo.completedTasks}</strong></span>
-              </div>
-            </div>
-          </div>
-
-          {/* Kanban Board */}
-          {loadingTasks ? (
-            <div className="flex items-center justify-center py-16 col-span-4">
-              <div className="text-center space-y-2">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" />
-                <p className="text-xs text-muted-foreground">Loading work items...</p>
-              </div>
-            </div>
-          ) : tasks.length === 0 && filterProject === 'all' ? (
-            <div className="col-span-4 flex flex-col items-center justify-center py-16 border border-dashed border-border rounded-xl bg-card/50 text-center gap-3">
-              <Folder className="w-10 h-10 text-muted-foreground/40" />
-              <div>
-                <p className="text-sm font-semibold text-foreground">No work projects found.</p>
-                <p className="text-xs text-muted-foreground mt-1">Create a project to begin.</p>
-              </div>
-            </div>
-          ) : filteredTasks.length === 0 ? (
-            <div className="col-span-4 flex flex-col items-center justify-center py-12 border border-dashed border-border rounded-xl bg-card/50 text-center gap-2">
-              <p className="text-sm font-semibold text-foreground">No work items found for this project.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              {/* To Do Column */}
-              <KanbanColumn
-                title="To Do"
-                count={tasksByStatus.todo.length}
-                color="gray"
-                tasks={tasksByStatus.todo}
-                onTaskClick={(task: Task) => {
-                  setSelectedTask(task);
-                  setShowTaskModal(true);
-                }}
-                onMoveTask={moveTask}
-                getPriorityColor={getPriorityColor}
-              />
-
-              {/* In Progress Column */}
-              <KanbanColumn
-                title="In Progress"
-                count={tasksByStatus['in-progress'].length}
-                color="blue"
-                tasks={tasksByStatus['in-progress']}
-                onTaskClick={(task: Task) => {
-                  setSelectedTask(task);
-                  setShowTaskModal(true);
-                }}
-                onMoveTask={moveTask}
-                getPriorityColor={getPriorityColor}
-              />
-
-              {/* In Review Column */}
-              <KanbanColumn
-                title="In Review"
-                count={tasksByStatus['in-review'].length}
-                color="yellow"
-                tasks={tasksByStatus['in-review']}
-                onTaskClick={(task: Task) => {
-                  setSelectedTask(task);
-                  setShowTaskModal(true);
-                }}
-                onMoveTask={moveTask}
-                getPriorityColor={getPriorityColor}
-              />
-
-              {/* Completed Column */}
-              <KanbanColumn
-                title="Completed"
-                count={tasksByStatus.completed.length}
-                color="green"
-                tasks={tasksByStatus.completed}
-                onTaskClick={(task: Task) => {
-                  setSelectedTask(task);
-                  setShowTaskModal(true);
-                }}
-                onMoveTask={moveTask}
-                getPriorityColor={getPriorityColor}
-              />
-            </div>
-          )}
+      {/* Project Filter */}
+      <div className="bg-card border border-border rounded-xl p-4">
+        <label className="text-sm font-semibold text-foreground mb-3 block">Filter by Project</label>
+        <div className="flex gap-2">
+          {projects.map(project => (
+            <button
+              key={project}
+              onClick={() => setFilterProject(project)}
+              className={`px-4 py-2 rounded-lg text-sm transition-all ${
+                filterProject === project
+                  ? 'bg-gradient-to-r from-[#543884] to-[#9A77CF] text-white'
+                  : 'bg-background border border-border text-foreground hover:bg-accent'
+              }`}
+            >
+              {project === 'all' ? 'All Projects' : project}
+            </button>
+          ))}
         </div>
+      </div>
 
-        {/* Right Column: Widgets / Sidebars */}
-        <div className="space-y-6">
-          {/* Team Workload Widget */}
-          <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
-            <h3 className="font-semibold text-sm text-foreground mb-3 flex items-center gap-2 pb-2 border-b border-border/40">
-              <Users className="w-4 h-4 text-[#9A77CF]" />
-              Team Workload
-            </h3>
-            <div className="space-y-3.5">
-              {teamWorkload.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-2">No active tasks assigned.</p>
-              ) : (
-                teamWorkload.map(user => (
-                  <div key={user.name} className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-[9px]">
-                          {user.avatar}
-                        </div>
-                        <span className="font-medium text-foreground truncate max-w-[100px]" title={user.name}>{user.name}</span>
-                      </div>
-                      <span className="text-[10px] text-muted-foreground font-semibold">{user.total} task{user.total > 1 ? 's' : ''} ({user.rate}%)</span>
-                    </div>
-                    <div className="w-full bg-accent rounded-full h-1 overflow-hidden">
-                      <div 
-                        className="bg-primary h-full rounded-full transition-all duration-300"
-                        style={{ width: `${user.rate}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+      {/* Kanban Board */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* To Do Column */}
+        <KanbanColumn
+          title="To Do"
+          count={tasksByStatus.todo.length}
+          color="gray"
+          tasks={tasksByStatus.todo}
+          onTaskClick={(task: Task) => {
+            setSelectedTask(task);
+            setShowTaskModal(true);
+          }}
+          onMoveTask={moveTask}
+          getPriorityColor={getPriorityColor}
+        />
 
-          {/* Projects Directory Widget */}
-          <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
-            <h3 className="font-semibold text-sm text-foreground mb-3 flex items-center gap-2 pb-2 border-b border-border/40">
-              <Folder className="w-4 h-4 text-[#EC4176]" />
-              Projects Directory
-            </h3>
-            <div className="space-y-2">
-              {projectsList.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-2">No projects found.</p>
-              ) : (
-                projectsList.map(proj => {
-                  const projProgress = proj.tasks > 0 ? Math.round((proj.completedTasks / proj.tasks) * 100) : 0;
-                  return (
-                    <button
-                      key={proj.id}
-                      onClick={() => setFilterProject(proj.name)}
-                      className={`w-full text-left p-2 rounded-lg border transition-all flex justify-between items-center text-xs ${
-                        filterProject === proj.name
-                          ? 'border-[#9A77CF] bg-[#9A77CF]/5 font-semibold text-foreground'
-                          : 'border-border/60 hover:bg-accent text-muted-foreground'
-                      }`}
-                    >
-                      <span className="truncate max-w-[140px]">{proj.name}</span>
-                      <span className="text-foreground font-bold bg-accent px-2 py-0.5 rounded-full">{projProgress}%</span>
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        </div>
+        {/* In Progress Column */}
+        <KanbanColumn
+          title="In Progress"
+          count={tasksByStatus['in-progress'].length}
+          color="blue"
+          tasks={tasksByStatus['in-progress']}
+          onTaskClick={(task: Task) => {
+            setSelectedTask(task);
+            setShowTaskModal(true);
+          }}
+          onMoveTask={moveTask}
+          getPriorityColor={getPriorityColor}
+        />
+
+        {/* In Review Column */}
+        <KanbanColumn
+          title="In Review"
+          count={tasksByStatus['in-review'].length}
+          color="yellow"
+          tasks={tasksByStatus['in-review']}
+          onTaskClick={(task: Task) => {
+            setSelectedTask(task);
+            setShowTaskModal(true);
+          }}
+          onMoveTask={moveTask}
+          getPriorityColor={getPriorityColor}
+        />
+
+        {/* Completed Column */}
+        <KanbanColumn
+          title="Completed"
+          count={tasksByStatus.completed.length}
+          color="green"
+          tasks={tasksByStatus.completed}
+          onTaskClick={(task: Task) => {
+            setSelectedTask(task);
+            setShowTaskModal(true);
+          }}
+          onMoveTask={moveTask}
+          getPriorityColor={getPriorityColor}
+        />
       </div>
 
       {/* Task Modal */}
@@ -564,7 +458,6 @@ export function ProjectManagement() {
         <TaskModal
           task={selectedTask}
           employees={employees}
-          projectsList={projectsList}
           onClose={() => {
             setShowTaskModal(false);
             setSelectedTask(null);
@@ -730,7 +623,7 @@ function TaskCard({ task, onClick, onMove, getPriorityColor }: any) {
 }
 
 // Task Modal Component
-function TaskModal({ task, employees, projectsList, onClose, onSave }: any) {
+function TaskModal({ task, employees, onClose, onSave }: any) {
   const [formData, setFormData] = useState({
     title: task?.title || '',
     description: task?.description || '',
@@ -739,7 +632,7 @@ function TaskModal({ task, employees, projectsList, onClose, onSave }: any) {
     assignee: task?.assignee || '',
     assigneeAvatar: task?.assigneeAvatar || '',
     deadline: task?.deadline || '',
-    project: task?.project || (projectsList && projectsList.length > 0 ? projectsList[0].name : 'Website Redesign'),
+    project: task?.project || 'Website Redesign',
     tags: task?.tags || []
   });
 
@@ -860,13 +753,8 @@ function TaskModal({ task, employees, projectsList, onClose, onSave }: any) {
               onChange={(e) => setFormData({ ...formData, project: e.target.value })}
               className="w-full px-3 py-2 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             >
-              {projectsList && projectsList.length > 0 ? (
-                projectsList.map((p: any) => (
-                  <option key={p.id} value={p.name}>{p.name}</option>
-                ))
-              ) : (
-                <option value="">No projects available</option>
-              )}
+              <option value="Website Redesign">Website Redesign</option>
+              <option value="User Portal">User Portal</option>
             </select>
           </div>
 

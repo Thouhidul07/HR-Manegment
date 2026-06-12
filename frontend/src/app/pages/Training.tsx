@@ -1,4 +1,16 @@
-import { Play, Clock, Users, Award, BookOpen } from "lucide-react";
+import {
+  Play,
+  Clock,
+  Users,
+  Award,
+  BookOpen,
+  CalendarDays,
+  Download,
+  FileText,
+  Link as LinkIcon,
+  Video,
+  CheckCircle2,
+} from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import {
   Card,
@@ -23,14 +35,23 @@ type Course = {
   progress: number;
   instructor: string;
   level: string;
+  description?: string;
+  startsAt?: string;
+  endsAt?: string;
 };
 
 type MyTraining = {
   id: number;
+  trainingId?: number;
   course: string;
   progress: number;
   dueDate: string;
   status: string;
+  trainer?: string;
+  description?: string;
+  startsAt?: string;
+  endsAt?: string;
+  certificateCode?: string | null;
 };
 
 type TrainingForm = {
@@ -150,6 +171,60 @@ const upcomingSchedule = [
   },
 ];
 
+const formatTrainingDateTime = (value?: string | null) => {
+  if (!value) return "To be scheduled";
+  return new Date(value).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
+
+const getCourseMaterials = (title: string) => {
+  const key = title.toLowerCase();
+  if (key.includes("safety")) {
+    return [
+      { title: "Safety policy handbook", type: "PDF", minutes: 12 },
+      { title: "Emergency response checklist", type: "Checklist", minutes: 8 },
+      { title: "Workplace hazard quiz", type: "Quiz", minutes: 10 },
+    ];
+  }
+
+  if (key.includes("leadership")) {
+    return [
+      { title: "Leadership styles guide", type: "PDF", minutes: 15 },
+      { title: "Feedback conversation worksheet", type: "Worksheet", minutes: 20 },
+      { title: "Team decision case study", type: "Case Study", minutes: 25 },
+    ];
+  }
+
+  return [
+    { title: "Course overview notes", type: "PDF", minutes: 10 },
+    { title: "Practice worksheet", type: "Worksheet", minutes: 15 },
+    { title: "Final knowledge check", type: "Quiz", minutes: 10 },
+  ];
+};
+
+const downloadCourseMaterials = (title: string) => {
+  const materials = getCourseMaterials(title);
+  const content = [
+    `Training: ${title}`,
+    `Generated: ${new Date().toLocaleString()}`,
+    "",
+    "Materials",
+    ...materials.map((item, index) => `${index + 1}. ${item.title} (${item.type}, ${item.minutes} min)`),
+  ].join("\n");
+  const blob = new Blob([content], { type: "text/plain;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-materials.txt`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+};
+
 export function Training() {
   const { user } = useAuth();
   const [courses, setCourses] = useState<Course[]>(fallbackCourses);
@@ -163,6 +238,25 @@ export function Training() {
   const [savingTraining, setSavingTraining] = useState(false);
   const [trainingMessage, setTrainingMessage] = useState("");
   const [trainingError, setTrainingError] = useState("");
+  const [activeTraining, setActiveTraining] = useState<MyTraining | null>(null);
+  const [activeCourse, setActiveCourse] = useState<Course | null>(null);
+  const [isLiveClassOpen, setIsLiveClassOpen] = useState(false);
+  const [isDiscussionOpen, setIsDiscussionOpen] = useState(false);
+  const [discussionReply, setDiscussionReply] = useState("");
+  const [discussionMessages, setDiscussionMessages] = useState([
+    {
+      id: 1,
+      author: "Instructor",
+      body: "Please review the materials before class and bring one question to discuss.",
+      time: "Pinned",
+    },
+    {
+      id: 2,
+      author: "Employee 03",
+      body: "The checklist was helpful. Can we cover a real example during the session?",
+      time: "10 min ago",
+    },
+  ]);
   const isAdmin = user?.role === "admin";
   const isEmployee = user?.role === "employee";
   const isHRManager = user?.role === "hr_manager";
@@ -188,6 +282,9 @@ export function Training() {
         : 0,
       instructor: session.trainer || "HR Team",
       level: "Intermediate",
+      description: session.description || "Instructor-led training session with guided materials and progress tracking.",
+      startsAt: session.startsAt,
+      endsAt: session.endsAt,
     }),
     [],
   );
@@ -220,6 +317,29 @@ export function Training() {
     (total, course) => total + course.completed,
     0,
   );
+  const currentCourseForTraining = activeTraining
+    ? courses.find((course) => course.id === activeTraining.trainingId)
+    : null;
+  const activeLearningTitle = activeTraining?.course || activeCourse?.title || "";
+  const activeLearningDescription =
+    activeTraining?.description ||
+    currentCourseForTraining?.description ||
+    activeCourse?.description ||
+    "Review course materials, attend the class session, and complete all required activities.";
+  const activeLearningTrainer =
+    activeTraining?.trainer ||
+    currentCourseForTraining?.instructor ||
+    activeCourse?.instructor ||
+    "HR Team";
+  const activeLearningStartsAt =
+    activeTraining?.startsAt || currentCourseForTraining?.startsAt || activeCourse?.startsAt;
+  const activeLearningEndsAt =
+    activeTraining?.endsAt || currentCourseForTraining?.endsAt || activeCourse?.endsAt;
+  const activeLearningProgress = Number(activeTraining?.progress ?? activeCourse?.progress ?? 0);
+  const activeMaterials = activeLearningTitle ? getCourseMaterials(activeLearningTitle) : [];
+  const activeClassRoom = activeLearningTitle.toLowerCase().includes("safety")
+    ? "Training Room A"
+    : "Online Class Room";
 
   const showTrainingFeedback = (message: string, isError = false) => {
     if (isError) {
@@ -321,6 +441,10 @@ export function Training() {
           item.id === training.id ? response.data.enrollment : item,
         ),
       );
+      setActiveTraining((currentTraining) =>
+        currentTraining?.id === training.id ? response.data.enrollment : currentTraining,
+      );
+      showTrainingFeedback("Course progress updated.");
     } catch (error) {
       showTrainingFeedback(
         getApiErrorMessage(error, "Unable to update training progress."),
@@ -446,7 +570,7 @@ export function Training() {
                           {training.course}
                         </h3>
                         <p className="text-sm text-muted-foreground">
-                          Due: {training.dueDate}
+                          Due: {formatTrainingDateTime(training.dueDate)}
                         </p>
                       </div>
                       <Badge
@@ -477,7 +601,7 @@ export function Training() {
                         variant="outline"
                         size="sm"
                         className="mt-3 gap-2"
-                        onClick={() => handleContinueLearning(training)}
+                        onClick={() => setActiveTraining(training)}
                       >
                         <Play className="w-3 h-3" />
                         Continue Learning
@@ -594,20 +718,270 @@ export function Training() {
                 )}
 
                 {canUseTrainingSelfService && (
-                  <Button
-                    variant="primary"
-                    className="w-full gap-2"
-                    onClick={() => handleStartCourse(course)}
-                  >
-                    <Play className="w-4 h-4" />
-                    Start Course
-                  </Button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      className="gap-2"
+                      onClick={() => setActiveCourse(course)}
+                    >
+                      <BookOpen className="w-4 h-4" />
+                      Syllabus
+                    </Button>
+                    <Button
+                      variant="primary"
+                      className="gap-2"
+                      onClick={() => handleStartCourse(course)}
+                    >
+                      <Play className="w-4 h-4" />
+                      Start
+                    </Button>
+                  </div>
                 )}
               </div>
             ))}
           </div>
         </CardContent>
       </Card>
+
+      <Modal
+        isOpen={Boolean(activeTraining || activeCourse)}
+        onClose={() => {
+          setActiveTraining(null);
+          setActiveCourse(null);
+        }}
+        title={activeLearningTitle || "Course Details"}
+        size="lg"
+        footer={
+          <>
+            <Button
+              variant="outline"
+              onClick={() => downloadCourseMaterials(activeLearningTitle)}
+              className="gap-2"
+            >
+              <Download className="w-4 h-4" />
+              Materials
+            </Button>
+            {activeTraining ? (
+              <Button
+                variant="primary"
+                onClick={() => handleContinueLearning(activeTraining)}
+                disabled={activeLearningProgress >= 100}
+              >
+                {activeLearningProgress >= 100 ? "Completed" : "Mark Next Lesson Done"}
+              </Button>
+            ) : activeCourse && canUseTrainingSelfService ? (
+              <Button variant="primary" onClick={() => handleStartCourse(activeCourse)}>
+                Start Course
+              </Button>
+            ) : (
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setActiveTraining(null);
+                  setActiveCourse(null);
+                }}
+              >
+                Done
+              </Button>
+            )}
+          </>
+        }
+      >
+        <div className="space-y-5">
+          <div className="rounded-xl border border-border bg-accent/20 p-4">
+            <p className="text-sm text-muted-foreground">{activeLearningDescription}</p>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <div className="flex items-center gap-2 text-sm text-foreground">
+                <Award className="w-4 h-4 text-[var(--primary)]" />
+                Trainer: {activeLearningTrainer}
+              </div>
+              <div className="flex items-center gap-2 text-sm text-foreground">
+                <CalendarDays className="w-4 h-4 text-[var(--primary)]" />
+                Starts: {formatTrainingDateTime(activeLearningStartsAt)}
+              </div>
+              <div className="flex items-center gap-2 text-sm text-foreground">
+                <Clock className="w-4 h-4 text-[var(--primary)]" />
+                Ends: {formatTrainingDateTime(activeLearningEndsAt)}
+              </div>
+              <div className="flex items-center gap-2 text-sm text-foreground">
+                <Video className="w-4 h-4 text-[var(--primary)]" />
+                Class room: Online / Training Room A
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-2 flex items-center justify-between text-sm">
+              <span className="text-foreground">Course progress</span>
+              <span className="text-muted-foreground">{activeLearningProgress}%</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-secondary">
+              <div className="h-full bg-primary transition-all" style={{ width: `${activeLearningProgress}%` }} />
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            {activeMaterials.map((material) => (
+              <button
+                key={material.title}
+                type="button"
+                onClick={() => downloadCourseMaterials(activeLearningTitle)}
+                className="rounded-xl border border-border p-4 text-left transition-colors hover:border-primary/50 hover:bg-accent/30"
+              >
+                <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+                  <FileText className="w-4 h-4 text-primary" />
+                </div>
+                <p className="text-sm font-medium text-foreground">{material.title}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{material.type} - {material.minutes} min</p>
+              </button>
+            ))}
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => setIsLiveClassOpen(true)}
+              className="flex items-center gap-3 rounded-xl border border-border p-4 text-left text-sm text-foreground transition-colors hover:border-primary/50 hover:bg-accent/30"
+            >
+              <Video className="w-4 h-4 text-primary" />
+              Join live class
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsDiscussionOpen(true)}
+              className="flex items-center gap-3 rounded-xl border border-border p-4 text-left text-sm text-foreground transition-colors hover:border-primary/50 hover:bg-accent/30"
+            >
+              <LinkIcon className="w-4 h-4 text-primary" />
+              Open discussion thread
+            </button>
+          </div>
+
+          {activeTraining?.certificateCode && (
+            <div className="flex items-center gap-2 rounded-xl border border-[var(--success)]/30 bg-[var(--success)]/10 p-4 text-sm text-[var(--success)]">
+              <CheckCircle2 className="w-4 h-4" />
+              Certificate issued: {activeTraining.certificateCode}
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isLiveClassOpen}
+        onClose={() => setIsLiveClassOpen(false)}
+        title="Live Class"
+        size="lg"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setIsLiveClassOpen(false)}>
+              Close
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                setIsLiveClassOpen(false);
+                showTrainingFeedback("Live class link opened in sample mode.");
+              }}
+            >
+              Join Now
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="rounded-xl border border-border bg-accent/20 p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Course</p>
+            <h3 className="mt-1 text-foreground">{activeLearningTitle || "Training Session"}</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Join the scheduled class, check your materials, and keep your attendance active during the session.
+            </p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="rounded-lg border border-border p-3">
+              <p className="text-xs text-muted-foreground">Class time</p>
+              <p className="text-sm text-foreground">{formatTrainingDateTime(activeLearningStartsAt)}</p>
+            </div>
+            <div className="rounded-lg border border-border p-3">
+              <p className="text-xs text-muted-foreground">Room</p>
+              <p className="text-sm text-foreground">{activeClassRoom}</p>
+            </div>
+            <div className="rounded-lg border border-border p-3">
+              <p className="text-xs text-muted-foreground">Instructor</p>
+              <p className="text-sm text-foreground">{activeLearningTrainer}</p>
+            </div>
+            <div className="rounded-lg border border-border p-3">
+              <p className="text-xs text-muted-foreground">Meeting ID</p>
+              <p className="text-sm text-foreground">HR-{String(activeTraining?.trainingId || activeCourse?.id || 1001).padStart(4, "0")}</p>
+            </div>
+          </div>
+          <div className="rounded-xl border border-border p-4">
+            <p className="mb-3 text-sm font-medium text-foreground">Before joining</p>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-[var(--success)]" /> Camera and microphone check</div>
+              <div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-[var(--success)]" /> Download course materials</div>
+              <div className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-[var(--success)]" /> Be ready 5 minutes early</div>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isDiscussionOpen}
+        onClose={() => setIsDiscussionOpen(false)}
+        title="Course Discussion"
+        size="lg"
+        footer={<Button variant="primary" onClick={() => setIsDiscussionOpen(false)}>Done</Button>}
+      >
+        <div className="space-y-4">
+          <div className="rounded-xl border border-border bg-accent/20 p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Thread</p>
+            <h3 className="mt-1 text-foreground">{activeLearningTitle || "Training Session"} discussion</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Ask questions, share notes, and collect instructor clarifications for this course.
+            </p>
+          </div>
+          <div className="space-y-3">
+            {discussionMessages.map((message) => (
+              <div key={message.id} className="rounded-xl border border-border p-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-sm font-medium text-foreground">{message.author}</p>
+                  <span className="text-xs text-muted-foreground">{message.time}</span>
+                </div>
+                <p className="text-sm text-muted-foreground">{message.body}</p>
+              </div>
+            ))}
+          </div>
+          <div className="rounded-xl border border-border p-4">
+            <label className="mb-2 block text-sm text-foreground">Add a comment</label>
+            <textarea
+              value={discussionReply}
+              onChange={(event) => setDiscussionReply(event.target.value)}
+              rows={3}
+              className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="Write a question or note for this course..."
+            />
+            <div className="mt-3 flex justify-end">
+              <Button
+                variant="outline"
+                disabled={!discussionReply.trim()}
+                onClick={() => {
+                  setDiscussionMessages((messages) => [
+                    ...messages,
+                    {
+                      id: Date.now(),
+                      author: "You",
+                      body: discussionReply,
+                      time: "Just now",
+                    },
+                  ]);
+                  setDiscussionReply("");
+                }}
+              >
+                Post Comment
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         isOpen={canManageTraining && isCreateModalOpen}

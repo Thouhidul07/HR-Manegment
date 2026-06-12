@@ -46,6 +46,7 @@ test.before(async () => {
 
   await login("admin", "admin@nexoratech.com", "Admin@1234");
   await login("hrManager", "hr.manager01@nexoratech.com", "Hr@1234");
+  await login("projectManager", "pm01@nexoratech.com", "Pm@1234");
   await login("employee", "employee01@nexoratech.com", "Emp@1234");
 });
 
@@ -174,4 +175,85 @@ test("requests without a token are rejected", async () => {
   const response = await request("/api/employees");
 
   assert.equal(response.status, 401);
+});
+
+test("admin sees project overview but cannot access detailed project management", async () => {
+  const overviewResponse = await request("/api/projects/overview", {
+    token: tokens.admin,
+  });
+  const projectsResponse = await request("/api/projects", {
+    token: tokens.admin,
+  });
+  const wbsResponse = await request("/api/projects/wbs", {
+    token: tokens.admin,
+  });
+
+  assert.equal(overviewResponse.status, 200);
+  assert.equal(typeof overviewResponse.data.totalProjects, "number");
+  assert.equal(projectsResponse.status, 403);
+  assert.equal(wbsResponse.status, 403);
+});
+
+test("project manager can access detailed project management and assign tasks", async () => {
+  const projectsResponse = await request("/api/projects", {
+    token: tokens.projectManager,
+  });
+  const historyResponse = await request("/api/projects/history", {
+    token: tokens.projectManager,
+  });
+  const reportsResponse = await request("/api/projects/stats", {
+    token: tokens.projectManager,
+  });
+  const tasksResponse = await request("/api/tasks", {
+    token: tokens.projectManager,
+  });
+
+  assert.equal(projectsResponse.status, 200);
+  assert.equal(historyResponse.status, 200);
+  assert.equal(reportsResponse.status, 200);
+  assert.equal(tasksResponse.status, 200);
+});
+
+test("project manager cannot access admin or HR-only controls", async () => {
+  const adminResponse = await request("/api/admin/dashboard", {
+    token: tokens.projectManager,
+  });
+  const rolesResponse = await request("/api/roles-permissions/summary", {
+    token: tokens.projectManager,
+  });
+  const auditResponse = await request("/api/audit-logs", {
+    token: tokens.projectManager,
+  });
+  const recruitmentResponse = await request("/api/cv-filter/candidates", {
+    token: tokens.projectManager,
+  });
+
+  assert.equal(adminResponse.status, 403);
+  assert.equal(rolesResponse.status, 403);
+  assert.equal(auditResponse.status, 403);
+  assert.equal(recruitmentResponse.status, 403);
+});
+
+test("employee can access own tasks but not project management", async () => {
+  const tasksResponse = await request("/api/tasks", {
+    token: tokens.employee,
+  });
+  const projectsResponse = await request("/api/projects", {
+    token: tokens.employee,
+  });
+
+  assert.equal(tasksResponse.status, 200);
+  assert.equal(projectsResponse.status, 403);
+});
+
+test("HR manager keeps HR access but cannot access detailed projects", async () => {
+  const employeesResponse = await request("/api/employees", {
+    token: tokens.hrManager,
+  });
+  const projectsResponse = await request("/api/projects", {
+    token: tokens.hrManager,
+  });
+
+  assert.equal(employeesResponse.status, 200);
+  assert.equal(projectsResponse.status, 403);
 });

@@ -3,22 +3,27 @@ const { body, param } = require("express-validator");
 const {
   listProjects,
   createProject,
+  updateProject,
+  deleteProject,
   listTasks,
   getProjectStats,
   getProjectHistory,
   createTask,
   updateTask,
   deleteTask,
+  getAdminOverview,
   listWBS,
   getWBSById,
   createWBS,
   updateWBS,
-  deleteWBS
+  deleteWBS,
 } = require("./projects.controller");
 const validate = require("../../utils/validation");
 const { protect, authorize } = require("../../middleware/authMiddleware");
 
-router.use(protect, authorize("admin", "hr_manager"));
+router.use(protect);
+router.get("/overview", authorize("admin"), getAdminOverview);
+router.use(authorize("project_manager"));
 
 router.get("/", listProjects);
 router.post(
@@ -34,6 +39,21 @@ router.post(
   validate,
   createProject
 );
+router.patch(
+  "/:id",
+  [
+    param("id").isInt({ min: 1 }),
+    body("name").optional().trim().notEmpty(),
+    body("description").optional({ nullable: true }).trim(),
+    body("ownerId").optional({ nullable: true }).isInt({ min: 1 }),
+    body("status").optional().isIn(["planning", "active", "on-hold", "completed"]),
+    body("startDate").optional({ nullable: true }).isISO8601(),
+    body("endDate").optional({ nullable: true }).isISO8601(),
+  ],
+  validate,
+  updateProject
+);
+router.delete("/:id", [param("id").isInt({ min: 1 })], validate, deleteProject);
 
 router.get("/tasks", listTasks);
 router.get("/stats", getProjectStats);
@@ -73,14 +93,14 @@ router.patch(
 router.delete("/tasks/:id", [param("id").isInt({ min: 1 })], validate, deleteTask);
 
 router.get("/wbs", listWBS);
-router.get("/wbs/:id", getWBSById);
+router.get("/wbs/:id", [param("id").isInt({ min: 1 })], validate, getWBSById);
 router.post(
   "/wbs",
   [
     body("projectId").isInt({ min: 1 }),
     body("title").trim().notEmpty(),
     body("description").optional().trim(),
-    body("nodes").notEmpty()
+    body("nodes").isArray(),
   ],
   validate,
   createWBS
@@ -89,10 +109,10 @@ router.put(
   "/wbs/:id",
   [
     param("id").isInt({ min: 1 }),
-    body("projectId").optional().isInt({ min: 1 }),
-    body("title").optional().trim().notEmpty(),
+    body("projectId").isInt({ min: 1 }),
+    body("title").trim().notEmpty(),
     body("description").optional().trim(),
-    body("nodes").optional().notEmpty()
+    body("nodes").isArray(),
   ],
   validate,
   updateWBS

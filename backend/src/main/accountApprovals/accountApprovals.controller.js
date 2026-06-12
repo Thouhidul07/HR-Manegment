@@ -2,6 +2,7 @@ const { query } = require("../../config/database");
 const asyncHandler = require("../../utils/asyncHandler");
 const { ensureUserStatusWorkflow } = require("../../utils/userStatus");
 const { ensureCompanyColumns } = require("../../utils/companyScope");
+const { logAudit } = require("../../utils/auditLogger");
 
 function mapAccount(row) {
   return {
@@ -54,20 +55,18 @@ const approveAccount = asyncHandler(async (req, res) => {
     [req.params.id, req.user.company_id]
   );
 
-  const userToApprove = rows[0];
-  const { logAudit } = require("../../utils/auditLogger");
   await logAudit({
     actorId: req.user.id,
     actorName: req.user.name,
     actorRole: req.user.role,
-    action: "approve_account",
-    module: "account_approvals",
+    action: "account_approved",
+    module: "Account Approvals",
     entityType: "user",
-    entityId: userToApprove.id,
-    description: `Approved account request for ${userToApprove.name} (${userToApprove.email})`,
-    ipAddress: req.ip
+    entityId: rows[0].id,
+    description: "Approved account for " + rows[0].name,
+    metadata: { email: rows[0].email },
+    ipAddress: req.ip,
   });
-
   res.json({ message: "Account approved", account: mapAccount(rows[0]) });
 });
 
@@ -94,20 +93,18 @@ const rejectAccount = asyncHandler(async (req, res) => {
     [req.params.id, req.user.company_id]
   );
 
-  const userToReject = rows[0];
-  const { logAudit } = require("../../utils/auditLogger");
   await logAudit({
     actorId: req.user.id,
     actorName: req.user.name,
     actorRole: req.user.role,
-    action: "reject_account",
-    module: "account_approvals",
+    action: "account_rejected",
+    module: "Account Approvals",
     entityType: "user",
-    entityId: userToReject.id,
-    description: `Rejected account request for ${userToReject.name} (${userToReject.email})`,
-    ipAddress: req.ip
+    entityId: rows[0].id,
+    description: "Rejected account for " + rows[0].name,
+    metadata: { email: rows[0].email },
+    ipAddress: req.ip,
   });
-
   res.json({ message: "Account rejected", account: mapAccount(rows[0]) });
 });
 

@@ -25,8 +25,9 @@ import api from "../services/api";
 
 export function Dashboard() {
   const { user } = useAuth();
-  if (user?.role === 'admin')      return <AdminDashboard userName={user.name} />;
-  if (user?.role === 'hr_manager') return <HRManagerDashboard user={user} />;
+  if (user?.role === 'admin')           return <AdminDashboard userName={user.name} />;
+  if (user?.role === 'hr_manager')      return <HRManagerDashboard user={user} />;
+  if ((user?.role as string) === 'project_manager') return <ProjectManagerDashboard user={user} />;
   return <EmployeeDashboard user={user} />;
 }
 
@@ -348,6 +349,244 @@ function HRManagerDashboard({ user }: any) {
           </div>
         </SectionCard>
       </div>
+    </motion.div>
+  );
+}
+
+// Project Manager Dashboard
+function ProjectManagerDashboard({ user }: any) {
+  const navigate = useNavigate();
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const [projectStats, setProjectStats] = useState<any>({ byStatus: {}, projects: [] });
+  const [projectTasks, setProjectTasks] = useState<any[]>([]);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    Promise.all([api.get("/projects/stats"), api.get("/projects/tasks"), api.get("/employees")])
+      .then(([statsRes, tasksRes, employeesRes]) => {
+        if (!isMounted) return;
+        setProjectStats(statsRes.data || { byStatus: {}, projects: [] });
+        setProjectTasks(tasksRes.data.tasks || []);
+        setTeamMembers(employeesRes.data.employees || []);
+      })
+      .catch((error) => console.warn("Unable to load project manager dashboard", error));
+    return () => { isMounted = false; };
+  }, []);
+
+  const projectData = (projectStats.projects || []).map((project: any) => ({
+    project: project.name,
+    completed: Number(project.completed || 0),
+    inProgress: Math.max(Number(project.total || 0) - Number(project.completed || 0), 0),
+    todo: 0,
+  }));
+  const totalTasks = projectTasks.length;
+  const completedTasks = Number(projectStats.byStatus?.completed || 0);
+  const activeProjects = projectData.filter((project: any) => project.inProgress + project.todo > 0).length;
+  const overdueTasks = projectTasks.filter((task) => task.status !== "completed" && task.deadline && new Date(task.deadline) < new Date()).length;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      key={user.role}
+      className="space-y-6"
+    >
+      <DashboardHeader
+        title={`${greeting}, ${user.name}`}
+        subtitle="Track project progress and manage team assignments."
+        actions={
+          <>
+            <button
+              onClick={() => navigate('/dashboard/new-task')}
+              className="rounded-xl px-4 py-2 text-sm text-white flex items-center gap-2 shadow-sm"
+              style={{ background: 'linear-gradient(135deg, #543884, #A13670, #EC4176)' }}
+            >
+              <CheckSquare className="w-4 h-4" />
+              New Task
+            </button>
+            <button
+              onClick={() => navigate('/dashboard/project-reports')}
+              className="border border-[#543884]/20 text-[#543884] rounded-xl px-4 py-2 text-sm flex items-center gap-2 hover:bg-[#543884]/5"
+            >
+              <BarChart2 className="w-4 h-4" />
+              View Reports
+            </button>
+          </>
+        }
+      />
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard label="Active Projects" value={String(activeProjects)} change="Loaded from projects" trend="neutral" icon={Briefcase} iconBg="#5438841A" iconColor="#543884" index={0} onClick={() => navigate('/dashboard/project-management')} />
+        <StatCard label="Total Tasks" value={String(totalTasks)} change={String(completedTasks) + " completed"} trend="up" icon={CheckSquare} iconBg="#9A77CF1A" iconColor="#9A77CF" index={1} onClick={() => navigate('/dashboard/project-management')} />
+        <StatCard label="Team Members" value={String(teamMembers.length)} change="Loaded from users" trend="neutral" icon={Users} iconBg="#FFA45E1A" iconColor="#FFA45E" index={2} onClick={() => navigate('/dashboard/employees')} />
+        <StatCard label="Overdue Tasks" value={String(overdueTasks)} change={overdueTasks ? "Needs attention" : "On track"} trend="down" icon={Clock} iconBg="#EC41761A" iconColor="#EC4176" index={3} onClick={() => navigate('/dashboard/project-management')} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <SectionCard title="Project Progress">
+            <div className="space-y-6">
+              {(projectData.length ? projectData : [{ project: "No active project data", completed: 0, inProgress: 0, todo: 0 }]).map((project: any, i: number) => (
+                <div key={i}>
+                  <div className="flex justify-between mb-3">
+                    <h4 className="text-sm font-semibold text-[#262254] dark:text-white">{project.project}</h4>
+                    <span className="text-xs text-muted-foreground">
+                      {project.completed + project.inProgress + project.todo} tasks total
+                    </span>
+                  </div>
+                  <div className="flex h-3 rounded-full overflow-hidden mb-2">
+                    <div
+                      className="bg-green-500"
+                      style={{ width: `${(project.completed / (project.completed + project.inProgress + project.todo)) * 100}%` }}
+                    />
+                    <div
+                      className="bg-blue-500"
+                      style={{ width: `${(project.inProgress / (project.completed + project.inProgress + project.todo)) * 100}%` }}
+                    />
+                    <div
+                      className="bg-gray-400"
+                      style={{ width: `${(project.todo / (project.completed + project.inProgress + project.todo)) * 100}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <div className="w-2 h-2 rounded-full bg-green-500" />
+                      {project.completed} Completed
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-2 h-2 rounded-full bg-blue-500" />
+                      {project.inProgress} In Progress
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-2 h-2 rounded-full bg-gray-400" />
+                      {project.todo} To Do
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+        </div>
+
+        <SectionCard title="Team Performance" action={<button type="button" onClick={() => navigate('/dashboard/performance')} className="text-[#9A77CF] text-sm hover:text-[#EC4176]">View All →</button>}>
+          <div className="space-y-3">
+            {teamMembers.slice(0, 4).map((member, i) => (
+              <div key={i} className="flex items-center gap-3 py-2 border-b border-[#543884]/8 last:border-0">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#543884] to-[#9A77CF] flex items-center justify-center text-white text-xs font-semibold">
+                  {member.avatar || member.initials || member.name?.slice(0, 2).toUpperCase()}
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-[#262254] dark:text-white">{member.name}</p>
+                  <p className="text-xs text-muted-foreground">{member.designation || member.role}</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-sm font-semibold text-[#543884]">{member.status || "active"}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <SectionCard title="Upcoming Deadlines" action={<button type="button" onClick={() => navigate('/dashboard/project-management')} className="text-[#9A77CF] text-sm hover:text-[#EC4176]">View All →</button>}>
+          <div className="space-y-3">
+            {[...projectTasks].filter((task) => task.status !== "completed").sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime()).slice(0, 4).map((item, i) => (
+              <div key={i} className="flex items-start gap-3">
+                <div className={`w-2 h-2 rounded-full mt-1.5 ${new Date(item.deadline) < new Date() ? 'bg-red-500' : 'bg-[#9A77CF]'}`} />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-[#262254] dark:text-white">{item.title}</p>
+                  <p className={`text-xs ${new Date(item.deadline) < new Date() ? 'text-red-500' : 'text-muted-foreground'}`}>
+                    {new Date(item.deadline) < new Date() ? 'Overdue' : "Due " + new Date(item.deadline).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Task Distribution">
+          <div className="space-y-4">
+            {[
+              { status: 'To Do', count: Number(projectStats.byStatus?.todo || 0), color: '#9A77CF' },
+              { status: 'In Progress', count: Number(projectStats.byStatus?.['in-progress'] || 0), color: '#543884' },
+              { status: 'In Review', count: Number(projectStats.byStatus?.['in-review'] || 0), color: '#FFA45E' },
+              { status: 'Completed', count: completedTasks, color: '#00C853' }
+            ].map((stat, i) => (
+              <div key={i}>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-muted-foreground">{stat.status}</span>
+                  <span className="font-semibold text-[#262254] dark:text-white">{stat.count}</span>
+                </div>
+                <div className="h-2 bg-[#543884]/10 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full"
+                    style={{ width: `${totalTasks ? (stat.count / totalTasks) * 100 : 0}%`, backgroundColor: stat.color }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Recent Activity">
+          <div className="space-y-3">
+            {projectTasks.slice(0, 4).map((activity, i) => (
+              <div key={i} className="flex items-start gap-3">
+                <div className="w-2 h-2 rounded-full mt-1.5" style={{ backgroundColor: activity.status === "completed" ? "#00C853" : "#543884" }} />
+                <div className="flex-1">
+                  <p className="text-sm text-[#262254] dark:text-white">{activity.title}</p>
+                  <p className="text-xs text-muted-foreground">{activity.project} - {activity.status}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      </div>
+
+      <SectionCard title="Quick Actions">
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => navigate('/dashboard/new-task')}
+            className="rounded-xl border border-[#543884]/10 p-4 flex flex-col items-center gap-2 hover:bg-[#543884]/5 hover:border-[#543884]/30 cursor-pointer transition-all"
+          >
+            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #543884, #EC4176)' }}>
+              <CheckSquare className="w-5 h-5 text-white" />
+            </div>
+            <span className="text-xs text-center font-medium text-[#262254] dark:text-white">Create Task</span>
+          </button>
+          <button
+            onClick={() => navigate('/dashboard/project-reports')}
+            className="rounded-xl border border-[#543884]/10 p-4 flex flex-col items-center gap-2 hover:bg-[#543884]/5 hover:border-[#543884]/30 cursor-pointer transition-all"
+          >
+            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #EC4176, #A13670)' }}>
+              <BarChart2 className="w-5 h-5 text-white" />
+            </div>
+            <span className="text-xs text-center font-medium text-[#262254] dark:text-white">View Reports</span>
+          </button>
+          <button
+            onClick={() => navigate('/dashboard/project-management')}
+            className="rounded-xl border border-[#543884]/10 p-4 flex flex-col items-center gap-2 hover:bg-[#543884]/5 hover:border-[#543884]/30 cursor-pointer transition-all"
+          >
+            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #9A77CF, #EC4176)' }}>
+              <Target className="w-5 h-5 text-white" />
+            </div>
+            <span className="text-xs text-center font-medium text-[#262254] dark:text-white">Track Progress</span>
+          </button>
+          <button
+            onClick={() => navigate('/dashboard/forum')}
+            className="rounded-xl border border-[#543884]/10 p-4 flex flex-col items-center gap-2 hover:bg-[#543884]/5 hover:border-[#543884]/30 cursor-pointer transition-all"
+          >
+            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #543884, #9A77CF)' }}>
+              <MessageSquare className="w-5 h-5 text-white" />
+            </div>
+            <span className="text-xs text-center font-medium text-[#262254] dark:text-white">Team Chat</span>
+          </button>
+        </div>
+      </SectionCard>
     </motion.div>
   );
 }
@@ -970,4 +1209,3 @@ function EmployeeDashboard({ user }: any) {
     </motion.div>
   );
 }
-

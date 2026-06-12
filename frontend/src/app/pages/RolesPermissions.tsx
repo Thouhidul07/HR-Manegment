@@ -16,7 +16,7 @@ type TabId = "overview" | "permissions" | "assignments" | "approvals" | "audit";
 
 type RoleSummary = {
   id: number;
-  code: "admin" | "hr_manager" | "employee";
+  code: "admin" | "hr_manager" | "project_manager" | "employee";
   name: string;
   users: number;
   userCount: number;
@@ -47,26 +47,83 @@ type RoleSummaryResponse = {
   roles: Array<Omit<RoleSummary, "id" | "users" | "status"> & { userCount: number; users?: number; status?: string }>;
 };
 
+type AuditLog = {
+  id: number;
+  actor_name?: string;
+  actor_role?: string;
+  action: string;
+  module: string;
+  entity_type?: string;
+  description?: string;
+  created_at: string;
+};
+
 const fallbackRoles: RoleSummary[] = [
-  { id: 1, code: "admin", name: "System Admin", users: 1, userCount: 1, description: "Company authority and system control", level: 1, status: "active" },
+  { id: 1, code: "admin", name: "Admin / CEO", users: 1, userCount: 1, description: "System administration, user oversight, audit review, and read-only project overview", level: 1, status: "active" },
   { id: 2, code: "hr_manager", name: "HR Manager", users: 2, userCount: 2, description: "Manage employee records, leave, onboarding, training, and payroll", level: 2, status: "active" },
-  { id: 3, code: "employee", name: "Employee", users: 8, userCount: 8, description: "Self-service access for assigned employee flows", level: 3, status: "active" },
+  { id: 3, code: "project_manager", name: "Project Manager", users: 1, userCount: 1, description: "Manage projects, WBS, project tasks, history, and reports", level: 3, status: "active" },
+  { id: 4, code: "employee", name: "Employee", users: 8, userCount: 8, description: "Self-service access for assigned employee flows", level: 4, status: "active" },
 ];
 
-const permissions = [
-  { module: "Dashboard", view: true, create: true, edit: true, delete: true, restricted: false },
-  { module: "Employee Management", view: true, create: true, edit: true, delete: false, restricted: false },
-  { module: "CV Filtration", view: true, create: true, edit: true, delete: false, restricted: false },
-  { module: "Attendance", view: true, create: true, edit: true, delete: false, restricted: false },
-  { module: "Leave Management", view: true, create: true, edit: true, delete: false, restricted: false },
-  { module: "Payroll", view: true, create: false, edit: false, delete: false, restricted: true },
-  { module: "Performance", view: true, create: true, edit: true, delete: false, restricted: false },
-  { module: "Training", view: true, create: true, edit: true, delete: false, restricted: false },
-  { module: "Expense Management", view: true, create: true, edit: true, delete: false, restricted: false },
-  { module: "Roles & Permissions", view: true, create: false, edit: false, delete: false, restricted: true },
-  { module: "Reports & Analytics", view: true, create: true, edit: false, delete: false, restricted: false },
-  { module: "System Settings", view: false, create: false, edit: false, delete: false, restricted: true },
-];
+const permissionMatrixByRole: Record<RoleSummary["code"], Array<{ module: string; view: boolean; create: boolean; edit: boolean; delete: boolean; restricted: boolean }>> = {
+  admin: [
+    "Dashboard",
+    "Employee Management",
+    "CV Filtration",
+    "Attendance",
+    "Leave Management",
+    "Payroll",
+    "Performance",
+    "Training",
+    "Expense Management",
+    "Roles & Permissions",
+    "Reports & Analytics",
+    "System Settings",
+  ].map((module) => ({ module, view: true, create: true, edit: true, delete: true, restricted: false })),
+  hr_manager: [
+    { module: "Dashboard", view: true, create: false, edit: false, delete: false, restricted: false },
+    { module: "Employee Management", view: true, create: true, edit: true, delete: false, restricted: false },
+    { module: "CV Filtration", view: true, create: true, edit: true, delete: false, restricted: false },
+    { module: "Attendance", view: true, create: true, edit: true, delete: false, restricted: false },
+    { module: "Leave Management", view: true, create: true, edit: true, delete: false, restricted: false },
+    { module: "Payroll", view: true, create: true, edit: true, delete: false, restricted: false },
+    { module: "Performance", view: true, create: true, edit: true, delete: false, restricted: false },
+    { module: "Training", view: true, create: true, edit: true, delete: false, restricted: false },
+    { module: "Expense Management", view: true, create: false, edit: true, delete: false, restricted: false },
+    { module: "Roles & Permissions", view: false, create: false, edit: false, delete: false, restricted: true },
+    { module: "Reports & Analytics", view: true, create: true, edit: false, delete: false, restricted: false },
+    { module: "System Settings", view: false, create: false, edit: false, delete: false, restricted: true },
+  ],
+  project_manager: [
+    { module: "Dashboard", view: true, create: false, edit: false, delete: false, restricted: false },
+    { module: "Project Management", view: true, create: true, edit: true, delete: true, restricted: false },
+    { module: "Work Breakdown Structure", view: true, create: true, edit: true, delete: true, restricted: false },
+    { module: "Project Tasks", view: true, create: true, edit: true, delete: true, restricted: false },
+    { module: "Project History", view: true, create: false, edit: false, delete: false, restricted: false },
+    { module: "Project Reports", view: true, create: false, edit: false, delete: false, restricted: false },
+    { module: "Team Directory", view: true, create: false, edit: false, delete: false, restricted: false },
+    { module: "Forum", view: true, create: true, edit: true, delete: false, restricted: false },
+    { module: "Recruitment", view: false, create: false, edit: false, delete: false, restricted: true },
+    { module: "Payroll", view: false, create: false, edit: false, delete: false, restricted: true },
+    { module: "Roles & Permissions", view: false, create: false, edit: false, delete: false, restricted: true },
+    { module: "Audit Logs", view: false, create: false, edit: false, delete: false, restricted: true },
+    { module: "System Settings", view: false, create: false, edit: false, delete: false, restricted: true },
+  ],
+  employee: [
+    { module: "Dashboard", view: true, create: false, edit: false, delete: false, restricted: false },
+    { module: "Employee Management", view: false, create: false, edit: false, delete: false, restricted: true },
+    { module: "CV Filtration", view: false, create: false, edit: false, delete: false, restricted: true },
+    { module: "Attendance", view: true, create: true, edit: true, delete: false, restricted: false },
+    { module: "Leave Management", view: true, create: true, edit: true, delete: false, restricted: false },
+    { module: "Payroll", view: true, create: false, edit: false, delete: false, restricted: false },
+    { module: "Performance", view: true, create: false, edit: false, delete: false, restricted: false },
+    { module: "Training", view: true, create: true, edit: true, delete: false, restricted: false },
+    { module: "Expense Management", view: true, create: true, edit: true, delete: false, restricted: false },
+    { module: "Roles & Permissions", view: false, create: false, edit: false, delete: false, restricted: true },
+    { module: "Reports & Analytics", view: false, create: false, edit: false, delete: false, restricted: true },
+    { module: "System Settings", view: false, create: false, edit: false, delete: false, restricted: true },
+  ],
+};
 
 function getApiErrorMessage(error: unknown, fallback: string) {
   const anyError = error as { response?: { data?: { message?: string } } };
@@ -74,8 +131,9 @@ function getApiErrorMessage(error: unknown, fallback: string) {
 }
 
 function roleLabel(roleCode: string) {
-  if (roleCode === "admin") return "System Admin";
+  if (roleCode === "admin") return "Admin / CEO";
   if (roleCode === "hr_manager") return "HR Manager";
+  if (roleCode === "project_manager") return "Project Manager";
   return "Employee";
 }
 
@@ -84,24 +142,21 @@ export function RolesPermissions() {
   const [selectedRoleCode, setSelectedRoleCode] = useState<RoleSummary["code"]>("hr_manager");
   const [searchQuery, setSearchQuery] = useState("");
   const [assignmentSearch, setAssignmentSearch] = useState("");
+  const [showAssignmentFilters, setShowAssignmentFilters] = useState(false);
+  const [assignmentStatusFilter, setAssignmentStatusFilter] = useState("all");
   const [summary, setSummary] = useState<RoleSummaryResponse | null>(null);
   const [roles, setRoles] = useState<RoleSummary[]>(fallbackRoles);
   const [roleUsers, setRoleUsers] = useState<RoleUser[]>([]);
   const [loadingSummary, setLoadingSummary] = useState(true);
   const [loadingUsers, setLoadingUsers] = useState(false);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [loadingAudit, setLoadingAudit] = useState(false);
   const [error, setError] = useState("");
   const [usersError, setUsersError] = useState("");
-
-  const [auditLogs, setAuditLogs] = useState<any[]>([]);
-  const [loadingAudit, setLoadingAudit] = useState(false);
   const [auditError, setAuditError] = useState("");
-  const [auditFilters, setAuditFilters] = useState({
-    module: "",
-    action: "",
-    actor: "",
-  });
 
   const selectedRole = roles.find((role) => role.code === selectedRoleCode) || roles[0];
+  const selectedPermissionRows = permissionMatrixByRole[selectedRoleCode];
 
   useEffect(() => {
     let isMounted = true;
@@ -157,30 +212,28 @@ export function RolesPermissions() {
   }, [selectedRoleCode]);
 
   useEffect(() => {
+    if (activeTab !== "audit") return;
     let isMounted = true;
-    async function fetchAuditLogs() {
-      setLoadingAudit(true);
-      setAuditError("");
-      try {
-        const params: any = {};
-        if (auditFilters.module) params.module = auditFilters.module;
-        if (auditFilters.actor) params.actor = auditFilters.actor;
+    setLoadingAudit(true);
+    setAuditError("");
 
-        const response = await api.get("/audit-logs", { params });
+    api.get<{ logs: AuditLog[] }>("/audit-logs", { params: { limit: 100 } })
+      .then((response) => {
+        if (isMounted) setAuditLogs(response.data.logs || []);
+      })
+      .catch((fetchError) => {
         if (!isMounted) return;
-        setAuditLogs(response.data.logs || []);
-      } catch (err: any) {
-        if (!isMounted) return;
-        setAuditError(err?.response?.data?.message || "Failed to load audit logs");
-      } finally {
+        setAuditError(getApiErrorMessage(fetchError, "Unable to load audit logs."));
+        setAuditLogs([]);
+      })
+      .finally(() => {
         if (isMounted) setLoadingAudit(false);
-      }
-    }
-    if (activeTab === "audit") {
-      fetchAuditLogs();
-    }
-    return () => { isMounted = false; };
-  }, [activeTab, auditFilters]);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTab]);
 
   const filteredRoles = useMemo(() => roles.filter((role) =>
     role.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -188,10 +241,11 @@ export function RolesPermissions() {
 
   const filteredRoleUsers = useMemo(() => roleUsers.filter((user) => {
     const q = assignmentSearch.toLowerCase().trim();
-    if (!q) return true;
-    return [user.name, user.email, user.department, user.designation, user.roleName || user.role]
+    const matchesSearch = !q || [user.name, user.email, user.department, user.designation, user.roleName || user.role]
       .some((value) => String(value || "").toLowerCase().includes(q));
-  }), [roleUsers, assignmentSearch]);
+    const matchesStatus = assignmentStatusFilter === "all" || user.status === assignmentStatusFilter;
+    return matchesSearch && matchesStatus;
+  }), [roleUsers, assignmentSearch, assignmentStatusFilter]);
 
   const exportRoles = () => {
     const rows = [
@@ -208,7 +262,7 @@ export function RolesPermissions() {
       [],
       ["Permission Role", selectedRole?.name || roleLabel(selectedRoleCode)],
       ["Module", "View", "Create", "Edit", "Delete", "Restricted"],
-      ...permissions.map((permission) => [
+      ...selectedPermissionRows.map((permission) => [
         permission.module,
         permission.view ? "Yes" : "No",
         permission.create ? "Yes" : "No",
@@ -237,7 +291,7 @@ export function RolesPermissions() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-foreground mb-2">Roles & Permissions Management</h1>
-          <p className="text-sm text-muted-foreground">Manage user roles, permissions, and access control across NexoraTech Ltd</p>
+      <p className="text-sm text-muted-foreground">Admin / CEO has full authority; HR and employees have scoped operational access.</p>
         </div>
         <Button variant="outline" className="gap-2" onClick={exportRoles}>
           <Download className="w-4 h-4" />
@@ -246,7 +300,7 @@ export function RolesPermissions() {
       </div>
 
       <div className="rounded-lg border border-[var(--info)]/25 bg-[var(--info)]/10 px-4 py-3 text-sm text-muted-foreground">
-        Custom roles are not enabled in this version. HRSpace currently supports System Admin, HR Manager, and Employee authorization only.
+        Admin / CEO is the company authority role and has every permission across the platform. Custom roles are not enabled in this version.
       </div>
       {error && (
         <div className="rounded-lg border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -392,7 +446,7 @@ export function RolesPermissions() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {permissions.map((perm) => (
+                  {selectedPermissionRows.map((perm) => (
                     <tr key={perm.module} className="hover:bg-[var(--accent)]/50 transition-colors">
                       <td className="px-6 py-4"><span className="text-sm text-foreground">{perm.module}</span>{perm.restricted && <Badge variant="secondary" className="ml-2 text-xs bg-[var(--warning)]/10 text-[var(--warning)]">Restricted</Badge>}</td>
                       <td className="px-6 py-4 text-center"><Switch checked={perm.view} disabled /></td>
@@ -429,9 +483,35 @@ export function RolesPermissions() {
                 <select value={selectedRoleCode} onChange={(event) => setSelectedRoleCode(event.target.value as RoleSummary["code"])} className="px-4 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
                   {roles.map((role) => <option key={role.code} value={role.code}>{role.name}</option>)}
                 </select>
-                <Button variant="outline" size="sm" className="gap-2"><Filter className="w-4 h-4" />Filter</Button>
+                <Button
+                  variant={showAssignmentFilters ? "primary" : "outline"}
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => setShowAssignmentFilters((current) => !current)}
+                >
+                  <Filter className="w-4 h-4" />Filter
+                </Button>
               </div>
             </div>
+            {showAssignmentFilters && (
+              <div className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-accent/20 p-3">
+                <span className="text-sm text-muted-foreground">Status</span>
+                {["all", "active", "inactive"].map((status) => (
+                  <button
+                    key={status}
+                    type="button"
+                    onClick={() => setAssignmentStatusFilter(status)}
+                    className={`rounded-lg border px-3 py-1.5 text-sm capitalize transition-colors ${
+                      assignmentStatusFilter === status
+                        ? "border-[var(--primary)] bg-[var(--primary)] text-white"
+                        : "border-border text-muted-foreground hover:border-[var(--primary)]/50"
+                    }`}
+                  >
+                    {status}
+                  </button>
+                ))}
+              </div>
+            )}
           </CardHeader>
           <CardContent className="p-0">
             {usersError && <div className="m-4 rounded-lg border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">{usersError}</div>}
@@ -479,99 +559,46 @@ export function RolesPermissions() {
       {activeTab === "audit" && (
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div>
-                <CardTitle>Platform Audit Logs</CardTitle>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Track user and system activities across the platform
-                </p>
-              </div>
-              <div className="flex gap-2 flex-wrap items-center">
-                <input
-                  type="text"
-                  placeholder="Search actor..."
-                  value={auditFilters.actor}
-                  onChange={(e) => setAuditFilters(prev => ({ ...prev, actor: e.target.value }))}
-                  className="px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent w-48"
-                />
-                <select
-                  value={auditFilters.module}
-                  onChange={(e) => setAuditFilters(prev => ({ ...prev, module: e.target.value }))}
-                  className="px-3 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                >
-                  <option value="">All Modules</option>
-                  <option value="auth">Auth</option>
-                  <option value="account_approvals">Account Approvals</option>
-                  <option value="profile">Profile & Documents</option>
-                  <option value="forum_moderation">Forum Moderation</option>
-                  <option value="forum">Forum</option>
-                  <option value="projects">Work & Projects</option>
-                  <option value="tasks">Tasks</option>
-                </select>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setAuditFilters({ module: "", action: "", actor: "" })}
-                >
-                  Reset
-                </Button>
-              </div>
-            </div>
+            <CardTitle>Audit Activity Log</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">Admin-only record of role, project, WBS, and task changes.</p>
           </CardHeader>
           <CardContent className="p-0">
-            {auditError && (
-              <div className="m-4 rounded-lg border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                {auditError}
-              </div>
-            )}
+            {auditError && <div className="m-4 rounded-lg border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">{auditError}</div>}
             {loadingAudit ? (
-              <div className="py-12 text-center text-sm text-muted-foreground">
-                Loading audit logs...
-              </div>
+              <div className="py-12 text-center text-sm text-muted-foreground">Loading audit logs...</div>
             ) : auditLogs.length ? (
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Time</TableHead>
                     <TableHead>Actor</TableHead>
-                    <TableHead>Role</TableHead>
                     <TableHead>Module</TableHead>
                     <TableHead>Action</TableHead>
+                    <TableHead>Entity</TableHead>
                     <TableHead>Description</TableHead>
-                    <TableHead>IP Address</TableHead>
-                    <TableHead>Timestamp</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {auditLogs.map((log) => (
                     <TableRow key={log.id}>
-                      <TableCell className="font-medium text-foreground">{log.actor_name || "System"}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{new Date(log.created_at).toLocaleString()}</TableCell>
                       <TableCell>
-                        {log.actor_role ? (
-                          <Badge variant="secondary" className="capitalize">
-                            {log.actor_role}
-                          </Badge>
-                        ) : (
-                          "—"
-                        )}
+                        <div className="text-sm text-foreground">{log.actor_name || "System"}</div>
+                        <div className="text-xs text-muted-foreground">{roleLabel(log.actor_role || "")}</div>
                       </TableCell>
-                      <TableCell className="capitalize text-sm text-muted-foreground">{log.module.replace("_", " ")}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-xs font-mono uppercase text-foreground border-border">
-                          {log.action}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm max-w-xs truncate text-foreground" title={log.description}>{log.description}</TableCell>
-                      <TableCell className="text-sm font-mono text-muted-foreground">{log.ip_address || "—"}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {new Date(log.created_at).toLocaleString()}
-                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{log.module}</TableCell>
+                      <TableCell><Badge variant="secondary">{log.action}</Badge></TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{log.entity_type || "-"}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{log.description || "-"}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             ) : (
-              <div className="py-12 text-center text-sm text-muted-foreground">
-                No audit log records found matching the criteria.
+              <div className="py-12 text-center text-muted-foreground">
+                <History className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                <p className="text-sm">No audit log records are available yet.</p>
+                <p className="text-xs mt-1">Project and role-management changes will appear here.</p>
               </div>
             )}
           </CardContent>

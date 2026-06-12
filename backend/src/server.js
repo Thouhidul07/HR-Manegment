@@ -1,13 +1,10 @@
 const app = require("./app");
 const { testConnection } = require("./config/database");
-const { seedAuditLogsIfEmpty } = require("./utils/auditLogger");
-
 
 const PORT = process.env.PORT || 5000;
 
 async function startServer() {
   await testConnection();
-  await seedAuditLogsIfEmpty();
 
   app.listen(PORT, () => {
     console.log(`HRSpace API running on http://localhost:${PORT}`);

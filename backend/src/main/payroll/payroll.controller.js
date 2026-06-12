@@ -1,5 +1,6 @@
 const { query } = require("../../config/database");
 const asyncHandler = require("../../utils/asyncHandler");
+const { logAudit } = require("../../utils/auditLogger");
 
 function formatDate(value) {
   if (!value) return "";
@@ -167,6 +168,18 @@ const processPayroll = asyncHandler(async (req, res) => {
     );
     created += 1;
   }
+
+  await logAudit({
+    actorId: req.user.id,
+    actorName: req.user.name,
+    actorRole: req.user.role,
+    action: "payroll_processed",
+    module: "Payroll",
+    entityType: "payroll_run",
+    description: "Processed payroll for " + payPeriod,
+    metadata: { payPeriod, created },
+    ipAddress: req.ip,
+  });
 
   res.status(201).json({
     message: created ? "Payroll processed" : "Payroll already processed for this period",

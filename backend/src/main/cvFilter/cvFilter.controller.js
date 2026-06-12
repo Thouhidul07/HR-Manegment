@@ -1,5 +1,6 @@
 const { query } = require("../../config/database");
 const asyncHandler = require("../../utils/asyncHandler");
+const { logAudit } = require("../../utils/auditLogger");
 
 const jobProfiles = {
   "Software Engineer": {
@@ -253,13 +254,23 @@ const createCandidate = asyncHandler(async (req, res) => {
   );
 
   const [rows] = await query("SELECT * FROM cv_candidates WHERE id = ? AND company_id = ?", [result.insertId, req.user.company_id]);
+  await logAudit({
+    actorId: req.user.id,
+    actorName: req.user.name,
+    actorRole: req.user.role,
+    action: "job_application_created",
+    module: "Recruitment",
+    entityType: "cv_candidate",
+    entityId: result.insertId,
+    description: "Created candidate application for " + req.body.name,
+    metadata: { position: req.body.position, score: fit.score, status: fit.status },
+    ipAddress: req.ip,
+  });
   res.status(201).json({ candidate: mapCandidate(rows[0], req) });
 });
 
 const updateCandidateStatus = asyncHandler(async (req, res) => {
   await ensureCvTables();
-  const [candRows] = await query("SELECT email, position FROM cv_candidates WHERE id = ? AND company_id = ?", [req.params.id, req.user.company_id]);
-  
   const [result] = await query(
     "UPDATE cv_candidates SET status = ? WHERE id = ? AND company_id = ?",
     [req.body.status, req.params.id, req.user.company_id]
@@ -269,24 +280,19 @@ const updateCandidateStatus = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: "Candidate not found" });
   }
 
-  if (candRows && candRows.length > 0) {
-    const candidate = candRows[0];
-    const appStatus = req.body.status === "pending" ? "reviewing" : req.body.status;
-    try {
-      await query(
-        `UPDATE job_applications 
-         SET status = ? 
-         WHERE email = ? AND company_id = ? AND circular_id IN (
-           SELECT id FROM job_circulars WHERE title = ? AND company_id = ?
-         )`,
-        [appStatus, candidate.email, req.user.company_id, candidate.position, req.user.company_id]
-      );
-    } catch (err) {
-      console.error("Failed to sync job application status:", err);
-    }
-  }
-
   const [rows] = await query("SELECT * FROM cv_candidates WHERE id = ? AND company_id = ?", [req.params.id, req.user.company_id]);
+  await logAudit({
+    actorId: req.user.id,
+    actorName: req.user.name,
+    actorRole: req.user.role,
+    action: "job_application_status_updated",
+    module: "Recruitment",
+    entityType: "cv_candidate",
+    entityId: Number(req.params.id),
+    description: "Updated candidate status to " + req.body.status,
+    metadata: { status: req.body.status, candidate: rows[0]?.name, position: rows[0]?.position },
+    ipAddress: req.ip,
+  });
   res.json({ candidate: mapCandidate(rows[0], req) });
 });
 
@@ -295,8 +301,4 @@ module.exports = {
   listCandidates,
   createCandidate,
   updateCandidateStatus,
-  calculateFit,
-  ensureCvTables,
-  jobProfiles,
 };
-

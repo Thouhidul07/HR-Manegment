@@ -1,5 +1,6 @@
 const { query } = require("../../config/database");
 const asyncHandler = require("../../utils/asyncHandler");
+const { logAudit } = require("../../utils/auditLogger");
 
 function formatStatus(status) {
   if (status === "leave") {
@@ -110,6 +111,17 @@ const clockIn = asyncHandler(async (req, res) => {
   );
 
   const record = await getTodayAttendance(req.user.id, req.user.company_id);
+  await logAudit({
+    actorId: req.user.id,
+    actorName: req.user.name,
+    actorRole: req.user.role,
+    action: "attendance_clock_in",
+    module: "Attendance",
+    entityType: "attendance",
+    entityId: result.insertId,
+    description: req.user.name + " clocked in",
+    ipAddress: req.ip,
+  });
 
   res.status(201).json({
     message: "Clock-in saved",
@@ -133,6 +145,17 @@ const clockOut = asyncHandler(async (req, res) => {
     "UPDATE attendance SET clock_out = NOW() WHERE id = ? AND user_id = ?",
     [existingRecord.id, req.user.id]
   );
+  await logAudit({
+    actorId: req.user.id,
+    actorName: req.user.name,
+    actorRole: req.user.role,
+    action: "attendance_clock_out",
+    module: "Attendance",
+    entityType: "attendance",
+    entityId: existingRecord.id,
+    description: req.user.name + " clocked out",
+    ipAddress: req.ip,
+  });
 
   const record = await getTodayAttendance(req.user.id, req.user.company_id);
 
@@ -141,6 +164,12 @@ const clockOut = asyncHandler(async (req, res) => {
 
 const logAttendance = asyncHandler(async (req, res) => {
   const { workDate, clockIn, clockOut, status = "present" } = req.body;
+  const normalizedStatus = status === "on leave" ? "leave" : status;
+  const statusRequiresTime = normalizedStatus === "present" || normalizedStatus === "late";
+
+  if (statusRequiresTime && (!clockIn || !clockOut)) {
+    return res.status(400).json({ message: "Clock-in and clock-out are required for present or late attendance" });
+  }
 
   await query(
     `INSERT INTO attendance (user_id, work_date, clock_in, clock_out, status)
@@ -152,9 +181,9 @@ const logAttendance = asyncHandler(async (req, res) => {
     [
       req.user.id,
       workDate,
-      `${workDate} ${clockIn}:00`,
-      `${workDate} ${clockOut}:00`,
-      status,
+      statusRequiresTime ? `${workDate} ${clockIn}:00` : null,
+      statusRequiresTime ? `${workDate} ${clockOut}:00` : null,
+      normalizedStatus,
     ]
   );
 
@@ -165,6 +194,19 @@ const logAttendance = asyncHandler(async (req, res) => {
      WHERE a.user_id = ? AND a.work_date = ? AND u.company_id = ?`,
     [req.user.id, workDate, req.user.company_id]
   );
+
+  await logAudit({
+    actorId: req.user.id,
+    actorName: req.user.name,
+    actorRole: req.user.role,
+    action: "attendance_logged",
+    module: "Attendance",
+    entityType: "attendance",
+    entityId: rows[0]?.id,
+    description: req.user.name + " logged attendance for " + workDate,
+    metadata: { workDate, status: normalizedStatus },
+    ipAddress: req.ip,
+  });
 
   res.status(201).json({ record: mapAttendance(rows[0]) });
 });

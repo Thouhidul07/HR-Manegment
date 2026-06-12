@@ -168,6 +168,7 @@ export function Expense() {
   const [reviewingExpenseId, setReviewingExpenseId] = useState<number | null>(
     null,
   );
+  const [selectedClaim, setSelectedClaim] = useState<ExpenseClaim | null>(null);
   const [expenseMessage, setExpenseMessage] = useState("");
   const [expenseError, setExpenseError] = useState("");
   const isAdmin = user?.role === "admin";
@@ -729,7 +730,7 @@ export function Expense() {
                       </div>
                     )}
                     {(!canReviewExpenses || claim.status !== "Pending") && (
-                      <Button variant="ghost" size="sm">
+                      <Button variant="ghost" size="sm" onClick={() => setSelectedClaim(claim)}>
                         View
                       </Button>
                     )}
@@ -740,6 +741,58 @@ export function Expense() {
           </Table>
         </CardContent>
       </Card>
+
+      <Modal
+        isOpen={Boolean(selectedClaim)}
+        onClose={() => setSelectedClaim(null)}
+        title="Expense Details"
+        size="lg"
+        footer={<Button variant="primary" onClick={() => setSelectedClaim(null)}>Close</Button>}
+      >
+        {selectedClaim && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between rounded-lg border border-border p-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Claimed by</p>
+                <p className="text-foreground">{selectedClaim.employee}</p>
+              </div>
+              <Badge
+                variant={
+                  selectedClaim.status === "Approved"
+                    ? "success"
+                    : selectedClaim.status === "Pending"
+                      ? "warning"
+                      : "error"
+                }
+              >
+                {selectedClaim.status}
+              </Badge>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs text-muted-foreground">Category</p>
+                <p className="text-sm text-foreground">{selectedClaim.type}</p>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs text-muted-foreground">Amount</p>
+                <p className="text-sm text-foreground">{formatCurrencyBDT(selectedClaim.amount)}</p>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs text-muted-foreground">Date</p>
+                <p className="text-sm text-foreground">{selectedClaim.date}</p>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs text-muted-foreground">Receipt</p>
+                <p className="text-sm text-foreground">{selectedClaim.receiptUrl ? "Attached" : "Not attached"}</p>
+              </div>
+            </div>
+            <div className="rounded-lg border border-border p-3">
+              <p className="text-xs text-muted-foreground">Description</p>
+              <p className="mt-1 text-sm text-foreground">{selectedClaim.description}</p>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <Modal
         isOpen={canSubmitExpense && isSubmitModalOpen}

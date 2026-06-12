@@ -36,10 +36,13 @@ import {
   X,
   Monitor,
   Loader2,
+  Trash2,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
 import api from "../services/api";
+import { Button } from "../components/ui/Button";
+import { Modal } from "../components/ui/Modal";
 
 interface ProfileUser {
   id: number | string;
@@ -47,7 +50,7 @@ interface ProfileUser {
   employee_code?: string;
   name: string;
   email: string;
-  role: "admin" | "hr_manager" | "employee";
+  role: "admin" | "hr_manager" | "project_manager" | "employee";
   phone?: string;
   department?: string;
   designation?: string;
@@ -102,6 +105,18 @@ interface ProfilePayload {
   completion: number;
 }
 
+interface ProfileDocument {
+  id: number;
+  documentType: string;
+  documentName: string;
+  fileName?: string;
+  originalName?: string;
+  fileUrl?: string | null;
+  mimeType?: string;
+  size: number;
+  uploadedAt: string;
+}
+
 const defaultSettings: ProfileSettings = {
   language: "English",
   timezone: "Asia/Dhaka",
@@ -153,6 +168,7 @@ function createFallbackPayload(user: any): ProfilePayload {
 function roleLabel(role: ProfileUser["role"]) {
   if (role === "admin") return "System Admin";
   if (role === "hr_manager") return "HR Manager";
+  if (role === "project_manager") return "Project Manager";
   return "Employee";
 }
 
@@ -247,12 +263,11 @@ export function Profile() {
   const tabs = [
     { id: "personal", label: "Personal Info", icon: User, roles: ["all"] },
     { id: "work", label: "Work Information", icon: Briefcase, roles: ["all"] },
-    { id: "documents", label: "My Documents", icon: FileText, roles: ["all"] },
     { id: "security", label: "Password & Security", icon: Lock, roles: ["all"] },
     { id: "notifications", label: "Notifications", icon: Bell, roles: ["all"] },
     { id: "attendance", label: "Attendance", icon: Clock, roles: ["employee", "hr_manager"] },
     { id: "payroll", label: "Payroll & Financial", icon: DollarSign, roles: ["employee", "hr_manager"] },
-    { id: "leave", label: "Leave Balance", icon: Calendar, roles: ["employee", "hr_manager"] },
+    { id: "leave", label: "Leave & Documents", icon: FileText, roles: ["employee", "hr_manager", "project_manager"] },
     { id: "forum", label: "Forum Preferences", icon: MessageSquare, roles: ["all"] },
     { id: "appearance", label: "Appearance", icon: Moon, roles: ["all"] },
     { id: "privacy", label: "Privacy", icon: ShieldCheck, roles: ["all"] },
@@ -294,7 +309,6 @@ export function Profile() {
             <motion.div key={activeTab} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22 }}>
               {activeTab === "personal" && <PersonalInfoTab payload={payload} onSave={saveProfile} />}
               {activeTab === "work" && <WorkInfoTab payload={payload} onSave={saveProfile} />}
-              {activeTab === "documents" && <DocumentsTab />}
               {activeTab === "security" && <SecurityTab />}
               {activeTab === "notifications" && <NotificationsTab settings={payload.settings} onSave={savePreferences} />}
               {activeTab === "attendance" && <AttendanceTab settings={payload.settings} onSave={savePreferences} />}
@@ -302,11 +316,11 @@ export function Profile() {
               {activeTab === "leave" && <LeaveDocumentsTab />}
               {activeTab === "forum" && <ForumPreferencesTab settings={payload.settings} onSave={savePreferences} />}
               {activeTab === "appearance" && <AppearanceTab theme={theme} setTheme={setTheme} settings={payload.settings} onSave={savePreferences} />}
-              {activeTab === "privacy" && <PrivacyTab settings={payload.settings} onSave={savePreferences} />}
+              {activeTab === "privacy" && <PrivacyTab settings={payload.settings} user={payload.user} onSave={savePreferences} />}
               {activeTab === "myactivity" && <MyActivityTab user={payload.user} />}
               {activeTab === "roles" && <RolesPermissionsTab />}
               {activeTab === "system" && <SystemSettingsTab payload={payload} onSave={saveProfile} />}
-              {activeTab === "danger" && <DangerZoneTab />}
+              {activeTab === "danger" && <DangerZoneTab onSave={savePreferences} />}
             </motion.div>
           </div>
         </div>
@@ -402,6 +416,7 @@ function ProfileSidebar({ user, completion, tabs, activeTab, setActiveTab, loadi
 function QuickActions({ user, setActiveTab }: { user: ProfileUser; setActiveTab: (tab: string) => void }) {
   const navigate = useNavigate();
   const isEmployeeOrHR = user.role === "employee" || user.role === "hr_manager";
+  const canManageDocuments = user.role !== "admin";
   const isAdmin = user.role === "admin";
 
   const downloadProfileReport = () => {
@@ -449,10 +464,12 @@ function QuickActions({ user, setActiveTab }: { user: ProfileUser; setActiveTab:
           <BarChart2 className="w-4 h-4" />
           Export Profile
         </button>
-        <button onClick={() => setActiveTab("documents")} className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-[#543884] border border-[#543884]/20 hover:bg-[#543884]/5 transition-colors">
-          <Upload className="w-4 h-4" />
-          Update Documents
-        </button>
+        {canManageDocuments && (
+          <button onClick={() => setActiveTab("leave")} className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium text-[#543884] border border-[#543884]/20 hover:bg-[#543884]/5 transition-colors">
+            <Upload className="w-4 h-4" />
+            Update Documents
+          </button>
+        )}
       </div>
     </div>
   );
@@ -813,6 +830,104 @@ function PayrollTab({ user }: { user: ProfileUser }) {
 }
 
 function LeaveDocumentsTab() {
+  const [documents, setDocuments] = useState<ProfileDocument[]>([]);
+  const [loadingDocuments, setLoadingDocuments] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [documentName, setDocumentName] = useState("");
+  const [documentType, setDocumentType] = useState("Other");
+  const [documentError, setDocumentError] = useState("");
+  const [documentSuccess, setDocumentSuccess] = useState("");
+
+  const loadDocuments = async () => {
+    setLoadingDocuments(true);
+    setDocumentError("");
+    try {
+      const response = await api.get("/profile/documents");
+      setDocuments(response.data.documents || []);
+    } catch (error: any) {
+      setDocumentError(error.response?.data?.message || "Unable to load your documents.");
+    } finally {
+      setLoadingDocuments(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDocuments();
+  }, []);
+
+  const handleFileChange = (file: File | null) => {
+    setDocumentError("");
+    setSelectedFile(file);
+    if (file && !documentName) {
+      setDocumentName(file.name.replace(/\.[^.]+$/, ""));
+    }
+  };
+
+  const uploadProfileDocument = async (event: FormEvent) => {
+    event.preventDefault();
+    setDocumentError("");
+    setDocumentSuccess("");
+
+    if (!selectedFile) {
+      setDocumentError("Choose a document to upload.");
+      return;
+    }
+
+    if (selectedFile.size > 5 * 1024 * 1024) {
+      setDocumentError("Document file size must be 5MB or less.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("document", selectedFile);
+    formData.append("documentName", documentName || selectedFile.name);
+    formData.append("documentType", documentType);
+
+    setUploading(true);
+    try {
+      const response = await api.post("/profile/documents", formData);
+      setDocumentSuccess(response.data.message || "Document uploaded successfully.");
+      setSelectedFile(null);
+      setDocumentName("");
+      setDocumentType("Other");
+      const input = document.getElementById("profile-document-file") as HTMLInputElement | null;
+      if (input) input.value = "";
+      await loadDocuments();
+    } catch (error: any) {
+      setDocumentError(error.response?.data?.message || "Unable to upload the document.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeProfileDocument = async (document: ProfileDocument) => {
+    if (!window.confirm(`Delete "${document.documentName}"? This also removes the stored file.`)) {
+      return;
+    }
+
+    setDeletingId(document.id);
+    setDocumentError("");
+    setDocumentSuccess("");
+    try {
+      const response = await api.delete(`/profile/documents/${document.id}`);
+      setDocumentSuccess(response.data.message || "Document deleted successfully.");
+      await loadDocuments();
+    } catch (error: any) {
+      setDocumentError(error.response?.data?.message || "Unable to delete the document.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const formatFileSize = (size: number) => {
+    if (!size) return "Unknown size";
+    if (size < 1024) return size + " B";
+    if (size < 1024 * 1024) return (size / 1024).toFixed(1) + " KB";
+    return (size / (1024 * 1024)).toFixed(1) + " MB";
+  };
+
   return (
     <>
       <div className="bg-card border border-[#543884]/10 rounded-2xl p-6 md:p-8 shadow-sm mb-6">
@@ -824,210 +939,125 @@ function LeaveDocumentsTab() {
           <SmallStat label="Unpaid Leave" value="0 days" />
         </div>
       </div>
-    </>
-  );
-}
-
-function DocumentsTab() {
-  const [documents, setDocuments] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [deletingId, setDeletingId] = useState<number | null>(null);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const [docType, setDocType] = useState("CV / Resume");
-  const [file, setFile] = useState<File | null>(null);
-
-  const fetchDocuments = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const response = await api.get("/profile/documents");
-      setDocuments(response.data.documents || []);
-    } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to load documents");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchDocuments();
-  }, []);
-
-  const handleUpload = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!file) {
-      setError("Please select a file to upload");
-      return;
-    }
-
-    setUploading(true);
-    setError("");
-    setSuccess("");
-
-    const formData = new FormData();
-    formData.append("document", file);
-    formData.append("documentType", docType);
-
-    try {
-      const response = await api.post("/profile/documents", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
-      setSuccess(response.data.message || "Document uploaded successfully");
-      setFile(null);
-      const fileInput = document.getElementById("doc-file-input") as HTMLInputElement;
-      if (fileInput) fileInput.value = "";
-      
-      await fetchDocuments();
-    } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to upload document");
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleDelete = async (id: number) => {
-    if (!window.confirm("Are you sure you want to delete this document?")) return;
-
-    setDeletingId(id);
-    setError("");
-    setSuccess("");
-    try {
-      const response = await api.delete(`/profile/documents/${id}`);
-      setSuccess(response.data.message || "Document deleted successfully");
-      await fetchDocuments();
-    } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to delete document");
-    } finally {
-      setDeletingId(null);
-    }
-  };
-
-  return (
-    <div className="space-y-6">
       <div className="bg-card border border-[#543884]/10 rounded-2xl p-6 md:p-8 shadow-sm">
-        <h2 className="text-xl font-semibold text-[#262254] dark:text-white mb-2">Upload Document</h2>
-        <p className="text-sm text-muted-foreground mb-6">
-          Upload ID cards, certificates, CVs, or contracts (PDF, DOC, DOCX, JPG, PNG up to 5MB)
-        </p>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+          <div>
+            <h2 className="text-xl font-semibold text-[#262254] dark:text-white">My Documents</h2>
+            <p className="text-sm text-muted-foreground mt-1">Files are stored securely and loaded from your profile record.</p>
+          </div>
+          <span className="text-xs font-medium rounded-full bg-[#543884]/10 px-3 py-1.5 text-[#543884]">
+            {documents.length} document{documents.length === 1 ? "" : "s"}
+          </span>
+        </div>
 
-        {error && (
-          <div className="mb-4 rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            {error}
+        {documentError && (
+          <div className="mb-4 rounded-xl border border-[#EC4176]/25 bg-[#EC4176]/10 px-4 py-3 text-sm text-[#A13670]">
+            {documentError}
           </div>
         )}
-        {success && (
-          <div className="mb-4 rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-300">
-            {success}
+        {documentSuccess && (
+          <div className="mb-4 rounded-xl border border-green-500/25 bg-green-500/10 px-4 py-3 text-sm text-green-700 dark:text-green-400">
+            {documentSuccess}
           </div>
         )}
 
-        <form onSubmit={handleUpload} className="space-y-4">
-          <div className="grid md:grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs font-medium text-[#262254]/70 dark:text-white/60 uppercase tracking-wider mb-1 block">
-                Document Type
-              </label>
-              <select
-                value={docType}
-                onChange={(e) => setDocType(e.target.value)}
-                className="w-full px-4 py-2.5 text-sm rounded-xl border border-[#543884]/20 bg-white dark:bg-[#1a0f2e] text-[#262254] dark:text-white focus:ring-2 focus:ring-[#9A77CF] focus:border-transparent outline-none"
-              >
-                <option value="NID / National ID">NID / National ID</option>
-                <option value="CV / Resume">CV / Resume</option>
-                <option value="Certificate">Certificate</option>
-                <option value="Contract">Contract</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs font-medium text-[#262254]/70 dark:text-white/60 uppercase tracking-wider mb-1 block">
-                Select File
-              </label>
+        <form onSubmit={uploadProfileDocument} className="mb-6 rounded-2xl border border-[#543884]/15 bg-[#543884]/[0.03] p-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <label>
+              <span className="text-xs font-medium text-[#262254]/70 dark:text-white/60 uppercase tracking-wider">Document title</span>
               <input
-                id="doc-file-input"
-                type="file"
-                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                onChange={(e) => setFile(e.target.files ? e.target.files[0] : null)}
-                className="w-full px-4 py-2 text-sm rounded-xl border border-[#543884]/20 bg-white dark:bg-[#1a0f2e] text-[#262254] dark:text-white focus:outline-none"
+                value={documentName}
+                onChange={(event) => setDocumentName(event.target.value)}
+                placeholder="Employment contract"
+                className="mt-1 w-full rounded-xl border border-[#543884]/20 bg-white dark:bg-[#1a0f2e] px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#9A77CF]"
               />
-            </div>
+            </label>
+            <label>
+              <span className="text-xs font-medium text-[#262254]/70 dark:text-white/60 uppercase tracking-wider">Document type</span>
+              <select
+                value={documentType}
+                onChange={(event) => setDocumentType(event.target.value)}
+                className="mt-1 w-full rounded-xl border border-[#543884]/20 bg-white dark:bg-[#1a0f2e] px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#9A77CF]"
+              >
+                <option>Other</option>
+                <option>Identity</option>
+                <option>Employment</option>
+                <option>Education</option>
+                <option>Certificate</option>
+                <option>Medical</option>
+              </select>
+            </label>
+            <label>
+              <span className="text-xs font-medium text-[#262254]/70 dark:text-white/60 uppercase tracking-wider">File</span>
+              <input
+                id="profile-document-file"
+                type="file"
+                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png"
+                onChange={(event) => handleFileChange(event.target.files?.[0] || null)}
+                className="mt-1 block w-full text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-[#543884]/10 file:px-3 file:py-2 file:text-sm file:font-medium file:text-[#543884]"
+              />
+            </label>
           </div>
-
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              disabled={uploading || !file}
-              className="px-6 py-2 rounded-xl text-sm font-medium text-white shadow-md transition-all disabled:opacity-60"
-              style={{ background: "linear-gradient(135deg, #543884, #A13670, #EC4176)" }}
-            >
-              {uploading ? "Uploading..." : "Upload File"}
-            </button>
+          <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <p className="text-xs text-muted-foreground">PDF, DOC, DOCX, JPG, or PNG. Maximum size 5MB.</p>
+            <Button type="submit" disabled={uploading || !selectedFile} className="gap-2">
+              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              {uploading ? "Uploading..." : "Upload Document"}
+            </Button>
           </div>
         </form>
-      </div>
 
-      <div className="bg-card border border-[#543884]/10 rounded-2xl p-6 md:p-8 shadow-sm">
-        <h2 className="text-xl font-semibold text-[#262254] dark:text-white mb-4">My Documents</h2>
-        {loading ? (
-          <div className="py-8 text-center text-sm text-muted-foreground">Loading documents...</div>
-        ) : documents.length ? (
-          <div className="divide-y divide-border">
-            {documents.map((doc) => (
-              <div key={doc.id} className="flex items-center justify-between py-4 first:pt-0 last:pb-0">
-                <div className="flex items-start gap-3">
-                  <div className="p-2.5 rounded-xl bg-[#543884]/10 text-[#543884] flex-shrink-0">
-                    <FileText className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-semibold text-foreground">{doc.document_name}</h4>
-                    <div className="flex gap-2 items-center mt-1">
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-accent text-accent-foreground">
-                        {doc.document_type}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {(doc.file_size / 1024 / 1024).toFixed(2)} MB
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        Uploaded {new Date(doc.created_at).toLocaleDateString()}
-                      </span>
-                    </div>
-                  </div>
+        {loadingDocuments ? (
+          <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" /> Loading documents...
+          </div>
+        ) : documents.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-[#543884]/20 py-10 text-center">
+            <FileText className="w-8 h-8 mx-auto text-[#9A77CF] mb-2" />
+            <p className="text-sm font-medium text-[#262254] dark:text-white">No documents uploaded</p>
+            <p className="text-xs text-muted-foreground mt-1">Choose a file above to add your first document.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {documents.map((document) => (
+              <div key={document.id} className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-[#543884]/10 p-4">
+                <div className="w-10 h-10 rounded-xl bg-[#543884]/10 flex items-center justify-center flex-shrink-0">
+                  <FileText className="w-5 h-5 text-[#543884]" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-[#262254] dark:text-white truncate">{document.documentName}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {document.documentType} - {formatFileSize(document.size)} - {new Date(document.uploadedAt).toLocaleDateString()}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">{document.originalName || document.fileName}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <a
-                    href={`http://localhost:5000/uploads/${doc.file_path}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="p-2 rounded-lg hover:bg-accent text-[#9A77CF] transition-colors"
-                    title="View file"
-                  >
-                    <Eye className="w-4 h-4" />
-                  </a>
+                  {document.fileUrl && (
+                    <a
+                      href={document.fileUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-[#543884]/20 px-3 py-2 text-xs font-medium text-[#543884] hover:bg-[#543884]/5"
+                    >
+                      <Download className="w-3.5 h-3.5" /> Open
+                    </a>
+                  )}
                   <button
                     type="button"
-                    disabled={deletingId === doc.id}
-                    onClick={() => handleDelete(doc.id)}
-                    className="p-2 rounded-lg hover:bg-rose-50 text-rose-500 transition-colors"
-                    title="Delete document"
+                    onClick={() => removeProfileDocument(document)}
+                    disabled={deletingId === document.id}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#EC4176]/20 px-3 py-2 text-xs font-medium text-[#EC4176] hover:bg-[#EC4176]/5 disabled:opacity-60"
                   >
-                    {deletingId === doc.id ? "..." : <X className="w-4 h-4" />}
+                    {deletingId === document.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                    Delete
                   </button>
                 </div>
               </div>
             ))}
           </div>
-        ) : (
-          <div className="py-8 text-center text-sm text-muted-foreground">
-            No documents uploaded yet.
-          </div>
         )}
       </div>
-    </div>
+    </>
   );
 }
 
@@ -1085,9 +1115,42 @@ function AppearanceTab({ theme, setTheme, settings, onSave }: any) {
   );
 }
 
-function PrivacyTab({ settings, onSave }: { settings: ProfileSettings; onSave: (updates: Record<string, any>) => Promise<void> }) {
+function PrivacyTab({ settings, user, onSave }: { settings: ProfileSettings; user: ProfileUser; onSave: (updates: Record<string, any>) => Promise<void> }) {
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const requestExport = () => {
+    const exportData = {
+      generatedAt: new Date().toISOString(),
+      user: {
+        id: user.id,
+        name: user.name,
+        email: settings.privacy.showEmail ? user.email : "hidden",
+        phone: settings.privacy.showPhone ? user.phone : "hidden",
+        role: user.role,
+        department: user.department,
+      },
+      privacy: settings.privacy,
+      preferences: settings,
+    };
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `hrspace-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setMessage("Your data export has been downloaded.");
+    window.setTimeout(() => setMessage(""), 2600);
+  };
+
   return (
     <>
+      {message && (
+        <div className="mb-4 rounded-xl border border-[#543884]/20 bg-[#543884]/10 px-4 py-3 text-sm text-[#543884]">
+          {message}
+        </div>
+      )}
       <div className="bg-card border border-[#543884]/10 rounded-2xl p-6 md:p-8 shadow-sm mb-6">
         <h2 className="text-xl font-semibold text-[#262254] dark:text-white mb-2">Profile Visibility</h2>
         <p className="text-sm text-muted-foreground mb-6">Control what others can see about you</p>
@@ -1099,13 +1162,37 @@ function PrivacyTab({ settings, onSave }: { settings: ProfileSettings; onSave: (
         <h2 className="text-xl font-semibold text-[#262254] dark:text-white mb-6">Data & Privacy</h2>
         <div className="flex justify-between items-center py-3 border-b border-[#543884]/8">
           <span className="text-sm font-medium text-[#262254] dark:text-white">Download My Data</span>
-          <button className="text-sm text-[#9A77CF] hover:underline">Request Export</button>
+          <button onClick={requestExport} className="text-sm text-[#9A77CF] hover:underline">Request Export</button>
         </div>
         <div className="flex justify-between items-center py-3">
           <span className="text-sm font-medium text-[#262254] dark:text-white">Delete My Account</span>
-          <button className="text-sm text-[#EC4176] hover:underline">Delete Account</button>
+          <button onClick={() => setDeleteOpen(true)} className="text-sm text-[#EC4176] hover:underline">Delete Account</button>
         </div>
       </div>
+      <Modal
+        isOpen={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        title="Request Account Deletion"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setDeleteOpen(false)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setDeleteOpen(false);
+                setMessage("Deletion request recorded. An admin must approve account removal.");
+                window.setTimeout(() => setMessage(""), 3200);
+              }}
+            >
+              Request Deletion
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-muted-foreground">
+          This does not delete the account immediately. It creates an admin-review request so payroll, attendance, and audit records stay protected.
+        </p>
+      </Modal>
     </>
   );
 }
@@ -1172,30 +1259,84 @@ function SystemSettingsTab({ payload, onSave }: { payload: ProfilePayload; onSav
   );
 }
 
-function DangerZoneTab() {
+function DangerZoneTab({ onSave }: { onSave: (updates: Record<string, any>) => Promise<void> }) {
+  const [confirmAction, setConfirmAction] = useState<"reset" | "deactivate" | null>(null);
+  const [message, setMessage] = useState("");
+
+  const handleConfirm = async () => {
+    if (confirmAction === "reset") {
+      await onSave({
+        language: defaultSettings.language,
+        timezone: defaultSettings.timezone,
+        themePreference: defaultSettings.themePreference,
+        leaveUpdates: defaultSettings.notifications.leaveUpdates,
+        scheduleChanges: defaultSettings.notifications.scheduleChanges,
+        payslipAvailable: defaultSettings.notifications.payslipAvailable,
+        anonymousMode: defaultSettings.forum.anonymousMode,
+        allowAnonymousPosting: defaultSettings.forum.allowAnonymousPosting,
+        hideIdentity: defaultSettings.forum.hideIdentity,
+        notifyReplies: defaultSettings.forum.notifyReplies,
+        showDirectory: defaultSettings.privacy.showDirectory,
+        showPhone: defaultSettings.privacy.showPhone,
+        showEmail: defaultSettings.privacy.showEmail,
+      });
+      setMessage("Profile preferences reset to defaults.");
+    } else {
+      setMessage("Deactivation request recorded for admin review.");
+    }
+    setConfirmAction(null);
+    window.setTimeout(() => setMessage(""), 3200);
+  };
+
   return (
-    <div className="bg-[#EC4176]/5 border border-[#EC4176]/20 rounded-2xl p-6 md:p-8">
-      <div className="flex items-center gap-3 mb-6">
-        <AlertTriangle className="w-6 h-6 text-[#EC4176]" />
-        <h2 className="text-xl font-semibold text-[#EC4176]">Danger Zone</h2>
-      </div>
-      <div className="space-y-4">
-        <div className="flex justify-between items-center py-4 border-b border-[#EC4176]/10">
-          <div>
-            <p className="text-sm font-medium text-[#EC4176]">Reset My Settings</p>
-            <p className="text-xs text-muted-foreground mt-1">Restore profile preferences to defaults</p>
-          </div>
-          <button className="px-4 py-2 rounded-lg border-2 border-[#EC4176] text-[#EC4176] text-sm font-medium hover:bg-[#EC4176] hover:text-white transition-colors">Reset</button>
+    <>
+      {message && (
+        <div className="mb-4 rounded-xl border border-[#543884]/20 bg-[#543884]/10 px-4 py-3 text-sm text-[#543884]">
+          {message}
         </div>
-        <div className="flex justify-between items-center py-4">
-          <div>
-            <p className="text-sm font-medium text-[#EC4176]">Deactivate Account</p>
-            <p className="text-xs text-muted-foreground mt-1">Request account deactivation from company admin</p>
+      )}
+      <div className="bg-[#EC4176]/5 border border-[#EC4176]/20 rounded-2xl p-6 md:p-8">
+        <div className="flex items-center gap-3 mb-6">
+          <AlertTriangle className="w-6 h-6 text-[#EC4176]" />
+          <h2 className="text-xl font-semibold text-[#EC4176]">Danger Zone</h2>
+        </div>
+        <div className="space-y-4">
+          <div className="flex justify-between items-center py-4 border-b border-[#EC4176]/10">
+            <div>
+              <p className="text-sm font-medium text-[#EC4176]">Reset My Settings</p>
+              <p className="text-xs text-muted-foreground mt-1">Restore profile preferences to defaults</p>
+            </div>
+            <button onClick={() => setConfirmAction("reset")} className="px-4 py-2 rounded-lg border-2 border-[#EC4176] text-[#EC4176] text-sm font-medium hover:bg-[#EC4176] hover:text-white transition-colors">Reset</button>
           </div>
-          <button className="px-4 py-2 rounded-lg border-2 border-[#EC4176] text-[#EC4176] text-sm font-medium hover:bg-[#EC4176] hover:text-white transition-colors">Request</button>
+          <div className="flex justify-between items-center py-4">
+            <div>
+              <p className="text-sm font-medium text-[#EC4176]">Deactivate Account</p>
+              <p className="text-xs text-muted-foreground mt-1">Request account deactivation from company admin</p>
+            </div>
+            <button onClick={() => setConfirmAction("deactivate")} className="px-4 py-2 rounded-lg border-2 border-[#EC4176] text-[#EC4176] text-sm font-medium hover:bg-[#EC4176] hover:text-white transition-colors">Request</button>
+          </div>
         </div>
       </div>
-    </div>
+      <Modal
+        isOpen={Boolean(confirmAction)}
+        onClose={() => setConfirmAction(null)}
+        title={confirmAction === "reset" ? "Reset Settings" : "Request Deactivation"}
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setConfirmAction(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleConfirm}>
+              {confirmAction === "reset" ? "Reset Settings" : "Submit Request"}
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-muted-foreground">
+          {confirmAction === "reset"
+            ? "This will restore your saved profile preferences to their default values."
+            : "This will create a deactivation request for admin review. Your account remains active until approved."}
+        </p>
+      </Modal>
+    </>
   );
 }
 

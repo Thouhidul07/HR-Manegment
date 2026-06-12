@@ -1,6 +1,7 @@
 const { query } = require("../../config/database");
 const asyncHandler = require("../../utils/asyncHandler");
 const { ensureCompanyColumns } = require("../../utils/companyScope");
+const { logAudit } = require("../../utils/auditLogger");
 
 async function ensureTrainingCertificatesTable() {
   await ensureCompanyColumns();
@@ -41,6 +42,10 @@ function mapEnrollment(row) {
     progress: Number(row.progress),
     status: row.status === "completed" ? "Completed" : row.status === "cancelled" ? "Cancelled" : "In Progress",
     dueDate: row.ends_at || row.starts_at,
+    trainer: row.trainer || "HR Team",
+    description: row.description || "",
+    startsAt: row.starts_at,
+    endsAt: row.ends_at,
     certificateCode: row.certificate_code || null,
     certificateIssuedAt: row.issued_at || null,
   };
@@ -62,7 +67,7 @@ const listTraining = asyncHandler(async (req, res) => {
   );
 
   const [enrollments] = await query(
-    `SELECT te.*, ts.title, ts.starts_at, ts.ends_at, u.name AS employee_name,
+    `SELECT te.*, ts.title, ts.description, ts.trainer, ts.starts_at, ts.ends_at, u.name AS employee_name,
        tc.certificate_code, tc.issued_at
      FROM training_enrollments te
      JOIN training_sessions ts ON ts.id = te.training_id
@@ -94,6 +99,19 @@ const createTraining = asyncHandler(async (req, res) => {
     `SELECT ts.*, 0 AS enrolled, 0 AS completed FROM training_sessions ts WHERE ts.id = ? AND ts.company_id = ?`,
     [result.insertId, req.user.company_id]
   );
+
+  await logAudit({
+    actorId: req.user.id,
+    actorName: req.user.name,
+    actorRole: req.user.role,
+    action: "training_created",
+    module: "Training",
+    entityType: "training_session",
+    entityId: result.insertId,
+    description: "Created training session " + title,
+    metadata: { title, trainer, startsAt },
+    ipAddress: req.ip,
+  });
 
   res.status(201).json({ session: mapSession(rows[0]) });
 });
@@ -142,16 +160,42 @@ const updateTraining = asyncHandler(async (req, res) => {
     [req.params.id, req.user.company_id]
   );
 
+  await logAudit({
+    actorId: req.user.id,
+    actorName: req.user.name,
+    actorRole: req.user.role,
+    action: "training_updated",
+    module: "Training",
+    entityType: "training_session",
+    entityId: req.params.id,
+    description: "Updated training session " + rows[0].title,
+    metadata: { updatedFields: Object.keys(req.body) },
+    ipAddress: req.ip,
+  });
+
   res.json({ session: mapSession(rows[0]) });
 });
 
 const deleteTraining = asyncHandler(async (req, res) => {
   await ensureCompanyColumns();
+  const [sessions] = await query("SELECT title FROM training_sessions WHERE id = ? AND company_id = ?", [req.params.id, req.user.company_id]);
   const [result] = await query("DELETE FROM training_sessions WHERE id = ? AND company_id = ?", [req.params.id, req.user.company_id]);
 
   if (!result.affectedRows) {
     return res.status(404).json({ message: "Training session not found" });
   }
+
+  await logAudit({
+    actorId: req.user.id,
+    actorName: req.user.name,
+    actorRole: req.user.role,
+    action: "training_deleted",
+    module: "Training",
+    entityType: "training_session",
+    entityId: req.params.id,
+    description: "Deleted training session " + (sessions[0]?.title || req.params.id),
+    ipAddress: req.ip,
+  });
 
   res.json({ message: "Training session deleted" });
 });
@@ -180,6 +224,19 @@ const assignTraining = asyncHandler(async (req, res) => {
     );
   }
 
+  await logAudit({
+    actorId: req.user.id,
+    actorName: req.user.name,
+    actorRole: req.user.role,
+    action: "training_assigned",
+    module: "Training",
+    entityType: "training_session",
+    entityId: req.params.id,
+    description: "Assigned training to " + userIds.length + " employee(s)",
+    metadata: { userIds },
+    ipAddress: req.ip,
+  });
+
   res.status(201).json({ message: "Training assigned", assigned: userIds.length });
 });
 
@@ -198,13 +255,25 @@ const enrollTraining = asyncHandler(async (req, res) => {
   );
 
   const [rows] = await query(
-    `SELECT te.*, ts.title, ts.starts_at, ts.ends_at, u.name AS employee_name
+    `SELECT te.*, ts.title, ts.description, ts.trainer, ts.starts_at, ts.ends_at, u.name AS employee_name
      FROM training_enrollments te
      JOIN training_sessions ts ON ts.id = te.training_id
      JOIN users u ON u.id = te.user_id
      WHERE te.training_id = ? AND te.user_id = ? AND u.company_id = ? AND ts.company_id = ?`,
     [req.params.id, req.user.id, req.user.company_id, req.user.company_id]
   );
+
+  await logAudit({
+    actorId: req.user.id,
+    actorName: req.user.name,
+    actorRole: req.user.role,
+    action: "training_enrolled",
+    module: "Training",
+    entityType: "training_session",
+    entityId: req.params.id,
+    description: req.user.name + " enrolled in " + rows[0].title,
+    ipAddress: req.ip,
+  });
 
   res.status(201).json({ enrollment: mapEnrollment(rows[0]) });
 });
@@ -234,7 +303,7 @@ const updateTrainingProgress = asyncHandler(async (req, res) => {
   }
 
   const [rows] = await query(
-    `SELECT te.*, ts.title, ts.starts_at, ts.ends_at, u.name AS employee_name,
+    `SELECT te.*, ts.title, ts.description, ts.trainer, ts.starts_at, ts.ends_at, u.name AS employee_name,
        tc.certificate_code, tc.issued_at
      FROM training_enrollments te
      JOIN training_sessions ts ON ts.id = te.training_id
@@ -243,6 +312,19 @@ const updateTrainingProgress = asyncHandler(async (req, res) => {
      WHERE te.id = ? AND u.company_id = ? AND ts.company_id = ?`,
     [req.params.id, req.user.company_id, req.user.company_id]
   );
+
+  await logAudit({
+    actorId: req.user.id,
+    actorName: req.user.name,
+    actorRole: req.user.role,
+    action: status === "completed" ? "training_completed" : "training_progress_updated",
+    module: "Training",
+    entityType: "training_enrollment",
+    entityId: req.params.id,
+    description: req.user.name + " updated training progress to " + progress + "%",
+    metadata: { progress, status, course: rows[0]?.title },
+    ipAddress: req.ip,
+  });
 
   res.json({ enrollment: mapEnrollment(rows[0]) });
 });

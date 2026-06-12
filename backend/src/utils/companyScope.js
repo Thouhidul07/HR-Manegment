@@ -9,6 +9,7 @@ const DEMO_COMPANY = {
 const PASSWORD_HASHES = {
   admin: "$2a$10$7IAQrKRQwkIHv2eZSIRDj.S1O0ove29.KjCkCXD3369iJk9dTKngi",
   hr_manager: "$2a$10$cteqOigYNxjG6l8d.G7tNOSlBprtlBiCUvj03ljajfV.0CMwhd.Uq",
+  project_manager: "$2a$10$Mda0zoEZZ0k1Ai68Q3r2CeIiSOrQRBvtToTiXbuT3R3zdBTuiT0NS",
   employee: "$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy",
 };
 
@@ -26,6 +27,7 @@ const departments = [
 function normalizeRole(role) {
   if (role === "System Admin") return "admin";
   if (role === "HR Manager") return "hr_manager";
+  if (role === "Project Manager") return "project_manager";
   if (role === "Employee") return "employee";
   return role;
 }
@@ -237,6 +239,18 @@ function demoUserRows() {
       salary: 56000,
       password: PASSWORD_HASHES.employee,
       phone: "+8801812345008",
+    },
+    {
+      employeeCode: "NX-PM-001",
+      name: "Project Manager 01",
+      email: "pm01@nexoratech.com",
+      role: "project_manager",
+      department: "Project Management",
+      designation: "Project Manager",
+      hireDate: "2025-09-01",
+      salary: 98000,
+      password: PASSWORD_HASHES.project_manager,
+      phone: "+8801712345699",
     },
   ];
 }

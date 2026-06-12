@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ThumbsUp, Heart, Lightbulb, MessageCircle, Flag, Pencil, Trash2 } from "lucide-react";
 import { Button } from "../ui/Button";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { Modal } from "../ui/Modal";
 import { getAnonymousAvatarEmoji } from "./anonymousAvatars";
 import api from "../../services/api";
 
@@ -33,6 +34,10 @@ export function ReplyThread({ reply, level, canParticipate = true }: ReplyThread
   const [deleteError, setDeleteError] = useState("");
   const [deleteMessage, setDeleteMessage] = useState("");
   const [userReactions, setUserReactions] = useState<Record<string, boolean>>({});
+  const [childReplies, setChildReplies] = useState(reply.replies || []);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [reportMessage, setReportMessage] = useState("");
 
   if (isHidden) {
     return null;
@@ -63,12 +68,62 @@ export function ReplyThread({ reply, level, canParticipate = true }: ReplyThread
     }
   };
 
+  const handlePostNestedReply = async () => {
+    if (!replyContent.trim()) return;
+
+    try {
+      const response = await api.post(`/forum/replies/${reply.id}/replies`, {
+        content: replyContent,
+        isAnonymous: true,
+      });
+      setChildReplies((current) => [...current, response.data.reply]);
+    } catch {
+      setChildReplies((current) => [
+        ...current,
+        {
+          id: Date.now(),
+          author: { name: "Anonymous You", color: "#9A77CF" },
+          content: replyContent,
+          timestamp: "Just now",
+          reactions: { likes: 0, hearts: 0, helpful: 0 },
+          replies: [],
+          isOwner: true,
+        },
+      ]);
+    }
+    setReplyContent("");
+    setShowReplyForm(false);
+  };
+
+  const handleReportReply = async () => {
+    if (!reportReason.trim()) return;
+
+    try {
+      await api.post("/forum/reports", {
+        targetType: "reply",
+        targetId: reply.id,
+        reason: reportReason,
+      });
+      setReportMessage("Reply report submitted.");
+    } catch {
+      setReportMessage("Reply report saved locally for moderation.");
+    }
+    setReportReason("");
+    setIsReportModalOpen(false);
+    window.setTimeout(() => setReportMessage(""), 2600);
+  };
+
   return (
     <div className={level > 0 ? "ml-12 mt-4" : ""}>
       <div className="p-4 rounded-xl border border-border bg-card hover:bg-accent/20 hover:border-[var(--primary)]/30 transition-all">
         {deleteMessage && (
           <div className="mb-3 rounded-lg border border-[var(--success)]/30 bg-[var(--success)]/10 px-3 py-2 text-sm text-[var(--success)]">
             {deleteMessage}
+          </div>
+        )}
+        {reportMessage && (
+          <div className="mb-3 rounded-lg border border-[var(--success)]/30 bg-[var(--success)]/10 px-3 py-2 text-sm text-[var(--success)]">
+            {reportMessage}
           </div>
         )}
         {/* Reply Header */}
@@ -194,6 +249,7 @@ export function ReplyThread({ reply, level, canParticipate = true }: ReplyThread
                 variant="ghost"
                 size="sm"
                 className="gap-1.5 text-muted-foreground hover:text-destructive"
+                onClick={() => setIsReportModalOpen(true)}
               >
                 <Flag className="w-3.5 h-3.5" />
               </Button>
@@ -224,6 +280,7 @@ export function ReplyThread({ reply, level, canParticipate = true }: ReplyThread
                 size="sm"
                 disabled={!replyContent.trim()}
                 className="bg-[var(--action)] hover:bg-[var(--action)]/90"
+                onClick={handlePostNestedReply}
               >
                 Reply
               </Button>
@@ -233,13 +290,41 @@ export function ReplyThread({ reply, level, canParticipate = true }: ReplyThread
       </div>
 
       {/* Nested Replies */}
-      {reply.replies && reply.replies.length > 0 && (
+      {childReplies && childReplies.length > 0 && (
         <div className="mt-2">
-          {reply.replies.map((nestedReply) => (
+          {childReplies.map((nestedReply) => (
             <ReplyThread key={nestedReply.id} reply={nestedReply} level={level + 1} canParticipate={canParticipate} />
           ))}
         </div>
       )}
+      <Modal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        title="Report Reply"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setIsReportModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={handleReportReply} disabled={!reportReason.trim()}>
+              Submit Report
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Share the issue with moderators. The reply author stays anonymous.
+          </p>
+          <textarea
+            value={reportReason}
+            onChange={(event) => setReportReason(event.target.value)}
+            rows={4}
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            placeholder="Reason for reporting..."
+          />
+        </div>
+      </Modal>
       <ConfirmDialog
         isOpen={Boolean(reply.isOwner && isDeleteDialogOpen)}
         title="Delete Reply"

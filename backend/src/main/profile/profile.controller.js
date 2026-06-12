@@ -1,7 +1,10 @@
 const bcrypt = require("bcryptjs");
+const fs = require("fs/promises");
+const path = require("path");
 const { query } = require("../../config/database");
 const asyncHandler = require("../../utils/asyncHandler");
 const { ensureCompanyColumns } = require("../../utils/companyScope");
+const { logAudit } = require("../../utils/auditLogger");
 
 async function ensureProfileTable() {
   await ensureCompanyColumns();
@@ -335,8 +338,10 @@ async function ensureUserDocumentsTable() {
     CREATE TABLE IF NOT EXISTS user_documents (
       id INT AUTO_INCREMENT PRIMARY KEY,
       user_id INT NOT NULL,
-      document_type VARCHAR(80) NOT NULL,
+      document_type VARCHAR(80) NOT NULL DEFAULT 'Other',
       document_name VARCHAR(180) NOT NULL,
+      file_name VARCHAR(180),
+      original_name VARCHAR(255),
       file_path VARCHAR(255) NOT NULL,
       file_size INT,
       mime_type VARCHAR(100),
@@ -347,89 +352,138 @@ async function ensureUserDocumentsTable() {
       FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL
     )
   `);
+
+  const [columns] = await query("SHOW COLUMNS FROM user_documents");
+  const columnNames = new Set(columns.map((column) => column.Field));
+  const additions = [
+    ["file_name", "ALTER TABLE user_documents ADD COLUMN file_name VARCHAR(180) NULL AFTER document_name"],
+    ["original_name", "ALTER TABLE user_documents ADD COLUMN original_name VARCHAR(255) NULL AFTER file_name"],
+  ];
+
+  for (const [column, sql] of additions) {
+    if (!columnNames.has(column)) {
+      await query(sql);
+    }
+  }
+
+  await query(
+    "UPDATE user_documents SET file_name = COALESCE(file_name, SUBSTRING_INDEX(file_path, '/', -1)), original_name = COALESCE(original_name, document_name)"
+  );
+}
+
+function serializeDocument(document, req) {
+  const relativePath = String(document.file_path || "").replace(/\\/g, "/").replace(/^\/+/, "");
+  return {
+    id: document.id,
+    userId: document.user_id,
+    documentType: document.document_type,
+    documentName: document.document_name,
+    fileName: document.file_name,
+    originalName: document.original_name,
+    filePath: relativePath,
+    fileUrl: relativePath ? req.protocol + "://" + req.get("host") + "/uploads/" + relativePath : null,
+    mimeType: document.mime_type,
+    size: Number(document.file_size || 0),
+    uploadedAt: document.created_at,
+    createdAt: document.created_at,
+  };
 }
 
 const getMyDocuments = asyncHandler(async (req, res) => {
   await ensureUserDocumentsTable();
-  const [docs] = await query(
-    "SELECT * FROM user_documents WHERE user_id = ? ORDER BY id DESC",
-    [req.user.id]
-  );
-  res.json({ success: true, documents: docs });
+  const [documents] = await query("SELECT * FROM user_documents WHERE user_id = ? ORDER BY id DESC", [req.user.id]);
+  res.json({ documents: documents.map((document) => serializeDocument(document, req)) });
 });
 
 const uploadDocument = asyncHandler(async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ message: "No document file was uploaded" });
   }
+  const documentType = String(req.body.documentType || req.body.document_type || "Other").trim().slice(0, 80);
+  const documentName = String(req.body.documentName || req.body.document_name || req.body.title || req.file.originalname)
+    .trim()
+    .slice(0, 180);
+  const relativePath = path.posix.join("profile-documents", req.file.filename);
 
   await ensureUserDocumentsTable();
-  const { documentType } = req.body;
-  if (!documentType) {
-    return res.status(400).json({ message: "documentType is required" });
+  let result;
+  try {
+    [result] = await query(
+      `INSERT INTO user_documents
+        (user_id, document_type, document_name, file_name, original_name, file_path, file_size, mime_type, uploaded_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        req.user.id,
+        documentType || "Other",
+        documentName || req.file.originalname,
+        req.file.filename,
+        req.file.originalname,
+        relativePath,
+        req.file.size,
+        req.file.mimetype,
+        req.user.id,
+      ]
+    );
+  } catch (error) {
+    await fs.unlink(req.file.path).catch(() => undefined);
+    throw error;
   }
 
-  const [result] = await query(
-    `INSERT INTO user_documents (user_id, document_type, document_name, file_path, file_size, mime_type, uploaded_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [
-      req.user.id,
-      documentType,
-      req.file.originalname,
-      req.file.filename,
-      req.file.size,
-      req.file.mimetype,
-      req.user.id,
-    ]
-  );
-
-  const { logAudit } = require("../../utils/auditLogger");
+  const [documents] = await query("SELECT * FROM user_documents WHERE id = ? LIMIT 1", [result.insertId]);
   await logAudit({
     actorId: req.user.id,
     actorName: req.user.name,
     actorRole: req.user.role,
-    action: "upload_document",
-    module: "profile",
+    action: "document_uploaded",
+    module: "Profile Documents",
     entityType: "user_document",
     entityId: result.insertId,
-    description: `Uploaded document of type "${documentType}": ${req.file.originalname}`,
-    ipAddress: req.ip
+    description: "Uploaded document " + (documentName || req.file.originalname),
+    metadata: { documentType, originalName: req.file.originalname, mimeType: req.file.mimetype, fileSize: req.file.size },
+    ipAddress: req.ip,
   });
 
-  const [newDoc] = await query("SELECT * FROM user_documents WHERE id = ? LIMIT 1", [result.insertId]);
-
-  res.json({ success: true, message: "Document uploaded successfully", document: newDoc[0] });
+  res.status(201).json({ message: "Document uploaded successfully", document: serializeDocument(documents[0], req) });
 });
 
 const deleteDocument = asyncHandler(async (req, res) => {
   await ensureUserDocumentsTable();
-  const docId = req.params.id;
-
-  const [docs] = await query("SELECT * FROM user_documents WHERE id = ? LIMIT 1", [docId]);
-  if (!docs.length) {
+  const [documents] = await query("SELECT * FROM user_documents WHERE id = ? AND user_id = ? LIMIT 1", [req.params.id, req.user.id]);
+  if (!documents.length) {
     return res.status(404).json({ message: "Document not found" });
   }
+  const document = documents[0];
 
-  if (docs[0].user_id !== req.user.id && req.user.role !== "admin") {
-    return res.status(403).json({ message: "You do not have permission to delete this document" });
+  const uploadsRoot = path.resolve(__dirname, "../../../uploads");
+  const storedPath = String(document.file_path || document.file_name || "");
+  const absolutePath = path.resolve(uploadsRoot, storedPath);
+  if (!absolutePath.startsWith(uploadsRoot + path.sep)) {
+    return res.status(400).json({ message: "Invalid document storage path" });
   }
 
-  await query("DELETE FROM user_documents WHERE id = ?", [docId]);
+  try {
+    await fs.unlink(absolutePath);
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      throw error;
+    }
+  }
 
-  const { logAudit } = require("../../utils/auditLogger");
+  await query("DELETE FROM user_documents WHERE id = ? AND user_id = ?", [req.params.id, req.user.id]);
   await logAudit({
     actorId: req.user.id,
     actorName: req.user.name,
     actorRole: req.user.role,
-    action: "delete_document",
-    module: "profile",
+    action: "document_deleted",
+    module: "Profile Documents",
     entityType: "user_document",
-    entityId: parseInt(docId, 10),
-    description: `Deleted document of type "${docs[0].document_type}": ${docs[0].document_name}`,
-    ipAddress: req.ip
+    entityId: Number(req.params.id),
+    description: "Deleted document " + document.document_name,
+    metadata: { documentType: document.document_type, originalName: document.original_name },
+    ipAddress: req.ip,
   });
 
-  res.json({ success: true, message: "Document deleted successfully" });
+  res.json({ message: "Document deleted successfully" });
 });
 
 module.exports = {

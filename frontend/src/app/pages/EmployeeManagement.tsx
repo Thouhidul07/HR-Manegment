@@ -132,6 +132,9 @@ export function EmployeeManagement() {
   const [error, setError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDepartment, setSelectedDepartment] = useState("all");
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState("all");
+  const [minimumSalary, setMinimumSalary] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
@@ -166,7 +169,9 @@ export function EmployeeManagement() {
       emp.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       emp.phone.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesDepartment = selectedDepartment === "all" || emp.department === selectedDepartment;
-    return matchesSearch && matchesDepartment;
+    const matchesStatus = selectedStatus === "all" || emp.status === selectedStatus;
+    const matchesSalary = !minimumSalary || Number(emp.salary || 0) >= Number(minimumSalary);
+    return matchesSearch && matchesDepartment && matchesStatus && matchesSalary;
   });
 
   const stats = useMemo(() => {
@@ -356,7 +361,7 @@ export function EmployeeManagement() {
                 <option key={department} value={department}>{department}</option>
               ))}
             </select>
-            <Button variant="outline" className="gap-2">
+            <Button variant={showMoreFilters ? "primary" : "outline"} className="gap-2" onClick={() => setShowMoreFilters((current) => !current)}>
               <Filter className="w-4 h-4" />
               More Filters
             </Button>
@@ -366,6 +371,40 @@ export function EmployeeManagement() {
             </Button>
           </div>
         </div>
+        {showMoreFilters && (
+          <div className="mt-4 grid gap-4 border-t border-border pt-4 md:grid-cols-3">
+            <div>
+              <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-muted-foreground">Status</label>
+              <select
+                value={selectedStatus}
+                onChange={(event) => setSelectedStatus(event.target.value)}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="all">All Statuses</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+            <Input
+              label="Minimum Salary"
+              type="number"
+              min="0"
+              value={minimumSalary}
+              onChange={(event) => setMinimumSalary(event.target.value)}
+            />
+            <div className="flex items-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setSelectedStatus("all");
+                  setMinimumSalary("");
+                }}
+              >
+                Reset Filters
+              </Button>
+            </div>
+          </div>
+        )}
       </Card>
 
       <Card className="p-0">

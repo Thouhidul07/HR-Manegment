@@ -5,7 +5,7 @@ const { protect, authorize } = require("../../middleware/authMiddleware");
 const validate = require("../../utils/validation");
 
 router.use(protect);
-router.get("/", authorize("admin", "hr_manager"), listEmployees);
+router.get("/", authorize("admin", "hr_manager", "project_manager"), listEmployees);
 router.post(
   "/",
   authorize("admin", "hr_manager"),
@@ -22,7 +22,7 @@ router.post(
   validate,
   createEmployee
 );
-router.get("/:id", authorize("admin", "hr_manager"), [param("id").isInt({ min: 1 })], validate, getEmployee);
+router.get("/:id", authorize("admin", "hr_manager", "project_manager"), [param("id").isInt({ min: 1 })], validate, getEmployee);
 router.patch(
   "/:id",
   authorize("admin", "hr_manager"),

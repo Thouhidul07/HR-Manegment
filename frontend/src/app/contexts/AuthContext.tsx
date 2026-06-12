@@ -6,7 +6,7 @@ interface User {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'hr_manager' | 'employee';
+  role: 'admin' | 'hr_manager' | 'project_manager' | 'employee';
   avatar?: string;
   phone?: string;
   department?: string;
@@ -53,36 +53,6 @@ function normalizeUser(user: any): User {
   return normalized;
 }
 
-const MOCK_USERS: Record<string, { password: string; user: User }> = {
-  'admin@nexoratech.com': {
-    password: 'Admin@1234',
-    user: {
-      id: '1',
-      name: 'System Admin',
-      email: 'admin@nexoratech.com',
-      role: 'admin'
-    }
-  },
-  'hr.manager01@nexoratech.com': {
-    password: 'Hr@1234',
-    user: {
-      id: '2',
-      name: 'HR Manager',
-      email: 'hr.manager01@nexoratech.com',
-      role: 'hr_manager'
-    }
-  },
-  'employee01@nexoratech.com': {
-    password: 'Emp@1234',
-    user: {
-      id: '3',
-      name: 'Employee User',
-      email: 'employee01@nexoratech.com',
-      role: 'employee'
-    }
-  }
-};
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -114,52 +84,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (apiError?.response) {
         throw new Error(apiError.response.data?.message || 'Invalid email or password');
       }
-
-      if ((import.meta as any).env?.PROD) {
-        throw new Error('Invalid email or password');
-      }
+      throw new Error('Unable to reach the authentication service');
     }
-
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        const normalizedEmail = email.toLowerCase().trim();
-
-        if (MOCK_USERS[normalizedEmail]) {
-          const { password: expectedPassword, user: mockUser } = MOCK_USERS[normalizedEmail];
-          if (password === expectedPassword) {
-            setUser(mockUser);
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(mockUser));
-            resolve();
-            return;
-          }
-        }
-
-        if (normalizedEmail.endsWith('@nexoratech.com') && password === 'password123') {
-          const name = normalizedEmail.split('@')[0].replace(/[._]/g, ' ');
-          const capitalizedName = name
-            .split(' ')
-            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-            .join(' ');
-
-          const newUser: User = {
-            id: Date.now().toString(),
-            name: capitalizedName,
-            email: normalizedEmail,
-            role: 'employee'
-          };
-
-          setUser(newUser);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(newUser));
-          resolve();
-          return;
-        }
-
-        reject(new Error('Invalid email or password'));
-      }, 800);
-    });
   };
 
   const logout = () => {
+    api.post("/auth/logout").catch(() => undefined);
     setUser(null);
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(TOKEN_KEY);

@@ -3,7 +3,6 @@ import type { ReactElement } from "react";
 import { Layout } from "./components/layout/Layout";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { useAuth } from "./contexts/AuthContext";
-import { LandingPage } from "./pages/LandingPage";
 import { Features } from "./pages/Features";
 import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
@@ -36,7 +35,7 @@ import { ProjectReports } from "./pages/ProjectReports";
 import { ProjectHistory } from "./pages/ProjectHistory";
 import { DesignWBS } from "./pages/DesignWBS";
 
-type UserRole = "admin" | "hr_manager" | "employee";
+type UserRole = "admin" | "hr_manager" | "project_manager" | "employee";
 
 function RoleRoute({
   allowed,
@@ -66,26 +65,26 @@ function DevOnlyRoute({ children }: { children: ReactElement }) {
   return children;
 }
 
-/** Catch-all: authenticated → /dashboard, guests → / */
-function CatchAllRedirect() {
-  const { isAuthenticated } = useAuth();
-  return <Navigate to={isAuthenticated ? "/dashboard" : "/"} replace />;
-}
-
 const adminHr: UserRole[] = ["admin", "hr_manager"];
-const allRoles: UserRole[] = ["admin", "hr_manager", "employee"];
+const projectManagers: UserRole[] = ["project_manager"];
+const allRoles: UserRole[] = ["admin", "hr_manager", "project_manager", "employee"];
 const employeesOnly: UserRole[] = ["employee"];
-const forumRoles: UserRole[] = ["admin", "hr_manager", "employee"];
+const forumRoles: UserRole[] = ["hr_manager", "project_manager", "employee"];
 
 function ForumRoute({ children }: { children: ReactElement }) {
+  const { user } = useAuth();
+
+  if (user?.role === "admin") {
+    return <Navigate to="/dashboard/forum/moderation" replace />;
+  }
+
   return <RoleRoute allowed={forumRoles}>{children}</RoleRoute>;
 }
 
 export const router = createBrowserRouter([
-  // ── Public routes ──────────────────────────────────────────────────────────
   {
     path: "/",
-    Component: LandingPage,
+    element: <Navigate to="/login" replace />,
   },
   {
     path: "/features",
@@ -100,12 +99,6 @@ export const router = createBrowserRouter([
     Component: Register,
   },
   {
-    path: "/jobs",
-    Component: CircularApply,
-  },
-
-  // ── Protected dashboard routes ─────────────────────────────────────────────
-  {
     path: "/dashboard",
     Component: ProtectedRoute,
     children: [
@@ -115,8 +108,8 @@ export const router = createBrowserRouter([
         children: [
           { index: true, Component: Dashboard },
           { path: "account-approvals", element: <RoleRoute allowed={["admin"]}><AccountApprovals /></RoleRoute> },
-          { path: "employees", element: <RoleRoute allowed={adminHr}><EmployeeManagement /></RoleRoute> },
-          { path: "employees/:id", element: <RoleRoute allowed={adminHr}><EmployeeProfile /></RoleRoute> },
+          { path: "employees", element: <RoleRoute allowed={["admin", "hr_manager", "project_manager"]}><EmployeeManagement /></RoleRoute> },
+          { path: "employees/:id", element: <RoleRoute allowed={["admin", "hr_manager", "project_manager"]}><EmployeeProfile /></RoleRoute> },
           { path: "onboarding", element: <RoleRoute allowed={adminHr}><Onboarding /></RoleRoute> },
           { path: "attendance", element: <RoleRoute allowed={allRoles}><Attendance /></RoleRoute> },
           { path: "leave", element: <RoleRoute allowed={allRoles}><LeaveManagement /></RoleRoute> },
@@ -133,22 +126,20 @@ export const router = createBrowserRouter([
           { path: "peer-review", element: <RoleRoute allowed={adminHr}><PeerReview /></RoleRoute> },
           { path: "my-peer-review", element: <RoleRoute allowed={["employee"]}><EmployeePeerReview /></RoleRoute> },
           { path: "cv-filter", element: <RoleRoute allowed={adminHr}><CVFilter /></RoleRoute> },
-          { path: "circular-apply", element: <RoleRoute allowed={allRoles}><CircularApply /></RoleRoute> },
-          { path: "project-management", element: <RoleRoute allowed={adminHr}><ProjectManagement /></RoleRoute> },
-          { path: "new-task", element: <RoleRoute allowed={adminHr}><NewTask /></RoleRoute> },
-          { path: "project-reports", element: <RoleRoute allowed={adminHr}><ProjectReports /></RoleRoute> },
-          { path: "project-history", element: <RoleRoute allowed={adminHr}><ProjectHistory /></RoleRoute> },
-          { path: "design-wbs", element: <RoleRoute allowed={adminHr}><DesignWBS /></RoleRoute> },
+          { path: "circular-apply", element: <RoleRoute allowed={["employee"]}><CircularApply /></RoleRoute> },
+          { path: "project-management", element: <RoleRoute allowed={projectManagers}><ProjectManagement /></RoleRoute> },
+          { path: "new-task", element: <RoleRoute allowed={projectManagers}><NewTask /></RoleRoute> },
+          { path: "project-reports", element: <RoleRoute allowed={projectManagers}><ProjectReports /></RoleRoute> },
+          { path: "project-history", element: <RoleRoute allowed={projectManagers}><ProjectHistory /></RoleRoute> },
+          { path: "design-wbs", element: <RoleRoute allowed={projectManagers}><DesignWBS /></RoleRoute> },
           { path: "design-system", element: <DevOnlyRoute><RoleRoute allowed={["admin"]}><DesignSystem /></RoleRoute></DevOnlyRoute> },
           { path: "profile", element: <RoleRoute allowed={allRoles}><Profile /></RoleRoute> },
         ],
       },
     ],
   },
-
-  // ── Catch-all ──────────────────────────────────────────────────────────────
   {
     path: "*",
-    element: <CatchAllRedirect />,
+    element: <Navigate to="/" replace />,
   },
 ]);

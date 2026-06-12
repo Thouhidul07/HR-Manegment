@@ -25,7 +25,7 @@ router.get("/posts/:id", [param("id").isInt({ min: 1 })], validate, getPost);
 
 router.post(
   "/posts",
-  authorize("employee", "admin", "hr_manager"),
+  authorize("employee", "hr_manager", "project_manager"),
   [
     body("title").trim().notEmpty(),
     body("content").trim().notEmpty(),
@@ -43,7 +43,7 @@ router.post(
 
 router.post(
   "/posts/:id/replies",
-  authorize("employee", "admin", "hr_manager"),
+  authorize("employee", "hr_manager", "project_manager"),
   [
     param("id").isInt({ min: 1 }),
     body("content").trim().notEmpty(),
@@ -96,7 +96,7 @@ router.delete(
 
 router.post(
   "/reactions",
-  authorize("employee", "admin", "hr_manager"),
+  authorize("employee", "hr_manager"),
   [
     body("targetType").isIn(["post", "reply"]),
     body("targetId").isInt({ min: 1 }),
@@ -108,7 +108,7 @@ router.post(
 
 router.post(
   "/reports",
-  authorize("employee", "admin", "hr_manager"),
+  authorize("employee", "hr_manager"),
   [
     body("targetType").isIn(["post", "reply"]),
     body("targetId").isInt({ min: 1 }),
@@ -120,11 +120,22 @@ router.post(
 );
 
 router.get("/reports", authorize("admin", "hr_manager"), listReports);
-router.get("/reports/:id/context", authorize("admin", "hr_manager"), [param("id").isInt({ min: 1 })], validate, getReportContext);
+
+router.get(
+  "/reports/:id/context",
+  authorize("admin", "hr_manager"),
+  [param("id").isInt({ min: 1 })],
+  validate,
+  getReportContext
+);
+
 router.patch(
   "/reports/:id",
   authorize("admin", "hr_manager"),
-  [param("id").isInt({ min: 1 }), body("action").isIn(["approve", "remove", "dismiss"])],
+  [
+    param("id").isInt({ min: 1 }),
+    body("action").isIn(["approve", "remove", "dismiss", "warn", "hide", "resolve"])
+  ],
   validate,
   moderateReport
 );

@@ -4,6 +4,7 @@ const { query } = require("../../config/database");
 const asyncHandler = require("../../utils/asyncHandler");
 const { ensureUserStatusWorkflow } = require("../../utils/userStatus");
 const { ensureDemoCompanyData, companyIdFromEmail } = require("../../utils/companyScope");
+const { logAudit } = require("../../utils/auditLogger");
 
 function signToken(user) {
   return jwt.sign(
@@ -95,20 +96,17 @@ const login = asyncHandler(async (req, res) => {
     company_name: users[0].company_name,
     company_domain: users[0].company_domain,
   };
-
-  const { logAudit } = require("../../utils/auditLogger");
   await logAudit({
     actorId: user.id,
     actorName: user.name,
     actorRole: user.role,
-    action: "login_success",
-    module: "auth",
-    entityType: "user",
+    action: "login",
+    module: "Authentication",
+    entityType: "user_session",
     entityId: user.id,
-    description: `User ${user.name} logged in successfully`,
-    ipAddress: req.ip
+    description: user.name + " logged in",
+    ipAddress: req.ip,
   });
-
   res.json({ user, token: signToken(user) });
 });
 
@@ -116,4 +114,19 @@ const me = asyncHandler(async (req, res) => {
   res.json({ user: req.user });
 });
 
-module.exports = { register, login, me };
+const logout = asyncHandler(async (req, res) => {
+  await logAudit({
+    actorId: req.user.id,
+    actorName: req.user.name,
+    actorRole: req.user.role,
+    action: "logout",
+    module: "Authentication",
+    entityType: "user_session",
+    entityId: req.user.id,
+    description: req.user.name + " logged out",
+    ipAddress: req.ip,
+  });
+  res.json({ message: "Logged out" });
+});
+
+module.exports = { register, login, logout, me };

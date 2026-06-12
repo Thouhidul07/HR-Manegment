@@ -157,7 +157,7 @@ export function Features() {
         <div className="max-w-7xl mx-auto">
           <Link to="/" className="inline-flex items-center gap-2 text-white/90 hover:text-white mb-8 transition-colors">
             <ArrowLeft className="w-4 h-4" />
-            Back to homepage
+            Back to Home
           </Link>
           <motion.div
             initial={{ opacity: 0, y: 20 }}

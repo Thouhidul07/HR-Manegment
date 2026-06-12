@@ -11,7 +11,7 @@ const listTasks = asyncHandler(async (req, res) => {
   let where = ["t.company_id = ?"];
   let params = [req.user.company_id];
 
-  if (req.user.role === 'employee') {
+  if (["employee", "project_manager"].includes(req.user.role)) {
     where.push("(t.assigned_to = ? OR t.assigned_by = ?)");
     params.push(req.user.id, req.user.id);
   } else if (assignedTo) {
@@ -68,7 +68,7 @@ const getTasksSummary = asyncHandler(async (req, res) => {
   let where = ["company_id = ?"];
   let params = [req.user.company_id];
 
-  if (req.user.role === 'employee') {
+  if (["employee", "project_manager"].includes(req.user.role)) {
     where.push("(assigned_to = ? OR assigned_by = ?)");
     params.push(req.user.id, req.user.id);
   }
@@ -102,7 +102,7 @@ const createTask = asyncHandler(async (req, res) => {
   const { title, description, category, priority, status, assignedTo, dueDate } = req.body;
   let targetAssignedTo = assignedTo;
 
-  if (req.user.role === 'employee') {
+  if (["employee", "project_manager"].includes(req.user.role)) {
     targetAssignedTo = req.user.id;
   } else {
     if (!targetAssignedTo) {
@@ -164,7 +164,7 @@ const updateTask = asyncHandler(async (req, res) => {
   const task = existing[0];
   let targetAssignedTo = task.assigned_to;
 
-  if (req.user.role === 'employee') {
+  if (["employee", "project_manager"].includes(req.user.role)) {
     if (task.assigned_to !== req.user.id && task.assigned_by !== req.user.id) {
       return res.status(403).json({ message: "You do not have permission to update this task" });
     }
@@ -237,7 +237,7 @@ const updateTaskStatus = asyncHandler(async (req, res) => {
   }
 
   const task = existing[0];
-  if (req.user.role === 'employee') {
+  if (["employee", "project_manager"].includes(req.user.role)) {
     if (task.assigned_to !== req.user.id && task.assigned_by !== req.user.id) {
       return res.status(403).json({ message: "You do not have permission to update this task status" });
     }
@@ -285,7 +285,7 @@ const deleteTask = asyncHandler(async (req, res) => {
   }
 
   const task = existing[0];
-  if (req.user.role === 'employee') {
+  if (["employee", "project_manager"].includes(req.user.role)) {
     if (task.assigned_by !== req.user.id) {
       return res.status(403).json({ message: "You can only delete self-created tasks" });
     }

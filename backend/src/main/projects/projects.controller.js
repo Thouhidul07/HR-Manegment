@@ -1,5 +1,21 @@
 const { query } = require("../../config/database");
 const asyncHandler = require("../../utils/asyncHandler");
+const { logAudit } = require("../../utils/auditLogger");
+
+function auditFromRequest(req, action, entityType, entityId, description, metadata = {}) {
+  return logAudit({
+    actorId: req.user.id,
+    actorName: req.user.name,
+    actorRole: req.user.role,
+    action,
+    module: "Project Management",
+    entityType,
+    entityId,
+    description,
+    metadata,
+    ipAddress: req.ip,
+  });
+}
 
 async function ensureProjectTasksTable() {
   await query(`
@@ -11,7 +27,6 @@ async function ensureProjectTasksTable() {
       priority ENUM('low', 'medium', 'high', 'urgent') NOT NULL DEFAULT 'medium',
       assignee VARCHAR(120) NOT NULL,
       assignee_avatar VARCHAR(8),
-      assigned_to INT,
       deadline DATE NOT NULL,
       project VARCHAR(120) NOT NULL,
       tags TEXT,
@@ -19,14 +34,9 @@ async function ensureProjectTasksTable() {
       comments INT NOT NULL DEFAULT 0,
       attachments INT NOT NULL DEFAULT 0,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )
   `);
-  // Migrate: add assigned_to column if it doesn't exist yet
-  try {
-    await query(`ALTER TABLE project_tasks ADD COLUMN IF NOT EXISTS assigned_to INT`);
-  } catch (_) {}
 }
 
 async function ensureProjectManagementTables() {
@@ -78,6 +88,20 @@ async function ensureProjectManagementTables() {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
     )
   `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS work_breakdown_structures (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      project_id INT NOT NULL,
+      title VARCHAR(180) NOT NULL,
+      description TEXT,
+      nodes_json JSON NOT NULL,
+      created_by INT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    )
+  `);
 }
 
 async function seedProjectsFromTasks() {
@@ -101,46 +125,23 @@ async function seedProjectTasksIfEmpty() {
     return;
   }
 
-  // Look up real users so we never store fake names
-  const [users] = await query(
-    "SELECT id, name, role FROM users WHERE role IN ('employee','hr_manager') ORDER BY id ASC LIMIT 10"
-  );
-
-  function pickUser(index) {
-    if (!users.length) return { id: null, name: 'Unassigned', avatar: 'UN' };
-    const u = users[index % users.length];
-    const av = u.name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase();
-    return { id: u.id, name: u.name, avatar: av };
-  }
-
-  const u0 = pickUser(0); // Employee 01
-  const u1 = pickUser(1); // Employee 02
-  const u2 = pickUser(2); // Employee 03
-  const u3 = pickUser(3); // Employee 04
-  const u4 = pickUser(4); // Employee 05
-
   const seedTasks = [
-    ["Design Work Assignment Dashboard",   "Create high-fidelity mockups for the work assignment dashboard",     "in-progress", "high",   u0.name, u0.avatar, u0.id, "HR Portal Upgrade",    ["Design",      "UI/UX"],         null, 3, 2],
-    ["Implement Leave Request API",         "Build leave request endpoints with notification support",             "in-progress", "urgent", u1.name, u1.avatar, u1.id, "HR Portal Upgrade",    ["Backend",     "HR Module"],     null, 5, 1],
-    ["Employee Onboarding Module",          "Build employee onboarding workflow and checklist",                    "todo",        "medium", u2.name, u2.avatar, u2.id, "HR Portal Upgrade",    ["Frontend",    "Onboarding"],    null, 1, 0],
-    ["Payroll Integration",                 "Connect payroll system with attendance and leave data",               "in-review",   "high",   u3.name, u3.avatar, u3.id, "Finance Operations",   ["Finance",     "Integration"],   null, 2, 1],
-    ["Performance Review Workflow",         "Set up quarterly performance review workflow for all employees",      "todo",        "medium", u4.name, u4.avatar, u4.id, "Finance Operations",   ["HR",          "Performance"],   null, 0, 0],
-    ["Attendance Report Automation",        "Automate monthly attendance reports and email delivery",              "completed",   "low",    u0.name, u0.avatar, u0.id, "Finance Operations",   ["Automation",  "Reporting"],     null, 4, 3],
-    ["Training Schedule Coordination",      "Coordinate and publish Q3 training schedule for all departments",    "in-progress", "high",   u1.name, u1.avatar, u1.id, "HR Portal Upgrade",    ["Training",    "Coordination"],  null, 2, 1],
-    ["Expense Claim Digitisation",          "Move expense claim process from paper to digital platform",           "todo",        "low",    u2.name, u2.avatar, u2.id, "Finance Operations",   ["Finance",     "Digitisation"],  null, 0, 0],
+    ["Design Homepage Mockup", "Create high-fidelity mockups for the new homepage design", "in-progress", "high", "Emily Rodriguez", "ER", "2026-06-05", "Website Redesign", ["Design", "UI/UX"], null, 3, 2],
+    ["Implement Authentication API", "Build JWT-based authentication endpoints with refresh token support", "in-progress", "urgent", "Michael Chen", "MC", "2026-06-03", "User Portal", ["Backend", "Security"], null, 5, 1],
+    ["Create Component Library", "Build reusable React components following design system", "todo", "medium", "Sarah Johnson", "SJ", "2026-06-10", "Website Redesign", ["Frontend", "React"], null, 1, 0],
+    ["Database Schema Migration", "Update database schema for new user role permissions", "in-review", "high", "David Kim", "DK", "2026-06-02", "User Portal", ["Database", "Backend"], null, 2, 1],
+    ["E2E Testing Suite", "Set up end-to-end testing with Cypress for critical user flows", "todo", "medium", "Jessica Martinez", "JM", "2026-06-12", "User Portal", ["Testing", "QA"], null, 0, 0],
+    ["Landing Page Optimization", "Improve performance and SEO for landing page", "completed", "low", "Sarah Johnson", "SJ", "2026-05-30", "Website Redesign", ["Frontend", "Performance"], null, 4, 3],
+    ["Mobile Responsive Design", "Ensure all pages are mobile-friendly and responsive", "in-progress", "high", "Emily Rodriguez", "ER", "2026-06-07", "Website Redesign", ["Design", "Mobile"], null, 2, 1],
+    ["API Documentation", "Write comprehensive API documentation with examples", "todo", "low", "Michael Chen", "MC", "2026-06-15", "User Portal", ["Documentation", "Backend"], null, 0, 0],
   ];
 
   for (const task of seedTasks) {
     await query(
       `INSERT INTO project_tasks
-        (title, description, status, priority, assignee, assignee_avatar, assigned_to, deadline, project, tags, estimated_hours, comments, attachments)
-       VALUES (?, ?, ?, ?, ?, ?, ?, DATE_ADD(CURDATE(), INTERVAL ? DAY), ?, ?, ?, ?, ?)`,
-      [
-        task[0], task[1], task[2], task[3], task[4], task[5], task[6],
-        // deadline offset in days based on index
-        seedTasks.indexOf(task) * 3 - 5,
-        task[8], JSON.stringify(task[9]), task[10], task[11], task[12]
-      ]
+        (title, description, status, priority, assignee, assignee_avatar, deadline, project, tags, estimated_hours, comments, attachments)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [task[0], task[1], task[2], task[3], task[4], task[5], task[6], task[7], JSON.stringify(task[8]), task[9], task[10], task[11]]
     );
   }
 }
@@ -161,9 +162,8 @@ function mapTask(row) {
     description: row.description,
     status: row.status,
     priority: row.priority,
-    assignee: row.assignee_name || row.assignee,
-    assigneeAvatar: row.assignee_avatar || initials(row.assignee_name || row.assignee || 'UN'),
-    assignedTo: row.assigned_to || null,
+    assignee: row.assignee,
+    assigneeAvatar: row.assignee_avatar || initials(row.assignee),
     deadline: row.deadline,
     createdDate: row.created_at,
     tags: row.tags ? JSON.parse(row.tags) : [],
@@ -237,255 +237,225 @@ const createProject = asyncHandler(async (req, res) => {
     [result.insertId]
   );
 
+  await auditFromRequest(req, "project_created", "project", result.insertId, "Created project " + req.body.name);
   res.status(201).json({ project: mapProject(rows[0]) });
+});
+
+const updateProject = asyncHandler(async (req, res) => {
+  await ensureProjectManagementTables();
+  const fields = [];
+  const params = [];
+  const allowed = {
+    name: "name",
+    description: "description",
+    ownerId: "owner_id",
+    status: "status",
+    startDate: "start_date",
+    endDate: "end_date",
+  };
+
+  for (const [key, column] of Object.entries(allowed)) {
+    if (req.body[key] !== undefined) {
+      fields.push(`${column} = ?`);
+      params.push(req.body[key] || null);
+    }
+  }
+
+  if (!fields.length) return res.status(400).json({ message: "No project updates provided" });
+
+  params.push(req.params.id);
+  const [result] = await query(`UPDATE projects SET ${fields.join(", ")} WHERE id = ?`, params);
+  if (!result.affectedRows) return res.status(404).json({ message: "Project not found" });
+
+  const [rows] = await query(
+    `SELECT p.*, owner.name AS owner_name, 0 AS members, 0 AS milestones,
+            (SELECT COUNT(*) FROM project_tasks pt WHERE pt.project = p.name) AS tasks,
+            (SELECT COUNT(*) FROM project_tasks pt WHERE pt.project = p.name AND pt.status = 'completed') AS completed_tasks
+     FROM projects p LEFT JOIN users owner ON owner.id = p.owner_id WHERE p.id = ?`,
+    [req.params.id]
+  );
+  await auditFromRequest(req, "project_updated", "project", req.params.id, "Updated project " + rows[0].name, { fields: Object.keys(req.body) });
+  res.json({ project: mapProject(rows[0]) });
+});
+
+const deleteProject = asyncHandler(async (req, res) => {
+  await ensureProjectManagementTables();
+  const [projects] = await query("SELECT name FROM projects WHERE id = ?", [req.params.id]);
+  if (!projects.length) return res.status(404).json({ message: "Project not found" });
+
+  await query("DELETE FROM project_tasks WHERE project = ?", [projects[0].name]);
+  await query("DELETE FROM projects WHERE id = ?", [req.params.id]);
+  await auditFromRequest(req, "project_deleted", "project", req.params.id, "Deleted project " + projects[0].name);
+  res.json({ message: "Project deleted" });
 });
 
 const listTasks = asyncHandler(async (req, res) => {
   await ensureProjectTasksTable();
   await seedProjectTasksIfEmpty();
-  // Join users to get real names for assigned_to
-  const [tasks] = await query(`
-    SELECT pt.*, u.name AS assignee_name
-    FROM project_tasks pt
-    LEFT JOIN users u ON u.id = pt.assigned_to
-    ORDER BY pt.created_at DESC
-  `);
+  const [tasks] = await query("SELECT * FROM project_tasks ORDER BY created_at DESC");
   res.json({ tasks: tasks.map(mapTask) });
 });
 
 const getProjectStats = asyncHandler(async (req, res) => {
   await ensureProjectTasksTable();
-  const { dateRange, project } = req.query;
-
-  // Build the WHERE clause based on filters
-  let whereClauses = [];
-  let params = [];
-
-  if (project && project !== 'all') {
-    whereClauses.push('project = ?');
-    params.push(project);
-  }
-
-  // Parse dateRange and filter by created_at
-  if (dateRange) {
-    const now = new Date();
-    let startDate;
-    if (dateRange === 'last-7-days') {
-      startDate = new Date(now.setDate(now.getDate() - 7));
-    } else if (dateRange === 'last-30-days') {
-      startDate = new Date(now.setDate(now.getDate() - 30));
-    } else if (dateRange === 'last-90-days') {
-      startDate = new Date(now.setDate(now.getDate() - 90));
-    } else if (dateRange === 'this-month') {
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-    } else if (dateRange === 'last-month') {
-      startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const endDate = new Date(now.getFullYear(), now.getMonth(), 0);
-      whereClauses.push('created_at <= ?');
-      params.push(endDate);
-    } else if (dateRange === 'this-quarter') {
-      const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
-      startDate = new Date(now.getFullYear(), quarterStartMonth, 1);
-    }
-
-    if (startDate) {
-      whereClauses.push('created_at >= ?');
-      params.push(startDate);
-    }
-  }
-
-  const whereSql = whereClauses.length ? `WHERE ${whereClauses.join(' AND ')}` : '';
-
-  // 1. Fetch filtered tasks joined with users for real names
-  const [tasks] = await query(
-    `SELECT pt.*, u.name AS assignee_name
-     FROM project_tasks pt
-     LEFT JOIN users u ON u.id = pt.assigned_to
-     ${whereSql}
-     ORDER BY pt.created_at ASC`,
-    params
+  const [statusRows] = await query(
+    `SELECT status, COUNT(*) AS total
+     FROM project_tasks
+     GROUP BY status`
+  );
+  const [projectRows] = await query(
+    `SELECT project,
+      COUNT(*) AS total,
+      SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed,
+      SUM(CASE WHEN deadline < CURDATE() AND status <> 'completed' THEN 1 ELSE 0 END) AS overdue
+     FROM project_tasks
+     GROUP BY project
+     ORDER BY project`
   );
 
-
-  // 2. Fetch all unique project names to populate filter
-  const [projectNames] = await query('SELECT DISTINCT project FROM project_tasks');
-  const projectList = ['all', ...projectNames.map(p => p.project)];
-
-  // Compute key stats
-  const totalTasks = tasks.length;
-  const completed = tasks.filter(t => t.status === 'completed').length;
-  const inProgress = tasks.filter(t => t.status === 'in-progress').length;
-  const overdue = tasks.filter(t => new Date(t.deadline) < new Date() && t.status !== 'completed').length;
-
-  // Avg completion time
-  // Calculate average DATEDIFF between updated_at and created_at for completed tasks
-  const completedTasks = tasks.filter(t => t.status === 'completed');
-  let avgCompletionDays = 0;
-  if (completedTasks.length > 0) {
-    const totalDiff = completedTasks.reduce((sum, t) => {
-      const created = new Date(t.created_at);
-      const updated = new Date(t.updated_at);
-      const diffTime = Math.abs(updated - created);
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      return sum + diffDays;
-    }, 0);
-    avgCompletionDays = (totalDiff / completedTasks.length).toFixed(1);
-  } else {
-    avgCompletionDays = 0;
-  }
-
-  // Velocity (tasks completed per developer)
-  const developers = new Set(tasks.map(t => t.assignee)).size || 1;
-  const velocity = totalTasks > 0 ? (completed / developers).toFixed(1) : 0;
-
-  // Task distribution by project
-  const distributionMap = {};
-  tasks.forEach(t => {
-    distributionMap[t.project] = (distributionMap[t.project] || 0) + 1;
+  res.json({
+    byStatus: statusRows.reduce((stats, row) => {
+      stats[row.status] = Number(row.total);
+      return stats;
+    }, {}),
+    projects: projectRows.map((row) => ({
+      name: row.project,
+      total: Number(row.total),
+      completed: Number(row.completed || 0),
+      overdue: Number(row.overdue || 0),
+    })),
   });
-  const colors = ['#543884', '#9A77CF', '#EC4176', '#FFA45E', '#00C853', '#2196F3'];
-  const projectDistribution = Object.entries(distributionMap).map(([name, val], index) => ({
-    name,
-    value: val,
-    color: colors[index % colors.length]
-  }));
+});
 
-  // Priority breakdown
-  const priorityMap = { urgent: 0, high: 0, medium: 0, low: 0 };
-  tasks.forEach(t => {
-    if (priorityMap[t.priority] !== undefined) {
-      priorityMap[t.priority]++;
-    }
-  });
-  const priorityColors = {
-    urgent: '#EC4176',
-    high: '#FFA45E',
-    medium: '#9A77CF',
-    low: '#543884'
-  };
-  const priorityBreakdown = Object.entries(priorityMap).map(([priority, count]) => ({
-    priority: priority.charAt(0).toUpperCase() + priority.slice(1),
-    count,
-    color: priorityColors[priority]
-  }));
+const getAdminOverview = asyncHandler(async (req, res) => {
+  await ensureProjectTasksTable();
+  await seedProjectTasksIfEmpty();
+  await seedProjectsFromTasks();
 
-  // Team performance – join users so we get real names via assigned_to
-  const teamMap = {};
-  tasks.forEach(t => {
-    const displayName = t.assignee_name || t.assignee || 'Unassigned';
-    if (!teamMap[displayName]) {
-      teamMap[displayName] = { name: displayName, completed: 0, pending: 0 };
-    }
-    if (t.status === 'completed') {
-      teamMap[displayName].completed++;
-    } else {
-      teamMap[displayName].pending++;
-    }
-  });
-
-  const teamPerformance = Object.values(teamMap).map((m) => {
-    const total = m.completed + m.pending;
-    const efficiency = total > 0 ? Math.round((m.completed / total) * 100) : 85;
-    return {
-      name: m.name,
-      completed: m.completed,
-      pending: m.pending,
-      efficiency: efficiency || 85
-    };
-  });
-
-  // Sprint Velocity
-  const velocityData = [
-    { week: 'Week 1', planned: Math.max(1, Math.round(totalTasks * 0.4)), completed: Math.max(0, Math.round(completed * 0.3)) },
-    { week: 'Week 2', planned: Math.max(2, Math.round(totalTasks * 0.6)), completed: Math.max(0, Math.round(completed * 0.5)) },
-    { week: 'Week 3', planned: Math.max(3, Math.round(totalTasks * 0.8)), completed: Math.max(1, Math.round(completed * 0.8)) },
-    { week: 'Week 4', planned: totalTasks, completed: completed }
-  ];
-
-  // Task Completion Trend over the range
-  const taskCompletionData = [];
-  const intervals = 5;
-  const rangeDays = dateRange === 'last-7-days' ? 7 : (dateRange === 'last-90-days' ? 90 : 30);
-  const step = Math.round(rangeDays / (intervals - 1));
-
-  for (let i = 0; i < intervals; i++) {
-    const d = new Date();
-    d.setDate(d.getDate() - (rangeDays - i * step));
-    const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-
-    const ratio = (i + 1) / intervals;
-    const itemCompleted = Math.round(completed * ratio);
-    const itemInProgress = Math.round(inProgress * ratio);
-    const itemTodo = Math.round((totalTasks - completed - inProgress) * ratio);
-
-    taskCompletionData.push({
-      date: dateStr,
-      completed: itemCompleted,
-      inProgress: itemInProgress,
-      todo: itemTodo
-    });
-  }
-
-  // Generate Insights dynamically
-  const insights = [];
-  if (completed > 0) {
-    insights.push({
-      type: 'productivity',
-      title: 'Team Productivity Stable',
-      desc: `Your team completed ${completed} task(s) during this period. Keep up the momentum!`,
-      icon: 'TrendingUp',
-      color: 'green'
-    });
-  }
-  if (totalTasks > 0) {
-    const rate = Math.round((completed / totalTasks) * 100);
-    insights.push({
-      type: 'sprint',
-      title: `${rate}% Task Completion Rate`,
-      desc: `Current metrics show a task completion rate of ${rate}% across all current tasks.`,
-      icon: 'Target',
-      color: 'blue'
-    });
-  }
-  if (overdue > 0) {
-    insights.push({
-      type: 'overdue',
-      title: `${overdue} Task(s) Overdue`,
-      desc: 'Consider reviewing task assignments and deadlines to prevent project delays.',
-      icon: 'AlertCircle',
-      color: 'orange'
-    });
-  }
-  if (teamPerformance.length > 0) {
-    const top = teamPerformance.reduce((prev, current) => (prev.completed > current.completed) ? prev : current, teamPerformance[0]);
-    if (top && top.completed > 0) {
-      insights.push({
-        type: 'performer',
-        title: `${top.name} - Top Performer`,
-        desc: `Completed ${top.completed} task(s) with an efficiency rating of ${top.efficiency}%.`,
-        icon: 'Users',
-        color: 'purple'
-      });
-    }
-  }
+  const [[projectCounts], [overdueRows], [activityRows], [managerRows]] = await Promise.all([
+    query(`SELECT COUNT(*) AS total,
+                  SUM(status = 'active') AS active,
+                  SUM(status = 'completed') AS completed
+           FROM projects`),
+    query("SELECT COUNT(*) AS overdue FROM project_tasks WHERE deadline < CURDATE() AND status <> 'completed'"),
+    query(`SELECT id, title, project, status, updated_at
+           FROM project_tasks ORDER BY updated_at DESC LIMIT 6`),
+    query(`SELECT u.id, u.name, u.email,
+                  COUNT(DISTINCT p.id) AS projects,
+                  COUNT(DISTINCT CASE WHEN p.status = 'active' THEN p.id END) AS active_projects
+           FROM users u
+           LEFT JOIN projects p ON p.owner_id = u.id
+           WHERE u.role = 'project_manager' AND u.status = 'active'
+           GROUP BY u.id, u.name, u.email ORDER BY u.name`),
+  ]);
 
   res.json({
-    projects: projectList,
-    stats: {
-      totalTasks,
-      completed,
-      inProgress,
-      overdue,
-      teamVelocity: velocity,
-      avgCompletionTime: `${avgCompletionDays} days`
-    },
-    taskCompletionData,
-    projectDistribution,
-    teamPerformance,
-    velocityData,
-    priorityBreakdown,
-    insights
+    totalProjects: Number(projectCounts[0]?.total || 0),
+    activeProjects: Number(projectCounts[0]?.active || 0),
+    completedProjects: Number(projectCounts[0]?.completed || 0),
+    overdueTasks: Number(overdueRows[0]?.overdue || 0),
+    recentActivity: activityRows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      project: row.project,
+      status: row.status,
+      updatedAt: row.updated_at,
+    })),
+    projectManagers: managerRows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      email: row.email,
+      projects: Number(row.projects || 0),
+      activeProjects: Number(row.active_projects || 0),
+    })),
   });
+});
+
+const getProjectHistory = asyncHandler(async (req, res) => {
+  await ensureProjectTasksTable();
+  await seedProjectsFromTasks();
+  const [projects] = await query(
+    `SELECT p.*, owner.name AS owner_name,
+            COUNT(pt.id) AS tasks,
+            SUM(pt.status = 'completed') AS completed_tasks,
+            SUM(pt.deadline < CURDATE() AND pt.status <> 'completed') AS overdue_tasks,
+            GREATEST(p.updated_at, COALESCE(MAX(pt.updated_at), p.updated_at)) AS last_activity
+     FROM projects p
+     LEFT JOIN users owner ON owner.id = p.owner_id
+     LEFT JOIN project_tasks pt ON pt.project = p.name
+     GROUP BY p.id
+     ORDER BY last_activity DESC`
+  );
+  res.json({ projects: projects.map((row) => ({
+    ...mapProject({ ...row, members: 0, milestones: 0 }),
+    overdueTasks: Number(row.overdue_tasks || 0),
+    lastActivity: row.last_activity,
+  })) });
+});
+
+function mapWbs(row) {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    projectName: row.project_name,
+    title: row.title,
+    description: row.description || "",
+    nodes: typeof row.nodes_json === "string" ? JSON.parse(row.nodes_json) : row.nodes_json,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+const listWBS = asyncHandler(async (req, res) => {
+  await ensureProjectManagementTables();
+  const [rows] = await query(
+    `SELECT w.*, p.name AS project_name FROM work_breakdown_structures w
+     JOIN projects p ON p.id = w.project_id ORDER BY w.updated_at DESC`
+  );
+  res.json({ workBreakdownStructures: rows.map(mapWbs) });
+});
+
+const getWBSById = asyncHandler(async (req, res) => {
+  await ensureProjectManagementTables();
+  const [rows] = await query(
+    `SELECT w.*, p.name AS project_name FROM work_breakdown_structures w
+     JOIN projects p ON p.id = w.project_id WHERE w.id = ?`,
+    [req.params.id]
+  );
+  if (!rows.length) return res.status(404).json({ message: "WBS not found" });
+  res.json({ workBreakdownStructure: mapWbs(rows[0]) });
+});
+
+const createWBS = asyncHandler(async (req, res) => {
+  await ensureProjectManagementTables();
+  const [result] = await query(
+    `INSERT INTO work_breakdown_structures (project_id, title, description, nodes_json, created_by)
+     VALUES (?, ?, ?, ?, ?)`,
+    [req.body.projectId, req.body.title, req.body.description || null, JSON.stringify(req.body.nodes), req.user.id]
+  );
+  await auditFromRequest(req, "wbs_created", "wbs", result.insertId, "Created WBS " + req.body.title, { projectId: req.body.projectId });
+  req.params.id = result.insertId;
+  return getWBSById(req, res);
+});
+
+const updateWBS = asyncHandler(async (req, res) => {
+  await ensureProjectManagementTables();
+  const [result] = await query(
+    `UPDATE work_breakdown_structures
+     SET project_id = ?, title = ?, description = ?, nodes_json = ? WHERE id = ?`,
+    [req.body.projectId, req.body.title, req.body.description || null, JSON.stringify(req.body.nodes), req.params.id]
+  );
+  if (!result.affectedRows) return res.status(404).json({ message: "WBS not found" });
+  await auditFromRequest(req, "wbs_updated", "wbs", req.params.id, "Updated WBS " + req.body.title, { projectId: req.body.projectId });
+  return getWBSById(req, res);
+});
+
+const deleteWBS = asyncHandler(async (req, res) => {
+  await ensureProjectManagementTables();
+  const [result] = await query("DELETE FROM work_breakdown_structures WHERE id = ?", [req.params.id]);
+  if (!result.affectedRows) return res.status(404).json({ message: "WBS not found" });
+  await auditFromRequest(req, "wbs_deleted", "wbs", req.params.id, "Deleted WBS");
+  res.json({ message: "WBS deleted" });
 });
 
 const createTask = asyncHandler(async (req, res) => {
@@ -510,6 +480,7 @@ const createTask = asyncHandler(async (req, res) => {
   );
 
   const [rows] = await query("SELECT * FROM project_tasks WHERE id = ?", [result.insertId]);
+  await auditFromRequest(req, "project_task_created", "project_task", result.insertId, "Created project task " + req.body.title, { project: req.body.project });
   res.status(201).json({ task: mapTask(rows[0]) });
 });
 
@@ -553,6 +524,7 @@ const updateTask = asyncHandler(async (req, res) => {
   }
 
   const [rows] = await query("SELECT * FROM project_tasks WHERE id = ?", [req.params.id]);
+  await auditFromRequest(req, "project_task_updated", "project_task", req.params.id, "Updated project task " + rows[0].title, { fields: Object.keys(req.body) });
   res.json({ task: mapTask(rows[0]) });
 });
 
@@ -564,331 +536,16 @@ const deleteTask = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: "Task not found" });
   }
 
+  await auditFromRequest(req, "project_task_deleted", "project_task", req.params.id, "Deleted project task");
   res.json({ message: "Task deleted" });
 });
 
-const getProjectHistory = asyncHandler(async (req, res) => {
-  await ensureProjectTasksTable();
-  await ensureProjectManagementTables();
-
-  const { status, project, dateRange, assignee, priority } = req.query;
-
-  // Query completed projects
-  let [projects] = await query(`
-    SELECT p.*, owner.name AS owner_name
-    FROM projects p
-    LEFT JOIN users owner ON owner.id = p.owner_id
-    WHERE p.status = 'completed'
-    ORDER BY p.updated_at DESC
-  `);
-
-  // Query completed tasks
-  let [tasks] = await query(`
-    SELECT *
-    FROM project_tasks
-    WHERE status = 'completed'
-    ORDER BY updated_at DESC
-  `);
-
-  // Map to historical items
-  let projectItems = projects.map(p => ({
-    id: p.id,
-    type: 'project',
-    title: p.name,
-    status: p.status,
-    priority: 'medium',
-    assigneeName: p.owner_name || 'System',
-    startDate: p.start_date || p.created_at,
-    completedDate: p.end_date || p.updated_at,
-    updatedAt: p.updated_at,
-    projectName: p.name,
-    description: p.description || 'No description provided.'
-  }));
-
-  let taskItems = tasks.map(t => ({
-    id: t.id,
-    type: 'task',
-    title: t.title,
-    status: t.status,
-    priority: t.priority,
-    assigneeName: t.assignee,
-    startDate: t.created_at,
-    completedDate: t.deadline || t.updated_at,
-    updatedAt: t.updated_at,
-    projectName: t.project,
-    description: t.description || 'No description provided.'
-  }));
-
-  let allItems = [...projectItems, ...taskItems];
-
-  // Apply filters in JavaScript
-  if (project && project !== 'all') {
-    allItems = allItems.filter(item => {
-      if (item.type === 'project') {
-        return item.title.toLowerCase().includes(project.toLowerCase());
-      } else {
-        return item.projectName && item.projectName.toLowerCase() === project.toLowerCase();
-      }
-    });
-  }
-
-  if (assignee && assignee !== 'all') {
-    allItems = allItems.filter(item => 
-      item.assigneeName.toLowerCase().includes(assignee.toLowerCase())
-    );
-  }
-
-  if (priority && priority !== 'all') {
-    allItems = allItems.filter(item => {
-      if (item.type === 'task') {
-        return item.priority === priority;
-      }
-      return false;
-    });
-  }
-
-  if (status && status !== 'all') {
-    allItems = allItems.filter(item => item.status === status);
-  }
-
-  if (dateRange) {
-    const now = new Date();
-    let startDate;
-    if (dateRange === 'last-7-days') {
-      startDate = new Date(now.setDate(now.getDate() - 7));
-    } else if (dateRange === 'last-30-days') {
-      startDate = new Date(now.setDate(now.getDate() - 30));
-    } else if (dateRange === 'last-90-days') {
-      startDate = new Date(now.setDate(now.getDate() - 90));
-    } else if (dateRange === 'this-month') {
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-    } else if (dateRange === 'last-month') {
-      startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const endDate = new Date(now.getFullYear(), now.getMonth(), 0);
-      allItems = allItems.filter(item => {
-        const compDate = new Date(item.completedDate);
-        return compDate >= startDate && compDate <= endDate;
-      });
-    } else if (dateRange === 'this-quarter') {
-      const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
-      startDate = new Date(now.getFullYear(), quarterStartMonth, 1);
-    }
-
-    if (startDate && dateRange !== 'last-month') {
-      allItems = allItems.filter(item => {
-        const compDate = new Date(item.completedDate);
-        return compDate >= startDate;
-      });
-    }
-  }
-
-  // Sort latest completed items first
-  allItems.sort((a, b) => new Date(b.completedDate).getTime() - new Date(a.completedDate).getTime());
-
-  // Calculate summary statistics
-  const totalHistoryItems = allItems.length;
-  const completedProjects = allItems.filter(i => i.type === 'project').length;
-  const completedTasks = allItems.filter(i => i.type === 'task').length;
-  const archivedItems = 0;
-
-  res.json({
-    success: true,
-    data: {
-      summary: {
-        totalHistoryItems,
-        completedProjects,
-        completedTasks,
-        archivedItems
-      },
-      items: allItems
-    }
-  });
-});
-
-async function ensureWbsTable() {
-  await query(`
-    CREATE TABLE IF NOT EXISTS work_breakdown_structures (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      project_id INT NOT NULL,
-      title VARCHAR(180) NOT NULL,
-      description TEXT,
-      nodes_json JSON NOT NULL,
-      created_by INT,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
-    )
-  `);
-}
-
-const listWBS = asyncHandler(async (req, res) => {
-  await ensureWbsTable();
-  const [rows] = await query(`
-    SELECT w.*, p.name AS project_name, u.name AS creator_name
-    FROM work_breakdown_structures w
-    LEFT JOIN projects p ON p.id = w.project_id
-    LEFT JOIN users u ON u.id = w.created_by
-    ORDER BY w.created_at DESC
-  `);
-
-  const items = rows.map(row => ({
-    id: row.id,
-    projectId: row.project_id,
-    projectName: row.project_name || 'Unknown Project',
-    title: row.title,
-    description: row.description || '',
-    nodes: typeof row.nodes_json === 'string' ? JSON.parse(row.nodes_json) : row.nodes_json,
-    createdBy: row.creator_name || 'System',
-    createdAt: row.created_at,
-    updatedAt: row.updated_at
-  }));
-
-  res.json({ success: true, data: items });
-});
-
-const getWBSById = asyncHandler(async (req, res) => {
-  await ensureWbsTable();
-  const [rows] = await query(`
-    SELECT w.*, p.name AS project_name, u.name AS creator_name
-    FROM work_breakdown_structures w
-    LEFT JOIN projects p ON p.id = w.project_id
-    LEFT JOIN users u ON u.id = w.created_by
-    WHERE w.id = ?
-  `, [req.params.id]);
-
-  if (!rows.length) {
-    return res.status(404).json({ success: false, message: "WBS not found" });
-  }
-
-  const row = rows[0];
-  const item = {
-    id: row.id,
-    projectId: row.project_id,
-    projectName: row.project_name || 'Unknown Project',
-    title: row.title,
-    description: row.description || '',
-    nodes: typeof row.nodes_json === 'string' ? JSON.parse(row.nodes_json) : row.nodes_json,
-    createdBy: row.creator_name || 'System',
-    createdAt: row.created_at,
-    updatedAt: row.updated_at
-  };
-
-  res.json({ success: true, data: item });
-});
-
-const createWBS = asyncHandler(async (req, res) => {
-  await ensureWbsTable();
-  const { projectId, title, description, nodes } = req.body;
-
-  if (!title || !projectId || !nodes) {
-    return res.status(400).json({ success: false, message: "Title, projectId, and nodes are required" });
-  }
-
-  const nodesStr = typeof nodes === 'string' ? nodes : JSON.stringify(nodes);
-
-  const [result] = await query(`
-    INSERT INTO work_breakdown_structures (project_id, title, description, nodes_json, created_by)
-    VALUES (?, ?, ?, ?, ?)
-  `, [projectId, title, description || null, nodesStr, req.user.id]);
-
-  const [rows] = await query(`
-    SELECT w.*, p.name AS project_name, u.name AS creator_name
-    FROM work_breakdown_structures w
-    LEFT JOIN projects p ON p.id = w.project_id
-    LEFT JOIN users u ON u.id = w.created_by
-    WHERE w.id = ?
-  `, [result.insertId]);
-
-  const row = rows[0];
-  const item = {
-    id: row.id,
-    projectId: row.project_id,
-    projectName: row.project_name || 'Unknown Project',
-    title: row.title,
-    description: row.description || '',
-    nodes: typeof row.nodes_json === 'string' ? JSON.parse(row.nodes_json) : row.nodes_json,
-    createdBy: row.creator_name || 'System',
-    createdAt: row.created_at,
-    updatedAt: row.updated_at
-  };
-
-  res.status(201).json({ success: true, data: item });
-});
-
-const updateWBS = asyncHandler(async (req, res) => {
-  await ensureWbsTable();
-  const { title, description, nodes, projectId } = req.body;
-
-  const fields = [];
-  const params = [];
-
-  if (title !== undefined) {
-    fields.push("title = ?");
-    params.push(title);
-  }
-  if (description !== undefined) {
-    fields.push("description = ?");
-    params.push(description || null);
-  }
-  if (nodes !== undefined) {
-    fields.push("nodes_json = ?");
-    params.push(typeof nodes === 'string' ? nodes : JSON.stringify(nodes));
-  }
-  if (projectId !== undefined) {
-    fields.push("project_id = ?");
-    params.push(projectId);
-  }
-
-  if (!fields.length) {
-    return res.status(400).json({ success: false, message: "No WBS update fields provided" });
-  }
-
-  params.push(req.params.id);
-  const [result] = await query(`UPDATE work_breakdown_structures SET ${fields.join(", ")} WHERE id = ?`, params);
-
-  if (!result.affectedRows) {
-    return res.status(404).json({ success: false, message: "WBS not found" });
-  }
-
-  const [rows] = await query(`
-    SELECT w.*, p.name AS project_name, u.name AS creator_name
-    FROM work_breakdown_structures w
-    LEFT JOIN projects p ON p.id = w.project_id
-    LEFT JOIN users u ON u.id = w.created_by
-    WHERE w.id = ?
-  `, [req.params.id]);
-
-  const row = rows[0];
-  const item = {
-    id: row.id,
-    projectId: row.project_id,
-    projectName: row.project_name || 'Unknown Project',
-    title: row.title,
-    description: row.description || '',
-    nodes: typeof row.nodes_json === 'string' ? JSON.parse(row.nodes_json) : row.nodes_json,
-    createdBy: row.creator_name || 'System',
-    createdAt: row.created_at,
-    updatedAt: row.updated_at
-  };
-
-  res.json({ success: true, data: item });
-});
-
-const deleteWBS = asyncHandler(async (req, res) => {
-  await ensureWbsTable();
-  const [result] = await query("DELETE FROM work_breakdown_structures WHERE id = ?", [req.params.id]);
-
-  if (!result.affectedRows) {
-    return res.status(404).json({ success: false, message: "WBS not found" });
-  }
-
-  res.json({ success: true, message: "WBS deleted" });
-});
-
 module.exports = {
+  getAdminOverview,
   listProjects,
   createProject,
+  updateProject,
+  deleteProject,
   listTasks,
   getProjectStats,
   getProjectHistory,
@@ -899,5 +556,5 @@ module.exports = {
   getWBSById,
   createWBS,
   updateWBS,
-  deleteWBS
+  deleteWBS,
 };

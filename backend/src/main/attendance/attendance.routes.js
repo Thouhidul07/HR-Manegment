@@ -22,8 +22,8 @@ router.post(
   authorize("employee"),
   [
     body("workDate").isISO8601(),
-    body("clockIn").matches(/^([01]\d|2[0-3]):[0-5]\d$/),
-    body("clockOut").matches(/^([01]\d|2[0-3]):[0-5]\d$/),
+    body("clockIn").optional({ checkFalsy: true }).matches(/^([01]\d|2[0-3]):[0-5]\d$/),
+    body("clockOut").optional({ checkFalsy: true }).matches(/^([01]\d|2[0-3]):[0-5]\d$/),
     body("status").optional().isIn(["present", "late", "absent", "leave"]),
   ],
   validate,

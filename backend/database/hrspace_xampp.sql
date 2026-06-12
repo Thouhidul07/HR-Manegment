@@ -9,13 +9,13 @@ SET FOREIGN_KEY_CHECKS = 0;
 DROP VIEW IF EXISTS user_permissions;
 DROP TABLE IF EXISTS audit_logs;
 DROP TABLE IF EXISTS user_documents;
+DROP TABLE IF EXISTS job_applications;
+DROP TABLE IF EXISTS job_circulars;
+DROP TABLE IF EXISTS work_breakdown_structures;
 DROP TABLE IF EXISTS forum_reports;
 DROP TABLE IF EXISTS forum_reactions;
 DROP TABLE IF EXISTS forum_replies;
 DROP TABLE IF EXISTS forum_posts;
-DROP TABLE IF EXISTS job_applications;
-DROP TABLE IF EXISTS job_circulars;
-DROP TABLE IF EXISTS work_breakdown_structures;
 DROP TABLE IF EXISTS project_comments;
 DROP TABLE IF EXISTS project_milestones;
 DROP TABLE IF EXISTS project_members;
@@ -39,6 +39,7 @@ DROP TABLE IF EXISTS access_requests;
 DROP TABLE IF EXISTS role_permissions;
 DROP TABLE IF EXISTS permissions;
 DROP TABLE IF EXISTS roles;
+DROP TABLE IF EXISTS tasks;
 DROP TABLE IF EXISTS notifications;
 DROP TABLE IF EXISTS user_profile_settings;
 DROP TABLE IF EXISTS users;
@@ -64,7 +65,7 @@ CREATE TABLE users (
   name VARCHAR(120) NOT NULL,
   email VARCHAR(160) NOT NULL UNIQUE,
   password VARCHAR(255) NOT NULL,
-  role ENUM('admin', 'hr_manager', 'employee') NOT NULL DEFAULT 'employee',
+  role ENUM('admin', 'hr_manager', 'project_manager', 'employee') NOT NULL DEFAULT 'employee',
   phone VARCHAR(40),
   department VARCHAR(100),
   designation VARCHAR(100),
@@ -125,6 +126,25 @@ CREATE TABLE notifications (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   INDEX idx_notifications_user_read (user_id, is_read, created_at),
   INDEX idx_notifications_company (company_id, created_at)
+);
+
+CREATE TABLE tasks (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  company_id INT NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  category ENUM('general','performance','expense','training','attendance','leave','onboarding','offboarding','custom') NOT NULL DEFAULT 'general',
+  priority ENUM('low','medium','high','urgent') NOT NULL DEFAULT 'medium',
+  status ENUM('todo','in_progress','completed','cancelled') NOT NULL DEFAULT 'todo',
+  assigned_to INT NOT NULL,
+  assigned_by INT NOT NULL,
+  due_date DATE,
+  completed_at DATETIME,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+  FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE roles (
@@ -446,6 +466,91 @@ CREATE TABLE project_comments (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
+CREATE TABLE work_breakdown_structures (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  project_id INT NOT NULL,
+  title VARCHAR(180) NOT NULL,
+  description TEXT,
+  nodes_json JSON NOT NULL,
+  created_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE job_circulars (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  company_id INT NOT NULL DEFAULT 1,
+  title VARCHAR(180) NOT NULL,
+  department VARCHAR(100) NOT NULL,
+  employment_type ENUM('Full-time', 'Part-time', 'Contract') NOT NULL DEFAULT 'Full-time',
+  location VARCHAR(160) NOT NULL,
+  salary_range VARCHAR(100),
+  description TEXT,
+  requirements JSON,
+  responsibilities JSON,
+  benefits JSON,
+  deadline DATE,
+  status ENUM('draft', 'published', 'closed') NOT NULL DEFAULT 'draft',
+  created_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE job_applications (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  company_id INT NOT NULL DEFAULT 1,
+  circular_id INT NOT NULL,
+  applicant_name VARCHAR(140) NOT NULL,
+  email VARCHAR(160) NOT NULL,
+  phone VARCHAR(60) NOT NULL,
+  cover_letter TEXT,
+  cv_file VARCHAR(255),
+  skills JSON,
+  experience_years DECIMAL(4, 1) NOT NULL DEFAULT 0,
+  status ENUM('submitted', 'reviewing', 'shortlisted', 'rejected', 'hired') NOT NULL DEFAULT 'submitted',
+  score INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+  FOREIGN KEY (circular_id) REFERENCES job_circulars(id) ON DELETE CASCADE
+);
+
+CREATE TABLE audit_logs (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  actor_id INT,
+  actor_name VARCHAR(120),
+  actor_role VARCHAR(50),
+  action VARCHAR(80) NOT NULL,
+  module VARCHAR(80) NOT NULL,
+  entity_type VARCHAR(80),
+  entity_id INT,
+  description TEXT,
+  metadata_json JSON,
+  ip_address VARCHAR(45),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE user_documents (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  document_type VARCHAR(80) NOT NULL DEFAULT 'Other',
+  document_name VARCHAR(180) NOT NULL,
+  file_name VARCHAR(180),
+  original_name VARCHAR(255),
+  file_path VARCHAR(255) NOT NULL,
+  file_size INT,
+  mime_type VARCHAR(100),
+  uploaded_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
 CREATE TABLE forum_posts (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT,
@@ -513,7 +618,7 @@ CREATE TABLE forum_reports (
 INSERT INTO users
   (id, company_id, employee_code, name, email, password, role, phone, department, designation, hire_date, salary, avatar)
 VALUES
-  (1, 1, 'NX-ADM-001', 'System Admin', 'admin@nexoratech.com', '$2a$10$7IAQrKRQwkIHv2eZSIRDj.S1O0ove29.KjCkCXD3369iJk9dTKngi', 'admin', '+8801712345601', 'System Administration', 'Administrator', '2024-01-01', 120000.00, 'SA'),
+  (1, 1, 'NX-ADM-001', 'Admin / CEO', 'admin@nexoratech.com', '$2a$10$7IAQrKRQwkIHv2eZSIRDj.S1O0ove29.KjCkCXD3369iJk9dTKngi', 'admin', '+8801712345601', 'Executive Office', 'Chief Executive Officer', '2024-01-01', 120000.00, 'CEO'),
   (2, 1, 'NX-HR-001', 'HR Manager 01', 'hr.manager01@nexoratech.com', '$2a$10$cteqOigYNxjG6l8d.G7tNOSlBprtlBiCUvj03ljajfV.0CMwhd.Uq', 'hr_manager', '+8801712345602', 'Human Resources', 'Lead HR Manager', '2024-02-01', 96000.00, 'HM'),
   (3, 1, 'NX-EMP-001', 'Employee 01', 'employee01@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801712345603', 'Information Technology', 'Software Engineer', '2024-03-01', 75000.00, 'E0'),
   (4, 1, 'NX-EMP-002', 'Employee 02', 'employee02@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801712345604', 'Finance', 'Accounts Officer', '2024-04-15', 68000.00, 'E0'),
@@ -527,15 +632,31 @@ VALUES
 
 INSERT INTO roles (id, code, name, description)
 VALUES
-  (1, 'admin', 'Administrator', 'Full system access across all HRSpace modules.'),
+  (1, 'admin', 'Admin / CEO', 'CEO-level authority with full access to every HRSpace module and action.'),
   (2, 'hr_manager', 'HR Manager', 'HR operations access for employees, attendance, leave, onboarding, training, and reports.'),
-  (3, 'employee', 'Employee', 'Self-service access for personal HR tasks.');
+  (3, 'project_manager', 'Project Manager', 'Project, WBS, task delivery, history, and reporting management.'),
+  (4, 'employee', 'Employee', 'Self-service access for personal HR tasks.');
 
 INSERT INTO permissions (code, module, action, description)
 VALUES
   ('dashboard.admin.view', 'dashboard', 'admin_view', 'View administrator dashboard and system-wide summaries.'),
   ('dashboard.hr.view', 'dashboard', 'hr_view', 'View HR manager dashboard and team summaries.'),
   ('dashboard.employee.view', 'dashboard', 'employee_view', 'View employee self-service dashboard.'),
+  ('dashboard.project.view', 'dashboard', 'project_view', 'View project manager dashboard.'),
+
+  ('projects.overview', 'projects', 'overview', 'View read-only project overview metrics.'),
+  ('projects.read', 'projects', 'read', 'View projects and project details.'),
+  ('projects.create', 'projects', 'create', 'Create projects.'),
+  ('projects.update', 'projects', 'update', 'Update projects.'),
+  ('projects.delete', 'projects', 'delete', 'Delete projects.'),
+  ('wbs.read', 'wbs', 'read', 'View work breakdown structures.'),
+  ('wbs.create', 'wbs', 'create', 'Create work breakdown structures.'),
+  ('wbs.update', 'wbs', 'update', 'Update work breakdown structures.'),
+  ('wbs.delete', 'wbs', 'delete', 'Delete work breakdown structures.'),
+  ('project_history.read', 'project_history', 'read', 'View project history.'),
+  ('project_reports.read', 'project_reports', 'read', 'View project reports.'),
+  ('project_tasks.assign', 'project_tasks', 'assign', 'Assign project tasks.'),
+  ('project_tasks.update', 'project_tasks', 'update', 'Update project tasks.'),
 
   ('employees.view_all', 'employees', 'view_all', 'View all employee profiles and records.'),
   ('employees.view_self', 'employees', 'view_self', 'View own employee profile.'),
@@ -584,7 +705,13 @@ VALUES
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id
 FROM roles r
-JOIN permissions p
+JOIN permissions p ON p.code NOT IN (
+  'dashboard.project.view',
+  'projects.read', 'projects.create', 'projects.update', 'projects.delete',
+  'wbs.read', 'wbs.create', 'wbs.update', 'wbs.delete',
+  'project_history.read', 'project_reports.read',
+  'project_tasks.assign', 'project_tasks.update'
+)
 WHERE r.code = 'admin';
 
 INSERT INTO role_permissions (role_id, permission_id)
@@ -629,6 +756,19 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id
 FROM roles r
 JOIN permissions p ON p.code IN (
+  'dashboard.project.view',
+  'projects.read', 'projects.create', 'projects.update', 'projects.delete',
+  'wbs.read', 'wbs.create', 'wbs.update', 'wbs.delete',
+  'project_history.read', 'project_reports.read',
+  'project_tasks.assign', 'project_tasks.update',
+  'employees.view_all', 'forum.view', 'forum.post'
+)
+WHERE r.code = 'project_manager';
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+JOIN permissions p ON p.code IN (
   'dashboard.employee.view',
   'employees.view_self',
   'employees.update_self',
@@ -666,8 +806,26 @@ VALUES
   (3, CURDATE(), CONCAT(CURDATE(), ' 09:05:00'), CONCAT(CURDATE(), ' 17:10:00'), 'present', 'Regular shift'),
   (4, CURDATE(), CONCAT(CURDATE(), ' 09:25:00'), CONCAT(CURDATE(), ' 17:00:00'), 'late', 'Late arrival'),
   (5, CURDATE(), CONCAT(CURDATE(), ' 08:55:00'), CONCAT(CURDATE(), ' 17:05:00'), 'present', 'Regular shift'),
+  (7, CURDATE(), NULL, NULL, 'absent', 'No attendance recorded'),
+  (8, CURDATE(), NULL, NULL, 'leave', 'Approved leave'),
+  (9, CURDATE(), CONCAT(CURDATE(), ' 09:03:00'), CONCAT(CURDATE(), ' 18:02:00'), 'present', 'Regular shift'),
+  (10, CURDATE(), CONCAT(CURDATE(), ' 09:14:00'), CONCAT(CURDATE(), ' 18:05:00'), 'late', 'Late arrival'),
+  (11, CURDATE(), CONCAT(CURDATE(), ' 08:59:00'), CONCAT(CURDATE(), ' 17:58:00'), 'present', 'Regular shift'),
   (3, DATE_SUB(CURDATE(), INTERVAL 1 DAY), CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 09:00:00'), CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 17:00:00'), 'present', NULL),
-  (4, DATE_SUB(CURDATE(), INTERVAL 1 DAY), NULL, NULL, 'leave', 'Approved leave');
+  (4, DATE_SUB(CURDATE(), INTERVAL 1 DAY), NULL, NULL, 'leave', 'Approved leave'),
+  (5, DATE_SUB(CURDATE(), INTERVAL 1 DAY), CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 09:22:00'), CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 18:10:00'), 'late', 'Late arrival'),
+  (7, DATE_SUB(CURDATE(), INTERVAL 1 DAY), CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 08:58:00'), CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 17:45:00'), 'present', 'Regular shift'),
+  (8, DATE_SUB(CURDATE(), INTERVAL 1 DAY), CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 09:07:00'), CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 18:01:00'), 'present', 'Regular shift'),
+  (3, DATE_SUB(CURDATE(), INTERVAL 2 DAY), CONCAT(DATE_SUB(CURDATE(), INTERVAL 2 DAY), ' 09:04:00'), CONCAT(DATE_SUB(CURDATE(), INTERVAL 2 DAY), ' 18:03:00'), 'present', 'Regular shift'),
+  (4, DATE_SUB(CURDATE(), INTERVAL 2 DAY), CONCAT(DATE_SUB(CURDATE(), INTERVAL 2 DAY), ' 09:00:00'), CONCAT(DATE_SUB(CURDATE(), INTERVAL 2 DAY), ' 17:52:00'), 'present', 'Regular shift'),
+  (5, DATE_SUB(CURDATE(), INTERVAL 2 DAY), CONCAT(DATE_SUB(CURDATE(), INTERVAL 2 DAY), ' 08:50:00'), CONCAT(DATE_SUB(CURDATE(), INTERVAL 2 DAY), ' 17:55:00'), 'present', 'Regular shift'),
+  (7, DATE_SUB(CURDATE(), INTERVAL 2 DAY), CONCAT(DATE_SUB(CURDATE(), INTERVAL 2 DAY), ' 09:30:00'), CONCAT(DATE_SUB(CURDATE(), INTERVAL 2 DAY), ' 18:15:00'), 'late', 'Late arrival'),
+  (8, DATE_SUB(CURDATE(), INTERVAL 2 DAY), NULL, NULL, 'absent', 'Absent'),
+  (3, DATE_SUB(CURDATE(), INTERVAL 3 DAY), CONCAT(DATE_SUB(CURDATE(), INTERVAL 3 DAY), ' 09:01:00'), CONCAT(DATE_SUB(CURDATE(), INTERVAL 3 DAY), ' 18:05:00'), 'present', 'Regular shift'),
+  (4, DATE_SUB(CURDATE(), INTERVAL 3 DAY), CONCAT(DATE_SUB(CURDATE(), INTERVAL 3 DAY), ' 09:10:00'), CONCAT(DATE_SUB(CURDATE(), INTERVAL 3 DAY), ' 18:00:00'), 'present', 'Regular shift'),
+  (5, DATE_SUB(CURDATE(), INTERVAL 3 DAY), NULL, NULL, 'leave', 'Approved leave'),
+  (7, DATE_SUB(CURDATE(), INTERVAL 3 DAY), CONCAT(DATE_SUB(CURDATE(), INTERVAL 3 DAY), ' 08:57:00'), CONCAT(DATE_SUB(CURDATE(), INTERVAL 3 DAY), ' 17:50:00'), 'present', 'Regular shift'),
+  (8, DATE_SUB(CURDATE(), INTERVAL 3 DAY), CONCAT(DATE_SUB(CURDATE(), INTERVAL 3 DAY), ' 09:19:00'), CONCAT(DATE_SUB(CURDATE(), INTERVAL 3 DAY), ' 18:00:00'), 'late', 'Late arrival');
 
 INSERT INTO leave_requests
   (user_id, leave_type, start_date, end_date, reason, status, reviewed_by, reviewed_at)
@@ -714,6 +872,20 @@ VALUES
   (1, 'offboarding', 3, 'Asset Return', 'Return laptop, access card, and company assets'),
   (1, 'offboarding', 4, 'Account Deactivation', 'Disable email, HRSpace, and internal system access'),
   (1, 'offboarding', 5, 'Final Settlement', 'Complete payroll, benefits, and final clearance');
+
+  -- Sample Project Manager user for local XAMPP/testing
+  INSERT INTO users
+    (id, company_id, employee_code, name, email, password, role, phone, department, designation, hire_date, salary, avatar, status)
+  VALUES
+    (18, 1, 'NX-PM-001', 'Project Manager 01', 'pm01@nexoratech.com', '$2a$10$Mda0zoEZZ0k1Ai68Q3r2CeIiSOrQRBvtToTiXbuT3R3zdBTuiT0NS', 'project_manager', '+8801712345699', 'Project Management', 'Project Manager', '2025-09-01', 98000.00, 'PM', 'active');
+
+  -- Assign Project Manager to existing project and set as owner
+  UPDATE projects SET owner_id = 18 WHERE name = 'Website Redesign';
+  INSERT INTO project_members (project_id, user_id, role)
+  SELECT p.id, 18, 'Project Manager'
+  FROM projects p
+  WHERE p.name = 'Website Redesign'
+  ON DUPLICATE KEY UPDATE role = 'Project Manager';
 
 INSERT INTO performance_reviews
   (user_id, reviewer_id, review_period, score, goals, feedback, status)
@@ -805,86 +977,227 @@ VALUES
   (1, 3, 'payroll', 'Payslip available', 'Your latest payslip is ready to view.', '/dashboard/payslips'),
   (1, 3, 'leave', 'Leave balance updated', 'Your annual leave balance has been refreshed.', '/dashboard/leave');
 
-CREATE TABLE work_breakdown_structures (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  project_id INT NOT NULL,
-  title VARCHAR(180) NOT NULL,
-  description TEXT,
-  nodes_json JSON NOT NULL,
-  created_by INT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
-);
+INSERT INTO tasks
+  (company_id, title, description, category, priority, status, assigned_to, assigned_by, due_date)
+VALUES
+  (1, 'Complete Safety Compliance training', 'Review and complete safety policies.', 'training', 'medium', 'todo', 3, 1, DATE_ADD(CURDATE(), INTERVAL 7 DAY)),
+  (1, 'Submit Q1 performance feedback', 'Submit peer reviews for IT team members.', 'performance', 'high', 'in_progress', 3, 2, DATE_ADD(CURDATE(), INTERVAL 3 DAY)),
+  (1, 'Refactor dashboard charts', 'Update charts to support interactive legends.', 'custom', 'low', 'todo', 3, 3, DATE_ADD(CURDATE(), INTERVAL 5 DAY)),
+  (1, 'Review recruitment pipeline', 'Review CV filter candidates for backend engineers.', 'general', 'urgent', 'in_progress', 2, 1, DATE_ADD(CURDATE(), INTERVAL 1 DAY)),
+  (1, 'Approve pending leave queue', 'Review employee leave requests before payroll cutoff.', 'leave', 'high', 'todo', 2, 1, DATE_ADD(CURDATE(), INTERVAL 2 DAY)),
+  (1, 'Verify attendance correction requests', 'Audit late and absent records for this week.', 'attendance', 'medium', 'todo', 2, 1, DATE_ADD(CURDATE(), INTERVAL 4 DAY));
 
-CREATE TABLE job_circulars (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  company_id INT NOT NULL DEFAULT 1,
-  title VARCHAR(180) NOT NULL,
-  department VARCHAR(100) NOT NULL,
-  employment_type ENUM('Full-time', 'Part-time', 'Contract') NOT NULL DEFAULT 'Full-time',
-  location VARCHAR(160) NOT NULL,
-  salary_range VARCHAR(100),
-  description TEXT,
-  requirements JSON,
-  responsibilities JSON,
-  benefits JSON,
-  deadline DATE,
-  status ENUM('draft', 'published', 'closed') NOT NULL DEFAULT 'draft',
-  created_by INT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
-  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
-);
+INSERT INTO users
+  (id, company_id, employee_code, name, email, password, role, phone, department, designation, hire_date, salary, avatar, status)
+VALUES
+  (12, 1, 'NX-EMP-009', 'Ayesha Rahman', 'ayesha.rahman@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801812345009', 'Information Technology', 'Frontend Developer', '2025-01-12', 64000.00, 'AR', 'active'),
+  (13, 1, 'NX-EMP-010', 'Tanvir Hasan', 'tanvir.hasan@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801812345010', 'Information Technology', 'Backend Developer', '2025-02-05', 70000.00, 'TH', 'active'),
+  (14, 1, 'NX-EMP-011', 'Nabila Islam', 'nabila.islam@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801812345011', 'Human Resources', 'HR Executive', '2025-03-10', 52000.00, 'NI', 'active'),
+  (15, 1, 'NX-EMP-012', 'Sakib Chowdhury', 'sakib.chowdhury@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801812345012', 'Finance', 'Payroll Analyst', '2025-04-18', 58000.00, 'SC', 'active'),
+  (16, 1, 'NX-EMP-013', 'Maliha Zaman', 'maliha.zaman@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801812345013', 'Marketing', 'Content Specialist', '2025-05-22', 50000.00, 'MZ', 'active'),
+  (17, 1, 'NX-EMP-014', 'Raihan Kabir', 'raihan.kabir@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801812345014', 'Operations', 'Operations Coordinator', '2025-06-02', 49000.00, 'RK', 'pending');
 
-CREATE TABLE job_applications (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  company_id INT NOT NULL DEFAULT 1,
-  circular_id INT NOT NULL,
-  applicant_name VARCHAR(140) NOT NULL,
-  email VARCHAR(160) NOT NULL,
-  phone VARCHAR(60) NOT NULL,
-  cover_letter TEXT,
-  cv_file VARCHAR(255),
-  skills JSON,
-  experience_years DECIMAL(4, 1) NOT NULL DEFAULT 0,
-  status ENUM('submitted', 'reviewing', 'shortlisted', 'rejected', 'hired') NOT NULL DEFAULT 'submitted',
-  score INT NOT NULL DEFAULT 0,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
-  FOREIGN KEY (circular_id) REFERENCES job_circulars(id) ON DELETE CASCADE
-);
+INSERT INTO user_profile_settings
+  (user_id, display_name, date_of_birth, gender, nationality, marital_status, city, country, bio, emergency_contact_name, emergency_contact_phone, blood_group, linkedin_url, language, timezone, theme_preference)
+VALUES
+  (12, 'Ayesha Rahman', '1997-08-14', 'Female', 'Bangladeshi', 'Single', 'Dhaka', 'Bangladesh', 'Frontend developer focused on accessible HR tools.', 'Farhana Rahman', '+8801711110009', 'B+', 'https://linkedin.com/in/ayesha-rahman', 'English', 'Asia/Dhaka', 'system'),
+  (13, 'Tanvir Hasan', '1995-11-03', 'Male', 'Bangladeshi', 'Married', 'Dhaka', 'Bangladesh', 'Backend developer working on HR workflow APIs.', 'Nusrat Hasan', '+8801711110010', 'O+', 'https://linkedin.com/in/tanvir-hasan', 'English', 'Asia/Dhaka', 'dark'),
+  (14, 'Nabila Islam', '1998-01-21', 'Female', 'Bangladeshi', 'Single', 'Dhaka', 'Bangladesh', 'HR executive supporting onboarding and employee engagement.', 'Karim Islam', '+8801711110011', 'A+', 'https://linkedin.com/in/nabila-islam', 'English', 'Asia/Dhaka', 'light'),
+  (15, 'Sakib Chowdhury', '1994-07-09', 'Male', 'Bangladeshi', 'Married', 'Dhaka', 'Bangladesh', 'Payroll analyst handling monthly payroll checks.', 'Nadia Chowdhury', '+8801711110012', 'AB+', 'https://linkedin.com/in/sakib-chowdhury', 'English', 'Asia/Dhaka', 'system');
 
-CREATE TABLE audit_logs (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  actor_id INT,
-  actor_name VARCHAR(120),
-  actor_role VARCHAR(50),
-  action VARCHAR(80) NOT NULL,
-  module VARCHAR(80) NOT NULL,
-  entity_type VARCHAR(80),
-  entity_id INT,
-  description TEXT,
-  metadata_json JSON,
-  ip_address VARCHAR(45),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+INSERT INTO notifications (company_id, user_id, type, title, body, link, is_read)
+VALUES
+  (1, 12, 'attendance', 'Attendance correction approved', 'Your attendance correction for this week was approved.', '/dashboard/attendance', 0),
+  (1, 12, 'training', 'New React training assigned', 'You have been enrolled in Advanced React Patterns.', '/dashboard/training', 0),
+  (1, 13, 'task', 'New backend task assigned', 'API audit task has been assigned to you.', '/dashboard/my-tasks', 0),
+  (1, 14, 'onboarding', 'New onboarding case created', 'Please prepare onboarding tasks for Raihan Kabir.', '/dashboard/onboarding', 0),
+  (1, 15, 'payroll', 'Payroll review required', 'Review payroll exceptions before month close.', '/dashboard/payroll', 1),
+  (1, 1, 'system', 'CEO review pack ready', 'Reports and analytics snapshot is ready for review.', '/dashboard/reports', 0);
 
-CREATE TABLE user_documents (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id INT NOT NULL,
-  document_type VARCHAR(80) NOT NULL,
-  document_name VARCHAR(180) NOT NULL,
-  file_path VARCHAR(255) NOT NULL,
-  file_size INT,
-  mime_type VARCHAR(100),
-  uploaded_by INT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL
-);
+INSERT INTO tasks
+  (company_id, title, description, category, priority, status, assigned_to, assigned_by, due_date, completed_at)
+VALUES
+  (1, 'Prepare onboarding kit for Raihan', 'Collect email access, welcome document, and laptop checklist.', 'onboarding', 'high', 'in_progress', 14, 2, DATE_ADD(CURDATE(), INTERVAL 2 DAY), NULL),
+  (1, 'Review payroll variance', 'Check overtime and deduction variance for current month.', 'expense', 'urgent', 'todo', 15, 1, DATE_ADD(CURDATE(), INTERVAL 1 DAY), NULL),
+  (1, 'Update employee handbook FAQ', 'Add updated leave and attendance questions.', 'general', 'medium', 'completed', 14, 2, DATE_SUB(CURDATE(), INTERVAL 1 DAY), NOW()),
+  (1, 'Complete backend API audit', 'Review role-based access for payroll and CV routes.', 'custom', 'high', 'todo', 13, 1, DATE_ADD(CURDATE(), INTERVAL 5 DAY), NULL),
+  (1, 'Submit content calendar', 'Upload next month recruitment content calendar.', 'custom', 'medium', 'todo', 16, 2, DATE_ADD(CURDATE(), INTERVAL 6 DAY), NULL);
 
+INSERT INTO access_requests
+  (user_id, permission_id, reason, status, reviewed_by, reviewed_at)
+VALUES
+  (14, (SELECT id FROM permissions WHERE code = 'employees.view_all'), 'Need directory access for onboarding coordination.', 'approved', 1, NOW()),
+  (15, (SELECT id FROM permissions WHERE code = 'payroll.view_all'), 'Need payroll data for monthly variance review.', 'pending', NULL, NULL),
+  (13, (SELECT id FROM permissions WHERE code = 'reports.view'), 'Need analytics access for API dashboard work.', 'rejected', 1, NOW());
+
+INSERT INTO attendance
+  (user_id, work_date, clock_in, clock_out, status, notes)
+VALUES
+  (12, CURDATE(), CONCAT(CURDATE(), ' 09:01:00'), CONCAT(CURDATE(), ' 18:00:00'), 'present', 'Regular shift'),
+  (13, CURDATE(), CONCAT(CURDATE(), ' 09:18:00'), CONCAT(CURDATE(), ' 18:20:00'), 'late', 'Code deployment support'),
+  (14, CURDATE(), CONCAT(CURDATE(), ' 08:56:00'), CONCAT(CURDATE(), ' 17:50:00'), 'present', 'Regular shift'),
+  (15, CURDATE(), NULL, NULL, 'leave', 'Payroll workshop leave'),
+  (16, CURDATE(), NULL, NULL, 'absent', 'No attendance recorded'),
+  (12, DATE_SUB(CURDATE(), INTERVAL 1 DAY), CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 09:04:00'), CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 17:58:00'), 'present', NULL),
+  (13, DATE_SUB(CURDATE(), INTERVAL 1 DAY), CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 08:59:00'), CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 18:10:00'), 'present', NULL),
+  (14, DATE_SUB(CURDATE(), INTERVAL 1 DAY), CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 09:27:00'), CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 18:00:00'), 'late', 'Traffic delay'),
+  (15, DATE_SUB(CURDATE(), INTERVAL 1 DAY), CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 09:02:00'), CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 17:55:00'), 'present', NULL),
+  (16, DATE_SUB(CURDATE(), INTERVAL 1 DAY), CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 09:08:00'), CONCAT(DATE_SUB(CURDATE(), INTERVAL 1 DAY), ' 18:02:00'), 'present', NULL);
+
+INSERT INTO leave_requests
+  (user_id, leave_type, start_date, end_date, reason, status, reviewed_by, reviewed_at)
+VALUES
+  (12, 'Casual Leave', DATE_ADD(CURDATE(), INTERVAL 4 DAY), DATE_ADD(CURDATE(), INTERVAL 4 DAY), 'Personal appointment', 'pending', NULL, NULL),
+  (13, 'Annual Leave', DATE_ADD(CURDATE(), INTERVAL 10 DAY), DATE_ADD(CURDATE(), INTERVAL 12 DAY), 'Family travel', 'approved', 2, NOW()),
+  (16, 'Sick Leave', DATE_SUB(CURDATE(), INTERVAL 2 DAY), DATE_SUB(CURDATE(), INTERVAL 2 DAY), 'Medical rest', 'rejected', 2, NOW());
+
+INSERT INTO payroll
+  (user_id, pay_period, basic_salary, allowances, deductions, net_pay, status)
+VALUES
+  (12, DATE_FORMAT(CURDATE(), '%Y-%m-01'), 64000.00, 4000.00, 1200.00, 66800.00, 'processed'),
+  (13, DATE_FORMAT(CURDATE(), '%Y-%m-01'), 70000.00, 4500.00, 1500.00, 73000.00, 'paid'),
+  (14, DATE_FORMAT(CURDATE(), '%Y-%m-01'), 52000.00, 2500.00, 800.00, 53700.00, 'draft'),
+  (15, DATE_FORMAT(CURDATE(), '%Y-%m-01'), 58000.00, 3000.00, 1000.00, 60000.00, 'processed');
+
+INSERT INTO training_sessions
+  (id, company_id, title, description, trainer, starts_at, ends_at)
+VALUES
+  (3, 1, 'Advanced React Patterns', 'Hands-on training for component architecture and reusable hooks.', 'Engineering Guild', DATE_ADD(NOW(), INTERVAL 5 DAY), DATE_ADD(NOW(), INTERVAL 5 DAY) + INTERVAL 3 HOUR),
+  (4, 1, 'Payroll Compliance', 'Monthly payroll controls, compliance, and exception handling.', 'Finance Ops', DATE_ADD(NOW(), INTERVAL 9 DAY), DATE_ADD(NOW(), INTERVAL 9 DAY) + INTERVAL 2 HOUR),
+  (5, 1, 'Inclusive Interviewing', 'Structured hiring and fair evaluation practices.', 'People Ops', DATE_ADD(NOW(), INTERVAL 12 DAY), DATE_ADD(NOW(), INTERVAL 12 DAY) + INTERVAL 2 HOUR);
+
+INSERT INTO training_enrollments
+  (training_id, user_id, status, progress)
+VALUES
+  (3, 12, 'enrolled', 40),
+  (3, 13, 'enrolled', 15),
+  (4, 15, 'enrolled', 60),
+  (5, 14, 'completed', 100),
+  (5, 2, 'completed', 100);
+
+INSERT INTO training_certificates
+  (enrollment_id, certificate_code, issued_by)
+SELECT id, CONCAT('CERT-DEMO-', LPAD(id, 4, '0')), 2
+FROM training_enrollments
+WHERE status = 'completed'
+  AND id NOT IN (SELECT enrollment_id FROM training_certificates);
+
+INSERT INTO lifecycle_cases
+  (company_id, user_id, type, status, start_date, target_date, completed_at, created_by)
+VALUES
+  (1, 17, 'onboarding', 'in_progress', CURDATE(), DATE_ADD(CURDATE(), INTERVAL 14 DAY), NULL, 2),
+  (1, 16, 'offboarding', 'not_started', DATE_ADD(CURDATE(), INTERVAL 20 DAY), DATE_ADD(CURDATE(), INTERVAL 30 DAY), NULL, 1);
+
+INSERT INTO lifecycle_tasks
+  (company_id, case_id, step_id, title, status, due_date, completed_by, completed_at)
+SELECT 1, lc.id, ls.id, CONCAT(ls.title, ' - ', u.name),
+  CASE WHEN ls.step_order = 1 THEN 'completed' WHEN ls.step_order = 2 THEN 'in_progress' ELSE 'pending' END,
+  DATE_ADD(CURDATE(), INTERVAL ls.step_order DAY),
+  CASE WHEN ls.step_order = 1 THEN 14 ELSE NULL END,
+  CASE WHEN ls.step_order = 1 THEN NOW() ELSE NULL END
+FROM lifecycle_cases lc
+JOIN users u ON u.id = lc.user_id
+JOIN lifecycle_steps ls ON ls.company_id = lc.company_id AND ls.type = lc.type
+WHERE lc.user_id IN (16, 17);
+
+INSERT INTO performance_reviews
+  (user_id, reviewer_id, review_period, score, goals, feedback, status)
+VALUES
+  (12, 2, 'Q2 2026', 4.20, 'Improve frontend accessibility and mentor junior developers.', 'Strong UI ownership and reliable sprint delivery.', 'submitted'),
+  (13, 1, 'Q2 2026', 4.60, 'Strengthen API observability and reduce production incidents.', 'Excellent backend design and incident response.', 'approved'),
+  (14, 2, 'Q2 2026', 3.90, 'Improve onboarding documentation turnaround.', 'Good stakeholder coordination.', 'draft');
+
+INSERT INTO peer_reviews
+  (reviewee_id, reviewer_id, project, duration, review_text, communication_rating, technical_rating, teamwork_rating, leadership_rating, strengths, improvements, is_anonymous, status, review_date)
+VALUES
+  (12, 13, 'Employee Dashboard Refresh', '2 months', 'Ayesha improved dashboard usability and kept feedback loops short.', 4, 5, 5, 3, JSON_ARRAY('Accessible UI', 'Fast iteration', 'Good ownership'), JSON_ARRAY('Share more implementation notes'), FALSE, 'approved', DATE_SUB(CURDATE(), INTERVAL 9 DAY)),
+  (13, 12, 'API Stabilization', '3 months', 'Tanvir handled API fixes carefully and documented edge cases well.', 4, 5, 4, 4, JSON_ARRAY('API design', 'Incident handling'), JSON_ARRAY('Earlier stakeholder updates'), TRUE, 'submitted', DATE_SUB(CURDATE(), INTERVAL 6 DAY)),
+  (14, 15, 'Onboarding SOP', '1 month', 'Nabila helped standardize onboarding tasks and reminders.', 5, 3, 5, 4, JSON_ARRAY('Communication', 'Process clarity'), JSON_ARRAY('Use more automation'), FALSE, 'submitted', DATE_SUB(CURDATE(), INTERVAL 4 DAY));
+
+INSERT INTO cv_candidates
+  (company_id, name, email, phone, position, score, skills, experience, education, match_percentage, status, key_strengths, concerns, cv_file_path, uploaded_by, upload_date)
+VALUES
+  (1, 'Sadia Akter', 'sadia.akter@example.com', '+8801711200001', 'Frontend Developer', 91, JSON_ARRAY('React', 'TypeScript', 'Tailwind', 'Accessibility'), 5.0, 'B.Sc. CSE - AIUB', 91, 'shortlisted', JSON_ARRAY('Strong React portfolio', 'Accessibility experience'), JSON_ARRAY(), NULL, 2, DATE_SUB(CURDATE(), INTERVAL 3 DAY)),
+  (1, 'Imran Hossain', 'imran.hossain@example.com', '+8801711200002', 'Backend Developer', 87, JSON_ARRAY('Node.js', 'MySQL', 'Redis', 'Docker'), 6.0, 'B.Sc. CSE - NSU', 87, 'pending', JSON_ARRAY('Backend API experience', 'Database optimization'), JSON_ARRAY('Limited cloud experience'), NULL, 2, DATE_SUB(CURDATE(), INTERVAL 2 DAY)),
+  (1, 'Farzana Noor', 'farzana.noor@example.com', '+8801711200003', 'HR Executive', 76, JSON_ARRAY('Recruitment', 'Onboarding', 'Excel', 'Communication'), 4.0, 'BBA HRM - University of Dhaka', 76, 'pending', JSON_ARRAY('Strong onboarding knowledge'), JSON_ARRAY('Less HRIS exposure'), NULL, 2, DATE_SUB(CURDATE(), INTERVAL 1 DAY)),
+  (1, 'Nayeem Ahmed', 'nayeem.ahmed@example.com', '+8801711200004', 'Accounts Officer', 65, JSON_ARRAY('Excel', 'Accounting'), 2.0, 'BBA Accounting - BRAC University', 65, 'rejected', JSON_ARRAY('Accounting fundamentals'), JSON_ARRAY('Below preferred experience', 'Missing payroll skills'), NULL, 2, CURDATE());
+
+INSERT INTO expenses
+  (user_id, category, amount, expense_date, description, receipt_path, status, reviewed_by)
+VALUES
+  (12, 'Software', 3200.00, DATE_SUB(CURDATE(), INTERVAL 4 DAY), 'Design tool subscription for frontend work', NULL, 'pending', NULL),
+  (13, 'Travel', 1800.00, DATE_SUB(CURDATE(), INTERVAL 6 DAY), 'Client-side deployment visit transport', NULL, 'approved', 2),
+  (14, 'Office Supplies', 950.00, DATE_SUB(CURDATE(), INTERVAL 2 DAY), 'Onboarding stationery pack', NULL, 'paid', 2),
+  (15, 'Training', 4500.00, DATE_SUB(CURDATE(), INTERVAL 9 DAY), 'Payroll compliance seminar registration', NULL, 'rejected', 1);
+
+INSERT INTO expense_payments
+  (expense_id, amount, payment_date, method, reference, paid_by)
+SELECT id, amount, CURDATE(), 'Bank Transfer', CONCAT('PAY-EXP-', LPAD(id, 4, '0')), 2
+FROM expenses
+WHERE status = 'paid'
+  AND id NOT IN (SELECT expense_id FROM expense_payments);
+
+INSERT INTO project_tasks
+  (title, description, status, priority, assignee, assignee_avatar, deadline, project, tags, estimated_hours, comments, attachments)
+VALUES
+  ('Role Audit Report', 'Prepare permission audit report for Admin and HR access.', 'todo', 'high', 'Tanvir Hasan', 'TH', DATE_ADD(CURDATE(), INTERVAL 4 DAY), 'User Portal', '["Security","Roles"]', 12.00, 1, 0),
+  ('Training Course UI Polish', 'Improve training material and class time display.', 'in-review', 'medium', 'Ayesha Rahman', 'AR', DATE_ADD(CURDATE(), INTERVAL 3 DAY), 'Website Redesign', '["Frontend","Training"]', 8.00, 2, 1),
+  ('Payroll Exception Dashboard', 'Create payroll exception summary cards.', 'todo', 'high', 'Sakib Chowdhury', 'SC', DATE_ADD(CURDATE(), INTERVAL 7 DAY), 'User Portal', '["Payroll","Analytics"]', 10.00, 0, 0);
+
+INSERT INTO projects
+  (id, name, description, owner_id, status, start_date, end_date)
+VALUES
+  (3, 'HR Automation', 'Automations for onboarding, access requests, and reminders.', 2, 'active', DATE_SUB(CURDATE(), INTERVAL 15 DAY), DATE_ADD(CURDATE(), INTERVAL 45 DAY)),
+  (4, 'Payroll Controls', 'Payroll review and compliance improvement project.', 1, 'planning', CURDATE(), DATE_ADD(CURDATE(), INTERVAL 60 DAY));
+
+INSERT INTO project_members
+  (project_id, user_id, role)
+VALUES
+  (3, 2, 'Project Owner'),
+  (3, 12, 'Frontend Developer'),
+  (3, 13, 'Backend Developer'),
+  (3, 14, 'HR Coordinator'),
+  (4, 1, 'Executive Sponsor'),
+  (4, 15, 'Payroll Analyst');
+
+INSERT INTO project_milestones
+  (project_id, title, due_date, status)
+VALUES
+  (3, 'Workflow Mapping Complete', DATE_ADD(CURDATE(), INTERVAL 7 DAY), 'in-progress'),
+  (3, 'Automation Pilot Launch', DATE_ADD(CURDATE(), INTERVAL 25 DAY), 'pending'),
+  (4, 'Payroll Risk Checklist', DATE_ADD(CURDATE(), INTERVAL 14 DAY), 'pending');
+
+INSERT INTO project_comments
+  (task_id, user_id, body)
+SELECT id, 13, 'Initial scope reviewed. Waiting for permission matrix confirmation.'
+FROM project_tasks
+WHERE title = 'Role Audit Report'
+LIMIT 1;
+
+INSERT INTO forum_posts
+  (user_id, title, body, category, is_anonymous, anonymous_alias, anonymous_color, tags, sentiment, is_poll, poll_data, views, status, moderation_note)
+VALUES
+  (14, 'Onboarding checklist improvements', 'Please share ideas to improve the new employee onboarding checklist.', 'HR', FALSE, NULL, NULL, JSON_ARRAY('onboarding', 'process'), 'positive', FALSE, NULL, 38, 'published', NULL),
+  (12, 'Preferred frontend documentation format', 'Which format helps you understand frontend handoffs faster?', 'Engineering', FALSE, NULL, NULL, JSON_ARRAY('docs', 'frontend'), 'neutral', TRUE, JSON_OBJECT('question', 'Preferred format?', 'options', JSON_ARRAY('Markdown', 'Short video', 'Checklist')), 64, 'published', NULL),
+  (NULL, 'Anonymous workplace concern', 'Can we improve meeting schedules during payroll week?', 'General', TRUE, 'River', '#7C5FB5', JSON_ARRAY('meetings', 'workload'), 'concerned', FALSE, NULL, 22, 'flagged', 'Needs HR review');
+
+INSERT INTO forum_replies
+  (post_id, parent_reply_id, user_id, body, is_anonymous, anonymous_alias, anonymous_color, status)
+VALUES
+  (3, NULL, 2, 'Good idea. We can add IT setup ownership and deadline reminders.', FALSE, NULL, NULL, 'published'),
+  (4, NULL, 13, 'Markdown plus a short checklist works best for engineering handoffs.', FALSE, NULL, NULL, 'published'),
+  (5, NULL, 14, 'Thanks for raising this. HR will review payroll-week meeting load.', FALSE, NULL, NULL, 'published');
+
+INSERT INTO forum_reactions
+  (target_type, target_id, user_id, reaction)
+VALUES
+  ('post', 3, 12, 'helpful'),
+  ('post', 3, 13, 'like'),
+  ('post', 4, 14, 'heart'),
+  ('reply', 2, 12, 'like');
+
+INSERT INTO forum_reports
+  (target_type, target_id, reporter_id, reason, notes, status, action_taken, reviewed_by, reviewed_at)
+VALUES
+  ('post', 5, 15, 'Workload concern needs HR review', 'Anonymous post should be reviewed by HR.', 'pending', NULL, NULL, NULL),
+  ('reply', 3, 1, 'Reviewed HR reply', 'Reply is constructive and can remain visible.', 'reviewed', 'No action needed', 1, NOW());

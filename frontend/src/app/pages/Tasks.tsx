@@ -77,53 +77,6 @@ const categoryMap: Record<TaskCategory, string> = {
   custom: "Custom",
 };
 
-const getDueDateLabel = (dueDateStr: string | null, status: string) => {
-  if (!dueDateStr) return { text: "No due date", color: "text-muted-foreground" };
-  if (status === "completed" || status === "cancelled") {
-    return {
-      text: new Date(dueDateStr).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-      color: "text-muted-foreground"
-    };
-  }
-  
-  const dueDate = new Date(dueDateStr);
-  const today = new Date();
-  today.setHours(0,0,0,0);
-  
-  const diffTime = dueDate.getTime() - today.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  
-  const dateFormatted = dueDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-  
-  if (diffDays < 0) {
-    const days = Math.abs(diffDays);
-    return {
-      text: `${dateFormatted} (Overdue by ${days} day${days > 1 ? 's' : ''})`,
-      color: "text-red-500 font-semibold"
-    };
-  } else if (diffDays === 0) {
-    return {
-      text: `${dateFormatted} (Due Today)`,
-      color: "text-amber-500 font-semibold animate-pulse"
-    };
-  } else if (diffDays === 1) {
-    return {
-      text: `${dateFormatted} (Due Tomorrow)`,
-      color: "text-amber-500 font-semibold"
-    };
-  } else if (diffDays <= 3) {
-    return {
-      text: `${dateFormatted} (Due in ${diffDays} days)`,
-      color: "text-amber-500/80"
-    };
-  } else {
-    return {
-      text: `${dateFormatted} (Due in ${diffDays} days)`,
-      color: "text-muted-foreground"
-    };
-  }
-};
-
 export function Tasks() {
   const { user: currentUser } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -149,7 +102,6 @@ export function Tasks() {
   const [categoryFilter, setCategoryFilter] = useState<string>("All");
   const [assigneeFilter, setAssigneeFilter] = useState<string>("All");
   const [overdueFilter, setOverdueFilter] = useState<boolean>(false);
-  const [myTasksOnly, setMyTasksOnly] = useState<boolean>(false);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -175,13 +127,7 @@ export function Tasks() {
       if (statusFilter !== "All") params.status = statusFilter;
       if (priorityFilter !== "All") params.priority = priorityFilter;
       if (categoryFilter !== "All") params.category = categoryFilter;
-      
-      if (myTasksOnly) {
-        params.assignedTo = String(currentUser?.id);
-      } else if (assigneeFilter !== "All") {
-        params.assignedTo = assigneeFilter;
-      }
-
+      if (assigneeFilter !== "All") params.assignedTo = assigneeFilter;
       if (search) params.search = search;
       if (overdueFilter) params.overdue = "true";
 
@@ -197,7 +143,7 @@ export function Tasks() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, priorityFilter, categoryFilter, assigneeFilter, search, overdueFilter, myTasksOnly, currentUser]);
+  }, [statusFilter, priorityFilter, categoryFilter, assigneeFilter, search, overdueFilter]);
 
   const loadEmployees = useCallback(async () => {
     if (!canAssign) return;
@@ -328,68 +274,24 @@ export function Tasks() {
     return "Only the task creator can delete this task";
   };
 
-  const getNeedsAttentionTasks = () => {
-    return tasks.filter(task => {
-      if (task.status === "completed" || task.status === "cancelled") return false;
-      if (!task.due_date) return false;
-      const dueDate = new Date(task.due_date);
-      const today = new Date();
-      today.setHours(0,0,0,0);
-      
-      const diffTime = dueDate.getTime() - today.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
-      return diffDays <= 2; // Overdue (<0) or Due Soon (0, 1, 2)
-    });
-  };
-  
-  const needsAttentionTasks = getNeedsAttentionTasks();
-
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl text-foreground font-bold mb-2">
+          <h1 className="text-2xl text-foreground mb-2">
             {canAssign ? "Task Management" : "My Tasks"}
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-muted-foreground">
             {canAssign
-              ? "View, track, and manage operational task administration and employee assignments"
+              ? "View and manage tasks across your company employees"
               : "Track and update your assigned and self-created tasks"}
           </p>
         </div>
-        
-        <div className="flex items-center gap-3">
-          {canAssign && (
-            <div className="bg-card border border-border p-1 rounded-lg flex gap-1 shadow-sm">
-              <button
-                onClick={() => setMyTasksOnly(false)}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                  !myTasksOnly
-                    ? "bg-gradient-to-r from-[#543884] to-[#9A77CF] text-white shadow-sm"
-                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                }`}
-              >
-                All Tasks
-              </button>
-              <button
-                onClick={() => setMyTasksOnly(true)}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                  myTasksOnly
-                    ? "bg-gradient-to-r from-[#543884] to-[#9A77CF] text-white shadow-sm"
-                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                }`}
-              >
-                My Tasks
-              </button>
-            </div>
-          )}
-          <Button variant="primary" className="gap-2" onClick={openCreateModal}>
-            <Plus className="w-4 h-4" />
-            {canAssign ? "Assign Task" : "Create Task"}
-          </Button>
-        </div>
+        <Button variant="primary" className="gap-2" onClick={openCreateModal}>
+          <Plus className="w-4 h-4" />
+          {canAssign ? "Assign Task" : "Create Task"}
+        </Button>
       </div>
 
       {successMessage && (
@@ -495,70 +397,6 @@ export function Tasks() {
           <p className="text-2xl text-foreground font-bold text-destructive">{summary.overdue}</p>
         </Card>
       </div>
-
-      {/* Needs Attention Panel */}
-      {needsAttentionTasks.length > 0 && (
-        <Card className="border-l-4 border-red-500 bg-red-500/5 overflow-hidden">
-          <div className="bg-red-500/10 px-6 py-3 flex flex-row items-center justify-between">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-red-500 animate-pulse" />
-              <h3 className="text-sm font-semibold text-red-500">Needs Attention ({needsAttentionTasks.length})</h3>
-            </div>
-            <p className="text-xs text-red-400">Tasks overdue or due within 48 hours</p>
-          </div>
-          <CardContent className="p-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {needsAttentionTasks.slice(0, 3).map((task) => {
-                const dueInfo = getDueDateLabel(task.due_date, task.status);
-                return (
-                  <div key={task.id} className="bg-background border border-border p-3 rounded-lg flex flex-col justify-between hover:shadow-sm transition-all relative pl-5">
-                    <div className="w-1 h-12 bg-red-500 rounded-full absolute left-1.5 top-3"></div>
-                    <div>
-                      <div className="flex justify-between items-start gap-2 mb-1">
-                        <span className="text-xs font-semibold text-foreground truncate max-w-[150px]">{task.title}</span>
-                        <Badge variant={priorityMap[task.priority]?.variant || "default"} size="sm">
-                          {priorityMap[task.priority]?.label || task.priority}
-                        </Badge>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground line-clamp-2 mb-2">{task.description || "No description provided."}</p>
-                    </div>
-                    
-                    <div className="flex items-center justify-between border-t border-border/40 pt-2.5 mt-2 flex-wrap gap-2">
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-5 h-5 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-[9px]">
-                          {task.assignee_name ? task.assignee_name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() : "U"}
-                        </div>
-                        <span className="text-[10px] text-muted-foreground truncate max-w-[85px]">{task.assignee_name || "Unassigned"}</span>
-                      </div>
-                      <span className={`text-[10px] ${dueInfo.color}`}>{dueInfo.text}</span>
-                    </div>
-
-                    <div className="flex items-center justify-end gap-2 mt-2 pt-2 border-t border-border/20">
-                      <button
-                        onClick={() => handleQuickStatusChange(task.id, "in_progress")}
-                        className="px-2 py-0.5 rounded bg-info/20 text-info text-[10px] hover:bg-info/30 transition-all font-semibold"
-                      >
-                        Start
-                      </button>
-                      <button
-                        onClick={() => handleQuickStatusChange(task.id, "completed")}
-                        className="px-2 py-0.5 rounded bg-success/20 text-success text-[10px] hover:bg-success/30 transition-all font-semibold"
-                      >
-                        Complete
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            {needsAttentionTasks.length > 3 && (
-              <p className="text-[11px] text-muted-foreground text-center mt-3">
-                And {needsAttentionTasks.length - 3} more task(s) requiring attention. Check the main list below.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
       {/* Filter and search bar */}
       <Card className="p-4">
@@ -705,16 +543,9 @@ export function Tasks() {
                         </td>
                         <td className="px-6 py-4 text-xs text-muted-foreground">
                           {task.due_date ? (
-                            <div className="flex flex-col gap-1">
-                              <div className="flex items-center gap-1.5">
-                                <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
-                                <span>{new Date(task.due_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
-                              </div>
-                              <span className={`text-[10px] ${getDueDateLabel(task.due_date, task.status).color}`}>
-                                {getDueDateLabel(task.due_date, task.status).text.includes("(")
-                                  ? getDueDateLabel(task.due_date, task.status).text.split("(")[1].replace(")", "")
-                                  : ""}
-                              </span>
+                            <div className="flex items-center gap-1.5">
+                              <Calendar className="w-3.5 h-3.5" />
+                              {new Date(task.due_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                             </div>
                           ) : (
                             "No due date"

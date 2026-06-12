@@ -225,6 +225,30 @@ const getDisplayDate = (dateValue: string) => {
 };
 
 type WeeklyOverviewFilter = "all" | "present" | "late" | "absent" | "leave";
+type WeeklyOverviewDay = {
+  day: string;
+  present: number;
+  late: number;
+  absent: number;
+  leave: number;
+};
+
+type PersonalWeekDay = {
+  day: string;
+  dateLabel: string;
+  status?: string;
+  checkIn?: string;
+  checkOut?: string;
+  hours?: string;
+};
+
+const statusToWeeklyKey = (status: string): Exclude<WeeklyOverviewFilter, "all"> => {
+  const normalized = status.toLowerCase();
+  if (normalized === "on leave" || normalized === "leave") return "leave";
+  if (normalized === "late") return "late";
+  if (normalized === "absent") return "absent";
+  return "present";
+};
 
 const getDateKey = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -271,6 +295,7 @@ export function Attendance() {
   const [attendanceError, setAttendanceError] = useState("");
   const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [clockAction, setClockAction] = useState<"in" | "out" | null>(null);
+  const [hasLoadedAttendance, setHasLoadedAttendance] = useState(false);
   const [attendanceRecords, setAttendanceRecords] = useState<
     AttendanceRecord[]
   >([]);
@@ -284,7 +309,7 @@ export function Attendance() {
 
   // Interactive Filter states
   const [selectedStatus, setSelectedStatus] = useState<string>("All");
-  const [weeklyOverview, setWeeklyOverview] = useState<any[]>([]);
+  const [weeklyOverview, setWeeklyOverview] = useState<WeeklyOverviewDay[]>([]);
   const [summaryData, setSummaryData] = useState<any>({ present: 0, late: 0, absent: 0, leave: 0 });
   const [weeklyOverviewFilter, setWeeklyOverviewFilter] = useState<WeeklyOverviewFilter>("all");
   const [periodFilter, setPeriodFilter] = useState("month");
@@ -381,6 +406,7 @@ export function Attendance() {
     } catch {
       setAttendanceRecords([]);
     } finally {
+      setHasLoadedAttendance(true);
       setAttendanceLoading(false);
     }
   }, [selectedStatus, mapApiAttendanceRecord]);
@@ -403,6 +429,8 @@ export function Attendance() {
 
   const rawRecords = attendanceRecords.length
     ? attendanceRecords
+    : hasLoadedAttendance
+      ? []
     : isEmployee
       ? myAttendanceData
       : attendanceData;
@@ -447,6 +475,30 @@ export function Attendance() {
     Boolean(todayRecord) && todayRecord?.checkIn !== "-";
   const hasClockedOutToday =
     Boolean(todayRecord) && todayRecord?.checkOut !== "-";
+
+  const personalWeeklyOverview = useMemo<PersonalWeekDay[]>(() => {
+    const today = new Date();
+    const day = today.getDay();
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - (day === 0 ? 6 : day - 1));
+    monday.setHours(0, 0, 0, 0);
+
+    return Array.from({ length: 5 }, (_, index) => {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + index);
+      const dateKey = getDateKey(date);
+      const record = rawRecords.find((item) => getRecordDateKey(item) === dateKey);
+
+      return {
+        day: date.toLocaleDateString("en-US", { weekday: "short" }),
+        dateLabel: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        status: record?.status,
+        checkIn: record?.checkIn,
+        checkOut: record?.checkOut,
+        hours: record?.hours,
+      };
+    });
+  }, [rawRecords]);
 
   // Use values from backend summary where available, otherwise count filtered records
   const presentCount = attendanceRecords.length ? summaryData.present : filteredRecords.filter((record) => record.status === "Present").length;
@@ -729,62 +781,107 @@ export function Attendance() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Weekly Overview</CardTitle>
+          <CardTitle>{isEmployee ? "My Week" : "Weekly Overview"}</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {(weeklyOverview.length ? weeklyOverview : weeklyAttendance).map((day) => (
-              <div key={day.day} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-foreground w-12">
-                    {day.day}
-                  </span>
-                  <div className="flex-1 flex gap-1 h-8">
-                    <div
-                      className="bg-[var(--success)] rounded flex items-center justify-center text-xs text-white transition-all duration-200"
-                      style={{ 
-                        width: `${(day.present / 11) * 100}%`,
-                        opacity: selectedStatus === "All" || selectedStatus === "Present" ? 1 : 0.15
-                      }}
-                      title={`Present: ${day.present}`}
-                    >
-                      {day.present > 0 && day.present}
+          {isEmployee ? (
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+              {personalWeeklyOverview.map((day) => {
+                const isFiltered =
+                  selectedStatus === "All" ||
+                  (day.status && statusToWeeklyKey(day.status) === statusToWeeklyKey(selectedStatus));
+
+                return (
+                  <button
+                    key={`${day.day}-${day.dateLabel}`}
+                    type="button"
+                    onClick={() => day.status && handleToggleFilter(day.status)}
+                    disabled={!day.status}
+                    className={`min-h-[132px] rounded-lg border p-4 text-left transition-all ${
+                      day.status
+                        ? "cursor-pointer hover:border-primary/50 hover:bg-accent/30"
+                        : "cursor-default bg-accent/10"
+                    } ${isFiltered ? "opacity-100" : "opacity-40"}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{day.day}</p>
+                        <p className="text-xs text-muted-foreground">{day.dateLabel}</p>
+                      </div>
+                      {day.status ? (
+                        <Badge variant={statusVariant(day.status)} size="sm">
+                          {day.status}
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" size="sm">
+                          No Record
+                        </Badge>
+                      )}
                     </div>
-                    <div
-                      className="bg-[var(--warning)] rounded flex items-center justify-center text-xs text-white transition-all duration-200"
-                      style={{ 
-                        width: `${(day.late / 11) * 100}%`,
-                        opacity: selectedStatus === "All" || selectedStatus === "Late" ? 1 : 0.15
-                      }}
-                      title={`Late: ${day.late}`}
-                    >
-                      {day.late > 0 && day.late}
+                    <div className="mt-4 space-y-1 text-xs text-muted-foreground">
+                      <p>In: {day.checkIn || "-"}</p>
+                      <p>Out: {day.checkOut || "-"}</p>
+                      <p>Hours: {day.hours || "-"}</p>
                     </div>
-                    <div
-                      className="bg-destructive rounded flex items-center justify-center text-xs text-white transition-all duration-200"
-                      style={{ 
-                        width: `${(day.absent / 11) * 100}%`,
-                        opacity: selectedStatus === "All" || selectedStatus === "Absent" ? 1 : 0.15
-                      }}
-                      title={`Absent: ${day.absent}`}
-                    >
-                      {day.absent > 0 && day.absent}
-                    </div>
-                    <div
-                      className="bg-[var(--info)] rounded flex items-center justify-center text-xs text-white transition-all duration-200"
-                      style={{ 
-                        width: `${(day.leave / 11) * 100}%`,
-                        opacity: selectedStatus === "All" || selectedStatus === "On Leave" ? 1 : 0.15
-                      }}
-                      title={`Leave: ${day.leave}`}
-                    >
-                      {day.leave > 0 && day.leave}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {(weeklyOverview.length ? weeklyOverview : weeklyAttendance).map((day) => (
+                <div key={day.day} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-foreground w-12">
+                      {day.day}
+                    </span>
+                    <div className="flex-1 flex gap-1 h-8">
+                      <div
+                        className="bg-[var(--success)] rounded flex items-center justify-center text-xs text-white transition-all duration-200"
+                        style={{ 
+                          width: `${(day.present / 11) * 100}%`,
+                          opacity: selectedStatus === "All" || selectedStatus === "Present" ? 1 : 0.15
+                        }}
+                        title={`Present: ${day.present}`}
+                      >
+                        {day.present > 0 && day.present}
+                      </div>
+                      <div
+                        className="bg-[var(--warning)] rounded flex items-center justify-center text-xs text-white transition-all duration-200"
+                        style={{ 
+                          width: `${(day.late / 11) * 100}%`,
+                          opacity: selectedStatus === "All" || selectedStatus === "Late" ? 1 : 0.15
+                        }}
+                        title={`Late: ${day.late}`}
+                      >
+                        {day.late > 0 && day.late}
+                      </div>
+                      <div
+                        className="bg-destructive rounded flex items-center justify-center text-xs text-white transition-all duration-200"
+                        style={{ 
+                          width: `${(day.absent / 11) * 100}%`,
+                          opacity: selectedStatus === "All" || selectedStatus === "Absent" ? 1 : 0.15
+                        }}
+                        title={`Absent: ${day.absent}`}
+                      >
+                        {day.absent > 0 && day.absent}
+                      </div>
+                      <div
+                        className="bg-[var(--info)] rounded flex items-center justify-center text-xs text-white transition-all duration-200"
+                        style={{ 
+                          width: `${(day.leave / 11) * 100}%`,
+                          opacity: selectedStatus === "All" || selectedStatus === "On Leave" ? 1 : 0.15
+                        }}
+                        title={`Leave: ${day.leave}`}
+                      >
+                        {day.leave > 0 && day.leave}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
           <div className="flex flex-wrap gap-4 mt-6 pt-4 border-t border-border">
             <div 
               onClick={() => setSelectedStatus("All")}

@@ -1,5 +1,6 @@
 const { query } = require("../../config/database");
 const asyncHandler = require("../../utils/asyncHandler");
+const { logAudit } = require("../../utils/auditLogger");
 
 const avatarPalette = [
   { alias: "Panda", color: "#9A77CF" },
@@ -125,6 +126,8 @@ async function ensureForumTables() {
       FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
     )
   `);
+
+  await addColumnIfMissing("forum_reports", "severity", "VARCHAR(40) NOT NULL DEFAULT 'medium'");
 }
 
 function mapPost(row) {
@@ -537,10 +540,11 @@ const reportContent = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: "Content not found" });
   }
 
+  const severity = req.body.severity || "medium";
   const [result] = await query(
-    `INSERT INTO forum_reports (target_type, target_id, reporter_id, reason, notes)
-     VALUES (?, ?, ?, ?, ?)`,
-    [req.body.targetType, req.body.targetId, req.user.id, req.body.reason, req.body.notes || null]
+    `INSERT INTO forum_reports (target_type, target_id, reporter_id, reason, notes, severity)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [req.body.targetType, req.body.targetId, req.user.id, req.body.reason, req.body.notes || null, severity]
   );
 
   await query(
@@ -552,75 +556,209 @@ const reportContent = asyncHandler(async (req, res) => {
 
 const listReports = asyncHandler(async (req, res) => {
   await ensureForumTables();
-  
-  let sql = `
-    SELECT fr.*, reporter.name AS reporter_name, reviewer.name AS reviewer_name
+  const companyId = req.user.company_id;
+  const filters = ["reporter.company_id = ?"];
+  const params = [companyId];
+
+  if (req.query.status) {
+    filters.push("fr.status = ?");
+    params.push(req.query.status);
+  }
+  if (req.query.category || req.query.reason) {
+    filters.push("fr.reason = ?");
+    params.push(req.query.category || req.query.reason);
+  }
+  if (req.query.severity) {
+    filters.push("fr.severity = ?");
+    params.push(req.query.severity);
+  }
+  if (req.query.search || req.query.keyword) {
+    const kw = `%${req.query.search || req.query.keyword}%`;
+    filters.push("(fr.notes LIKE ? OR fr.reason LIKE ? OR fp.title LIKE ? OR fp.body LIKE ? OR frp.body LIKE ?)");
+    params.push(kw, kw, kw, kw, kw);
+  }
+  if (req.query.reportedUser) {
+    const ru = `%${req.query.reportedUser}%`;
+    filters.push("(u_post.name LIKE ? OR u_reply.name LIKE ? OR u_post.id = ? OR u_reply.id = ?)");
+    params.push(ru, ru, req.query.reportedUser, req.query.reportedUser);
+  }
+  if (req.query.startDate && req.query.endDate) {
+    filters.push("fr.created_at BETWEEN ? AND ?");
+    params.push(req.query.startDate, req.query.endDate);
+  } else if (req.query.startDate) {
+    filters.push("fr.created_at >= ?");
+    params.push(req.query.startDate);
+  } else if (req.query.endDate) {
+    filters.push("fr.created_at <= ?");
+    params.push(req.query.endDate);
+  }
+
+  const sql = `
+    SELECT 
+      fr.*, 
+      reporter.name AS reporter_name, 
+      reviewer.name AS reviewer_name,
+      COALESCE(fp.user_id, frp.user_id) AS reported_user_id,
+      COALESCE(u_post.name, u_reply.name) AS reported_user_name,
+      COALESCE(fp.title, '') AS post_title,
+      COALESCE(fp.body, frp.body) AS content_preview
     FROM forum_reports fr
     JOIN users reporter ON reporter.id = fr.reporter_id
     LEFT JOIN users reviewer ON reviewer.id = fr.reviewed_by
-    WHERE reporter.company_id = ?
+    LEFT JOIN forum_posts fp ON fr.target_type = 'post' AND fp.id = fr.target_id
+    LEFT JOIN forum_replies frp ON fr.target_type = 'reply' AND frp.id = fr.target_id
+    LEFT JOIN users u_post ON u_post.id = fp.user_id
+    LEFT JOIN users u_reply ON u_reply.id = frp.user_id
+    WHERE ${filters.join(" AND ")}
+    ORDER BY fr.created_at DESC
   `;
-  const params = [req.user.company_id];
-  const conditions = [];
-
-  const { status, type, keyword, severity, reportedBy, dateRange } = req.query;
-
-  if (status) {
-    conditions.push("fr.status = ?");
-    params.push(status);
-  }
-  if (type) {
-    conditions.push("fr.target_type = ?");
-    params.push(type);
-  }
-  if (keyword) {
-    conditions.push("(fr.reason LIKE ? OR fr.notes LIKE ?)");
-    params.push(`%${keyword}%`);
-    params.push(`%${keyword}%`);
-  }
-  if (reportedBy) {
-    conditions.push("reporter.name LIKE ?");
-    params.push(`%${reportedBy}%`);
-  }
-  if (dateRange) {
-    const parts = dateRange.split(",");
-    if (parts.length === 2 && parts[0] && parts[1]) {
-      conditions.push("fr.created_at >= ? AND fr.created_at <= ?");
-      params.push(parts[0]);
-      params.push(parts[1] + " 23:59:59");
-    } else if (parts[0]) {
-      conditions.push("fr.created_at >= ?");
-      params.push(parts[0]);
-    }
-  }
-
-  if (conditions.length > 0) {
-    sql += " AND " + conditions.join(" AND ");
-  }
-
-  sql += " ORDER BY fr.created_at DESC";
-
   const [rows] = await query(sql, params);
+  res.json({ reports: rows });
+});
 
-  // Map simulated severity for the filtering
-  const reports = rows.map(r => {
-    let toxicityScore = 0.25;
-    if (r.reason.toLowerCase().includes("hostile") || r.reason.toLowerCase().includes("inappropriate") || r.reason.toLowerCase().includes("policy")) {
-      toxicityScore = 0.75;
-    } else if (r.reason.toLowerCase().includes("identifying") || r.reason.toLowerCase().includes("personal")) {
-      toxicityScore = 0.45;
+const getReportContext = asyncHandler(async (req, res) => {
+  await ensureForumTables();
+  const [reports] = await query(
+    `SELECT fr.*, reporter.name AS reporter_name, reporter.email AS reporter_email,
+            reviewer.name AS reviewer_name, reviewer.email AS reviewer_email
+     FROM forum_reports fr
+     JOIN users reporter ON reporter.id = fr.reporter_id
+     LEFT JOIN users reviewer ON reviewer.id = fr.reviewed_by
+     WHERE fr.id = ? AND reporter.company_id = ?`,
+    [req.params.id, req.user.company_id]
+  );
+  if (!reports.length) {
+    return res.status(404).json({ message: "Report not found" });
+  }
+  const report = reports[0];
+
+  const [reporters] = await query(
+    "SELECT id, name, email, department, designation, role, avatar FROM users WHERE id = ?",
+    [report.reporter_id]
+  );
+  const reporterDetails = reporters[0] || null;
+
+  let reportedPost = null;
+  let reportedReply = null;
+  let originalPost = null;
+  let relatedReplies = [];
+  let reportedUser = null;
+
+  if (report.target_type === 'post') {
+    const [posts] = await query(
+      `SELECT fp.*, u.name AS user_name, u.email AS user_email, u.department, u.designation, u.role, u.avatar
+       FROM forum_posts fp
+       LEFT JOIN users u ON u.id = fp.user_id
+       WHERE fp.id = ?`,
+      [report.target_id]
+    );
+    reportedPost = posts[0] || null;
+    if (reportedPost) {
+      reportedUser = {
+        id: reportedPost.user_id,
+        name: reportedPost.user_name || "Former Employee",
+        email: reportedPost.user_email || "",
+        department: reportedPost.department || "",
+        designation: reportedPost.designation || "",
+        role: reportedPost.role || "",
+        avatar: reportedPost.avatar || "",
+      };
+
+      const [replies] = await query(
+        `SELECT fr.*, u.name AS user_name
+         FROM forum_replies fr
+         LEFT JOIN users u ON u.id = fr.user_id
+         WHERE fr.post_id = ? AND fr.status != 'hidden'
+         ORDER BY fr.created_at ASC`,
+        [report.target_id]
+      );
+      relatedReplies = replies;
     }
-    const computedSeverity = toxicityScore > 0.6 ? "high" : toxicityScore > 0.3 ? "medium" : "low";
-    return { ...r, toxicityScore, severity: computedSeverity };
-  });
+  } else {
+    const [replies] = await query(
+      `SELECT fr.*, u.name AS user_name, u.email AS user_email, u.department, u.designation, u.role, u.avatar
+       FROM forum_replies fr
+       LEFT JOIN users u ON u.id = fr.user_id
+       WHERE fr.id = ?`,
+      [report.target_id]
+    );
+    reportedReply = replies[0] || null;
+    if (reportedReply) {
+      reportedUser = {
+        id: reportedReply.user_id,
+        name: reportedReply.user_name || "Former Employee",
+        email: reportedReply.user_email || "",
+        department: reportedReply.department || "",
+        designation: reportedReply.designation || "",
+        role: reportedReply.role || "",
+        avatar: reportedReply.avatar || "",
+      };
 
-  // Filter by simulated severity if requested
-  let filteredReports = reports;
-  if (severity) {
-    filteredReports = reports.filter(r => r.severity === severity);
+      const [posts] = await query(
+        `SELECT fp.*, u.name AS user_name
+         FROM forum_posts fp
+         LEFT JOIN users u ON u.id = fp.user_id
+         WHERE fp.id = ?`,
+        [reportedReply.post_id]
+      );
+      originalPost = posts[0] || null;
+
+      const [siblingReplies] = await query(
+        `SELECT fr.*, u.name AS user_name
+         FROM forum_replies fr
+         LEFT JOIN users u ON u.id = fr.user_id
+         WHERE fr.post_id = ? AND fr.status != 'hidden'
+         ORDER BY fr.created_at ASC`,
+        [reportedReply.post_id]
+      );
+      relatedReplies = siblingReplies;
+    }
   }
 
-  res.json({ reports: filteredReports });
+  let previousUserReports = [];
+  if (reportedUser && reportedUser.id) {
+    const [userReports] = await query(
+      `SELECT fr.*, reporter.name AS reporter_name
+       FROM forum_reports fr
+       JOIN users reporter ON reporter.id = fr.reporter_id
+       LEFT JOIN forum_posts fp ON fr.target_type = 'post' AND fp.id = fr.target_id
+       LEFT JOIN forum_replies frp ON fr.target_type = 'reply' AND frp.id = fr.target_id
+       WHERE (fp.user_id = ? OR frp.user_id = ?) AND fr.id != ?
+       ORDER BY fr.created_at DESC`,
+      [reportedUser.id, reportedUser.id, report.id]
+    );
+    previousUserReports = userReports;
+  }
+
+  const [contentReports] = await query(
+    `SELECT fr.*, reporter.name AS reporter_name
+     FROM forum_reports fr
+     JOIN users reporter ON reporter.id = fr.reporter_id
+     WHERE fr.target_type = ? AND fr.target_id = ? AND fr.id != ?
+     ORDER BY fr.created_at DESC`,
+    [report.target_type, report.target_id, report.id]
+  );
+  const previousContentReports = contentReports;
+
+  const [modHistory] = await query(
+    `SELECT * FROM audit_logs 
+     WHERE module = 'Forum Moderation' AND entity_type = ? AND entity_id = ?
+     ORDER BY created_at DESC`,
+    [report.target_type, report.target_id]
+  );
+
+  res.json({
+    report,
+    reporter: reporterDetails,
+    reportedUser,
+    targetType: report.target_type,
+    reportedContent: report.target_type === 'post' ? reportedPost : reportedReply,
+    originalPostContext: report.target_type === 'post' ? reportedPost : originalPost,
+    relatedReplies,
+    previousUserReports,
+    previousContentReports,
+    moderationHistory: modHistory
+  });
 });
 
 const moderateReport = asyncHandler(async (req, res) => {
@@ -645,103 +783,56 @@ const moderateReport = asyncHandler(async (req, res) => {
     [nextStatus, action, req.user.id, req.params.id]
   );
 
+  let reportedUserId = null;
+  if (report.target_type === "post") {
+    const [posts] = await query("SELECT user_id FROM forum_posts WHERE id = ? LIMIT 1", [report.target_id]);
+    reportedUserId = posts[0]?.user_id;
+  } else {
+    const [replies] = await query("SELECT user_id FROM forum_replies WHERE id = ? LIMIT 1", [report.target_id]);
+    reportedUserId = replies[0]?.user_id;
+  }
+
+  if (action === "warn" && reportedUserId) {
+    await query(
+      `INSERT INTO notifications (company_id, user_id, type, title, body, link)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        req.user.company_id,
+        reportedUserId,
+        "warning",
+        "Community Guidelines Warning",
+        `A moderator has issued a warning regarding your recent forum ${report.target_type}. Please ensure your posts adhere to our company's community standards.`,
+        `/dashboard/forum`
+      ]
+    );
+  }
+
   const table = report.target_type === "post" ? "forum_posts" : "forum_replies";
-  if (action === "remove") {
+  if (action === "remove" || action === "hide") {
     await query(
       `UPDATE ${table} t JOIN users u ON u.id = t.user_id SET t.status = 'hidden' WHERE t.id = ? AND u.company_id = ?`,
       [report.target_id, req.user.company_id]
     );
-  } else if (action === "approve" || action === "dismiss") {
+  } else if (action === "approve" || action === "dismiss" || action === "resolve" || action === "warn") {
     await query(
       `UPDATE ${table} t JOIN users u ON u.id = t.user_id SET t.status = 'published' WHERE t.id = ? AND u.company_id = ?`,
       [report.target_id, req.user.company_id]
     );
   }
 
-  const { logAudit } = require("../../utils/auditLogger");
   await logAudit({
     actorId: req.user.id,
     actorName: req.user.name,
     actorRole: req.user.role,
-    action: "moderate_forum_report",
-    module: "forum_moderation",
-    entityType: "forum_report",
-    entityId: parseInt(req.params.id, 10),
-    description: `Moderated forum report #${req.params.id} with action "${action}"`,
-    ipAddress: req.ip
+    action: "forum_moderation_" + action,
+    module: "Forum Moderation",
+    entityType: report.target_type,
+    entityId: report.target_id,
+    description: "Moderated forum " + report.target_type + " report #" + req.params.id + " with action " + action,
+    metadata: { reportId: Number(req.params.id), reason: report.reason, status: nextStatus },
+    ipAddress: req.ip,
   });
-
   res.json({ message: "Moderation action saved" });
-});
-
-const getReportContext = asyncHandler(async (req, res) => {
-  await ensureForumTables();
-  const reportId = req.params.id;
-
-  const [reports] = await query(
-    `SELECT fr.*, reporter.name AS reporter_name, reporter.role AS reporter_role
-     FROM forum_reports fr
-     JOIN users reporter ON reporter.id = fr.reporter_id
-     WHERE fr.id = ? AND reporter.company_id = ? LIMIT 1`,
-    [reportId, req.user.company_id]
-  );
-
-  if (!reports.length) {
-    return res.status(404).json({ message: "Report not found" });
-  }
-
-  const report = reports[0];
-  let content = null;
-  let author = null;
-  let threadContext = null;
-
-  if (report.target_type === "post") {
-    const [posts] = await query(
-      `SELECT fp.*, u.name AS author_name, u.role AS author_role
-       FROM forum_posts fp
-       LEFT JOIN users u ON u.id = fp.user_id
-       WHERE fp.id = ? LIMIT 1`,
-      [report.target_id]
-    );
-    if (posts.length) {
-      content = posts[0];
-      author = { name: posts[0].author_name || (posts[0].is_anonymous ? posts[0].anonymous_alias : "Unknown"), role: posts[0].author_role || "employee" };
-    }
-  } else if (report.target_type === "reply") {
-    const [replies] = await query(
-      `SELECT fr.*, u.name AS author_name, u.role AS author_role
-       FROM forum_replies fr
-       LEFT JOIN users u ON u.id = fr.user_id
-       WHERE fr.id = ? LIMIT 1`,
-      [report.target_id]
-    );
-    if (replies.length) {
-      content = replies[0];
-      author = { name: replies[0].author_name || (replies[0].is_anonymous ? replies[0].anonymous_alias : "Unknown"), role: replies[0].author_role || "employee" };
-
-      const [originalPost] = await query(
-        `SELECT fp.*, u.name AS author_name, u.role AS author_role
-         FROM forum_posts fp
-         LEFT JOIN users u ON u.id = fp.user_id
-         WHERE fp.id = ? LIMIT 1`,
-        [replies[0].post_id]
-      );
-      if (originalPost.length) {
-        threadContext = {
-          post: originalPost[0],
-          postAuthor: { name: originalPost[0].author_name || (originalPost[0].is_anonymous ? originalPost[0].anonymous_alias : "Unknown"), role: originalPost[0].author_role || "employee" }
-        };
-      }
-    }
-  }
-
-  return res.json({
-    success: true,
-    report,
-    content,
-    author,
-    threadContext
-  });
 });
 
 module.exports = {
@@ -756,6 +847,6 @@ module.exports = {
   toggleReaction,
   reportContent,
   listReports,
-  moderateReport,
   getReportContext,
+  moderateReport,
 };

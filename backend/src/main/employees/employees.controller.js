@@ -3,6 +3,7 @@ const asyncHandler = require("../../utils/asyncHandler");
 const bcrypt = require("bcryptjs");
 const { ensureUserStatusWorkflow } = require("../../utils/userStatus");
 const { ensureCompanyColumns, DEMO_COMPANY } = require("../../utils/companyScope");
+const { logAudit } = require("../../utils/auditLogger");
 
 const DEFAULT_EMPLOYEE_PASSWORD = "Emp@1234";
 
@@ -55,6 +56,21 @@ function mapEmployee(row) {
   };
 }
 
+function auditEmployee(req, action, employee, description, metadata = {}) {
+  return logAudit({
+    actorId: req.user.id,
+    actorName: req.user.name,
+    actorRole: req.user.role,
+    action,
+    module: "Employee Management",
+    entityType: "user",
+    entityId: employee?.id || Number(req.params.id),
+    description,
+    metadata,
+    ipAddress: req.ip,
+  });
+}
+
 async function getEmployeeById(id, companyId = DEMO_COMPANY.id) {
   await ensureEmployeeColumns();
   const [employees] = await query(
@@ -68,9 +84,9 @@ async function getEmployeeById(id, companyId = DEMO_COMPANY.id) {
 
 const listEmployees = asyncHandler(async (req, res) => {
   await ensureEmployeeColumns();
-  const roleFilter = req.user.role === "hr_manager"
+  const roleFilter = ["hr_manager", "project_manager"].includes(req.user.role)
     ? "WHERE company_id = ? AND role IN ('employee', 'hr_manager') AND status IN ('active', 'inactive')"
-    : "WHERE company_id = ? AND role IN ('employee', 'hr_manager', 'admin') AND status IN ('active', 'inactive')";
+    : "WHERE company_id = ? AND role IN ('employee', 'hr_manager', 'project_manager', 'admin') AND status IN ('active', 'inactive')";
   const [employees] = await query(
     `SELECT id, company_id, name, email, role, phone, department, designation, hire_date, salary, status, avatar, employee_code
      FROM users
@@ -131,6 +147,7 @@ const createEmployee = asyncHandler(async (req, res) => {
   );
 
   const employee = await getEmployeeById(result.insertId, req.user.company_id);
+  await auditEmployee(req, "user_created", employee, "Created employee " + employee.name, { email: employee.email });
   res.status(201).json({
     employee,
     message: `Employee created. Default password: ${DEFAULT_EMPLOYEE_PASSWORD}`,
@@ -179,6 +196,7 @@ const updateEmployee = asyncHandler(async (req, res) => {
   await query(`UPDATE users SET ${fields.join(", ")} WHERE id = ? AND company_id = ?`, params);
 
   const employee = await getEmployeeById(req.params.id, req.user.company_id);
+  await auditEmployee(req, "user_updated", employee, "Updated user " + employee.name, { fields: Object.keys(req.body) });
   res.json({ employee });
 });
 
@@ -195,6 +213,7 @@ const deleteEmployee = asyncHandler(async (req, res) => {
   }
 
   await query("UPDATE users SET status = 'inactive' WHERE id = ? AND company_id = ?", [req.params.id, req.user.company_id]);
+  await auditEmployee(req, "user_deleted", existing, "Deactivated user " + existing.name, { previousStatus: existing.status });
   res.json({ message: "Employee deactivated" });
 });
 

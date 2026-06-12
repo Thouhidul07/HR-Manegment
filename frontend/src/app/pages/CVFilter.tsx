@@ -39,6 +39,7 @@ export function CVFilter() {
   ]);
   const [apiCandidates, setApiCandidates] = useState<Candidate[]>([]);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [cvPreviewCandidate, setCvPreviewCandidate] = useState<Candidate | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [candidateForm, setCandidateForm] = useState({
     name: "",
@@ -242,6 +243,57 @@ export function CVFilter() {
     setSelectedCandidate(updatedCandidate);
   };
 
+  const getCandidateCvText = (candidate: Candidate) => [
+    candidate.name,
+    candidate.position,
+    "",
+    "Contact",
+    `Email: ${candidate.email}`,
+    `Phone: ${candidate.phone || "Not provided"}`,
+    "",
+    "Profile Summary",
+    `${candidate.experience} years of experience. AI compatibility score: ${candidate.score}. Match: ${candidate.matchPercentage}%.`,
+    "",
+    "Education",
+    candidate.education || "Not provided",
+    "",
+    "Skills",
+    candidate.skills.length ? candidate.skills.join(", ") : "Not provided",
+    "",
+    "Key Strengths",
+    ...(candidate.keyStrengths.length ? candidate.keyStrengths.map((item) => `- ${item}`) : ["- Not provided"]),
+    "",
+    "Concerns",
+    ...(candidate.concerns.length ? candidate.concerns.map((item) => `- ${item}`) : ["- None recorded"]),
+  ].join("\n");
+
+  const downloadCandidateCv = (candidate: Candidate) => {
+    if (candidate.cvUrl) {
+      const link = document.createElement("a");
+      link.href = candidate.cvUrl;
+      link.download = `${candidate.name.replace(/\s+/g, "_")}_CV`;
+      link.click();
+      return;
+    }
+
+    const blob = new Blob([getCandidateCvText(candidate)], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${candidate.name.replace(/\s+/g, "_")}_CV.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const viewCandidateCv = (candidate: Candidate) => {
+    if (candidate.cvUrl) {
+      window.open(candidate.cvUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    setCvPreviewCandidate(candidate);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -364,6 +416,104 @@ export function CVFilter() {
                 className="px-4 py-2 bg-gradient-to-r from-[#543884] to-[#9A77CF] text-white rounded-lg hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
               >
                 Save Candidate
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {cvPreviewCandidate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setCvPreviewCandidate(null)} />
+          <div className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-card border border-border rounded-xl shadow-xl">
+            <div className="p-6 border-b border-border flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">CV Preview</p>
+                <h2 className="text-xl font-semibold text-foreground">{cvPreviewCandidate.name}</h2>
+                <p className="text-sm text-muted-foreground">{cvPreviewCandidate.position}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => downloadCandidateCv(cvPreviewCandidate)}
+                className="px-3 py-2 border border-border rounded-lg hover:bg-accent transition-all text-sm flex items-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                Download
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="border border-border rounded-lg p-4">
+                  <p className="text-xs text-muted-foreground">AI Score</p>
+                  <p className="text-2xl font-bold text-foreground">{cvPreviewCandidate.score}</p>
+                </div>
+                <div className="border border-border rounded-lg p-4">
+                  <p className="text-xs text-muted-foreground">Match</p>
+                  <p className="text-2xl font-bold text-foreground">{cvPreviewCandidate.matchPercentage}%</p>
+                </div>
+                <div className="border border-border rounded-lg p-4">
+                  <p className="text-xs text-muted-foreground">Experience</p>
+                  <p className="text-2xl font-bold text-foreground">{cvPreviewCandidate.experience}y</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <section className="space-y-2">
+                  <h3 className="text-sm font-semibold text-foreground">Contact</h3>
+                  <p className="text-sm text-muted-foreground">{cvPreviewCandidate.email}</p>
+                  <p className="text-sm text-muted-foreground">{cvPreviewCandidate.phone || "No phone added"}</p>
+                </section>
+
+                <section className="space-y-2">
+                  <h3 className="text-sm font-semibold text-foreground">Education</h3>
+                  <p className="text-sm text-muted-foreground">{cvPreviewCandidate.education || "No education added"}</p>
+                </section>
+              </div>
+
+              <section className="space-y-3">
+                <h3 className="text-sm font-semibold text-foreground">Skills</h3>
+                <div className="flex flex-wrap gap-2">
+                  {cvPreviewCandidate.skills.map((skill) => (
+                    <span key={skill} className="px-2 py-1 bg-[#543884]/10 text-[#543884] dark:text-[#9A77CF] rounded text-xs">
+                      {skill}
+                    </span>
+                  ))}
+                </div>
+              </section>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <section className="space-y-2">
+                  <h3 className="text-sm font-semibold text-foreground">Key Strengths</h3>
+                  <ul className="space-y-1">
+                    {cvPreviewCandidate.keyStrengths.map((strength) => (
+                      <li key={strength} className="text-sm text-muted-foreground">- {strength}</li>
+                    ))}
+                  </ul>
+                </section>
+
+                <section className="space-y-2">
+                  <h3 className="text-sm font-semibold text-foreground">Concerns</h3>
+                  {cvPreviewCandidate.concerns.length ? (
+                    <ul className="space-y-1">
+                      {cvPreviewCandidate.concerns.map((concern) => (
+                        <li key={concern} className="text-sm text-muted-foreground">- {concern}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">None recorded</p>
+                  )}
+                </section>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-border flex justify-end">
+              <button
+                type="button"
+                onClick={() => setCvPreviewCandidate(null)}
+                className="px-4 py-2 bg-gradient-to-r from-[#543884] to-[#9A77CF] text-white rounded-lg hover:brightness-110 transition-all text-sm"
+              >
+                Close
               </button>
             </div>
           </div>
@@ -667,16 +817,8 @@ export function CVFilter() {
                 <h3 className="font-semibold text-foreground">Candidate Details</h3>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (selectedCandidate.cvUrl) {
-                      const link = document.createElement("a");
-                      link.href = selectedCandidate.cvUrl;
-                      link.download = `${selectedCandidate.name.replace(/\s+/g, "_")}_CV`;
-                      link.click();
-                    }
-                  }}
-                  disabled={!selectedCandidate.cvUrl}
-                  className="p-2 hover:bg-accent rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  onClick={() => downloadCandidateCv(selectedCandidate)}
+                  className="p-2 hover:bg-accent rounded-lg transition-colors cursor-pointer"
                   aria-label="Download CV"
                 >
                   <Download className="w-4 h-4" />
@@ -749,9 +891,8 @@ export function CVFilter() {
                   Shortlist
                 </button>
                 <button
-                  onClick={() => selectedCandidate.cvUrl && window.open(selectedCandidate.cvUrl, "_blank")}
-                  disabled={!selectedCandidate.cvUrl}
-                  className="flex-1 px-4 py-2 border border-border rounded-lg hover:bg-accent transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => viewCandidateCv(selectedCandidate)}
+                  className="flex-1 px-4 py-2 border border-border rounded-lg hover:bg-accent transition-all text-sm"
                 >
                   <Eye className="w-4 h-4 inline mr-1" />
                   View CV

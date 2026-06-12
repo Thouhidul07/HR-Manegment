@@ -7,7 +7,7 @@ ON DUPLICATE KEY UPDATE name = VALUES(name), domain = VALUES(domain);
 INSERT INTO users
   (id, company_id, employee_code, name, email, password, role, phone, department, designation, hire_date, salary, avatar)
 VALUES
-  (1, 1, 'NX-ADM-001', 'System Admin', 'admin@nexoratech.com', '$2a$10$7IAQrKRQwkIHv2eZSIRDj.S1O0ove29.KjCkCXD3369iJk9dTKngi', 'admin', '+8801712345601', 'System Administration', 'Administrator', '2024-01-01', 120000.00, 'SA'),
+  (1, 1, 'NX-ADM-001', 'Admin / CEO', 'admin@nexoratech.com', '$2a$10$7IAQrKRQwkIHv2eZSIRDj.S1O0ove29.KjCkCXD3369iJk9dTKngi', 'admin', '+8801712345601', 'Executive Office', 'Chief Executive Officer', '2024-01-01', 120000.00, 'CEO'),
   (2, 1, 'NX-HR-001', 'HR Manager 01', 'hr.manager01@nexoratech.com', '$2a$10$cteqOigYNxjG6l8d.G7tNOSlBprtlBiCUvj03ljajfV.0CMwhd.Uq', 'hr_manager', '+8801712345602', 'Human Resources', 'Lead HR Manager', '2024-02-01', 96000.00, 'HM'),
   (3, 1, 'NX-EMP-001', 'Employee 01', 'employee01@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801712345603', 'Information Technology', 'Software Engineer', '2024-03-01', 75000.00, 'E0'),
   (4, 1, 'NX-EMP-002', 'Employee 02', 'employee02@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801712345604', 'Finance', 'Accounts Officer', '2024-04-15', 68000.00, 'E0'),
@@ -17,12 +17,14 @@ VALUES
   (8, 1, 'NX-EMP-005', 'Employee 05', 'employee05@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801812345005', 'Operations', 'Operations Executive', '2024-05-05', 53750.00, 'E0'),
   (9, 1, 'NX-EMP-006', 'Employee 06', 'employee06@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801812345006', 'Customer Support', 'Customer Support Executive', '2024-06-06', 54500.00, 'E0'),
   (10, 1, 'NX-EMP-007', 'Employee 07', 'employee07@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801812345007', 'Training & Development', 'Training & Development Executive', '2024-07-07', 55250.00, 'E0'),
-  (11, 1, 'NX-EMP-008', 'Employee 08', 'employee08@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801812345008', 'Administration', 'Administration Executive', '2024-08-08', 56000.00, 'E0')
+  (11, 1, 'NX-EMP-008', 'Employee 08', 'employee08@nexoratech.com', '$2a$10$01IGc2QXmHlUFUvG1m/7keb7uYwZosrCQnr5SXNLazmXI0jPQj3Wy', 'employee', '+8801812345008', 'Administration', 'Administration Executive', '2024-08-08', 56000.00, 'E0'),
+  (18, 1, 'NX-PM-001', 'Project Manager 01', 'pm01@nexoratech.com', '$2a$10$Mda0zoEZZ0k1Ai68Q3r2CeIiSOrQRBvtToTiXbuT3R3zdBTuiT0NS', 'project_manager', '+8801712345699', 'Project Management', 'Project Manager', '2025-09-01', 98000.00, 'PM')
 ON DUPLICATE KEY UPDATE
   company_id = VALUES(company_id),
   employee_code = VALUES(employee_code),
   name = VALUES(name),
   email = VALUES(email),
+  password = VALUES(password),
   role = VALUES(role),
   department = VALUES(department),
   designation = VALUES(designation),
@@ -30,6 +32,48 @@ ON DUPLICATE KEY UPDATE
   salary = VALUES(salary),
   avatar = VALUES(avatar),
   status = 'active';
+
+INSERT INTO roles (code, name, description, is_system)
+VALUES
+  ('admin', 'Admin / CEO', 'System administration and read-only organizational oversight.', 1),
+  ('hr_manager', 'HR Manager', 'Employee, recruitment, attendance, payroll, and training management.', 1),
+  ('project_manager', 'Project Manager', 'Project, WBS, project task, history, and reporting management.', 1),
+  ('employee', 'Employee', 'Employee self-service and assigned task access.', 1)
+ON DUPLICATE KEY UPDATE name = VALUES(name), description = VALUES(description), is_system = 1;
+
+INSERT INTO permissions (code, module, action, description)
+VALUES
+  ('dashboard.project.view', 'dashboard', 'project_view', 'View the project manager dashboard.'),
+  ('projects.overview', 'projects', 'overview', 'View read-only project overview metrics.'),
+  ('projects.read', 'projects', 'read', 'View projects and project details.'),
+  ('projects.create', 'projects', 'create', 'Create projects.'),
+  ('projects.update', 'projects', 'update', 'Update projects.'),
+  ('projects.delete', 'projects', 'delete', 'Delete projects.'),
+  ('wbs.read', 'wbs', 'read', 'View work breakdown structures.'),
+  ('wbs.create', 'wbs', 'create', 'Create work breakdown structures.'),
+  ('wbs.update', 'wbs', 'update', 'Update work breakdown structures.'),
+  ('wbs.delete', 'wbs', 'delete', 'Delete work breakdown structures.'),
+  ('project_history.read', 'project_history', 'read', 'View project history.'),
+  ('project_reports.read', 'project_reports', 'read', 'View project reports.'),
+  ('project_tasks.assign', 'project_tasks', 'assign', 'Assign project tasks.'),
+  ('project_tasks.update', 'project_tasks', 'update', 'Update project tasks.')
+ON DUPLICATE KEY UPDATE module = VALUES(module), action = VALUES(action), description = VALUES(description);
+
+INSERT IGNORE INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+JOIN permissions p ON p.code = 'projects.overview'
+WHERE r.code = 'admin';
+
+INSERT IGNORE INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+JOIN permissions p ON p.code IN (
+  'dashboard.project.view', 'projects.read', 'projects.create', 'projects.update', 'projects.delete',
+  'wbs.read', 'wbs.create', 'wbs.update', 'wbs.delete', 'project_history.read',
+  'project_reports.read', 'project_tasks.assign', 'project_tasks.update'
+)
+WHERE r.code = 'project_manager';
 
 INSERT INTO lifecycle_steps (company_id, type, step_order, title, description)
 VALUES
@@ -95,4 +139,3 @@ VALUES
   (1, 'Submit Q1 performance feedback', 'Submit peer reviews for IT team members.', 'performance', 'high', 'in_progress', 3, 2, DATE_ADD(CURDATE(), INTERVAL 3 DAY)),
   (1, 'Refactor dashboard charts', 'Update charts to support interactive legends.', 'custom', 'low', 'todo', 3, 3, DATE_ADD(CURDATE(), INTERVAL 5 DAY)),
   (1, 'Review recruitment pipeline', 'Review CV filter candidates for backend engineers.', 'general', 'urgent', 'in_progress', 2, 1, DATE_ADD(CURDATE(), INTERVAL 1 DAY));
-

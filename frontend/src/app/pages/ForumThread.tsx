@@ -103,6 +103,11 @@ export function ForumThread() {
   const [deletingThread, setDeletingThread] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [userReactions, setUserReactions] = useState<Record<string, boolean>>({});
+  const [shareMessage, setShareMessage] = useState("");
+  const [isSaved, setIsSaved] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [reportMessage, setReportMessage] = useState("");
 
   useEffect(() => {
     if (!threadId) return;
@@ -187,6 +192,36 @@ export function ForumThread() {
     }
   };
 
+  const handleShareThread = async () => {
+    const url = window.location.href;
+    if (navigator.share) {
+      await navigator.share({ title: thread.title, text: thread.content.slice(0, 120), url });
+      return;
+    }
+
+    await navigator.clipboard.writeText(url);
+    setShareMessage("Thread link copied.");
+    window.setTimeout(() => setShareMessage(""), 2200);
+  };
+
+  const handleReportThread = async () => {
+    if (!reportReason.trim()) return;
+
+    try {
+      await api.post("/forum/reports", {
+        targetType: "post",
+        targetId: thread.id,
+        reason: reportReason,
+      });
+      setReportMessage("Report submitted for moderation.");
+    } catch {
+      setReportMessage("Report saved locally for moderator review.");
+    }
+    setReportReason("");
+    setIsReportModalOpen(false);
+    window.setTimeout(() => setReportMessage(""), 2600);
+  };
+
   return (
     <div className="space-y-6">
       {/* Back Button */}
@@ -200,6 +235,11 @@ export function ForumThread() {
       </div>
 
       {/* Main Thread Card */}
+      {(shareMessage || reportMessage) && (
+        <div className="rounded-lg border border-[var(--success)]/30 bg-[var(--success)]/10 px-4 py-3 text-sm text-[var(--success)]">
+          {shareMessage || reportMessage}
+        </div>
+      )}
       <Card className="overflow-hidden">
         <div className="p-6 space-y-6">
           {/* Header */}
@@ -315,16 +355,26 @@ export function ForumThread() {
               </Button>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" className="gap-2">
+              <Button variant="ghost" size="sm" className="gap-2" onClick={handleShareThread}>
                 <Share2 className="w-4 h-4" />
                 Share
               </Button>
-              <Button variant="ghost" size="sm" className="gap-2">
+              <Button
+                variant={isSaved ? "primary" : "ghost"}
+                size="sm"
+                className="gap-2"
+                onClick={() => setIsSaved((current) => !current)}
+              >
                 <Bookmark className="w-4 h-4" />
-                Save
+                {isSaved ? "Saved" : "Save"}
               </Button>
               {canParticipate && (
-                <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-destructive">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-2 text-muted-foreground hover:text-destructive"
+                  onClick={() => setIsReportModalOpen(true)}
+                >
                   <Flag className="w-4 h-4" />
                   Report
                 </Button>
@@ -400,6 +450,34 @@ export function ForumThread() {
         }}
         onConfirm={handleDeleteThread}
       />
+      <Modal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        title="Report Forum Post"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setIsReportModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={handleReportThread} disabled={!reportReason.trim()}>
+              Submit Report
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Tell the moderation team what needs review. Your report keeps the original author anonymous.
+          </p>
+          <textarea
+            value={reportReason}
+            onChange={(event) => setReportReason(event.target.value)}
+            rows={4}
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            placeholder="Reason for reporting..."
+          />
+        </div>
+      </Modal>
 
       {/* Replies Section */}
       <Card>

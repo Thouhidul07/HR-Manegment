@@ -25,6 +25,7 @@ export function Register() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [registerError, setRegisterError] = useState("");
+  const [policyModal, setPolicyModal] = useState<"terms" | "privacy" | null>(null);
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm<RegisterFormData>({
     defaultValues: { department: '' }
@@ -129,10 +130,11 @@ export function Register() {
       <div className="flex-1 lg:w-[60%] flex items-center justify-center p-8 bg-white dark:bg-[#1a0f2e] relative">
         <Link
           to="/"
-          className="absolute top-6 left-6 z-20 inline-flex items-center gap-2 rounded-lg border border-[#543884]/20 bg-white/80 px-4 py-2 text-sm font-medium text-[#262254] shadow-sm backdrop-blur transition-colors hover:bg-[#F4F0FA] hover:text-[#543884] dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
+          className="absolute top-6 left-6 z-20 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-[#9A77CF]/40"
+          style={{ background: 'linear-gradient(135deg, #543884 0%, #9A77CF 52%, #EC4176 100%)' }}
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to homepage
+          Back
         </Link>
 
         <button
@@ -354,9 +356,27 @@ export function Register() {
                     />
                     <span className="text-sm text-[#262254] dark:text-white">
                       I agree to the{" "}
-                      <a href="#" className="text-[#9A77CF] hover:text-[#EC4176] transition-colors">Terms of Service</a>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          setPolicyModal("terms");
+                        }}
+                        className="text-[#9A77CF] hover:text-[#EC4176] transition-colors"
+                      >
+                        Terms of Service
+                      </button>
                       {" "}and{" "}
-                      <a href="#" className="text-[#9A77CF] hover:text-[#EC4176] transition-colors">Privacy Policy</a>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          setPolicyModal("privacy");
+                        }}
+                        className="text-[#9A77CF] hover:text-[#EC4176] transition-colors"
+                      >
+                        Privacy Policy
+                      </button>
                     </span>
                   </label>
                   {errors.agreeToTerms && <p className="mt-1 text-xs text-[#EC4176]">{errors.agreeToTerms.message}</p>}
@@ -398,6 +418,36 @@ export function Register() {
           </motion.div>
         </motion.div>
       </div>
+      {policyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-lg rounded-2xl border border-[#543884]/15 bg-white p-6 shadow-2xl dark:bg-[#1a0f2e]">
+            <h3 className="text-lg font-semibold text-[#262254] dark:text-white">
+              {policyModal === "terms" ? "Terms of Service" : "Privacy Policy"}
+            </h3>
+            <div className="mt-4 space-y-3 text-sm leading-6 text-[#5f5278] dark:text-[#c7b8df]">
+              {policyModal === "terms" ? (
+                <>
+                  <p>HRSpace accounts are for approved company users only. Users must keep credentials private and use company data only for authorized work.</p>
+                  <p>Admins may approve, suspend, or revoke access according to company policy. Activity inside HRSpace can be logged for security and compliance.</p>
+                </>
+              ) : (
+                <>
+                  <p>HRSpace stores profile, attendance, payroll, training, task, and request data needed to operate the HR system.</p>
+                  <p>Data is visible according to role permissions. Employees can access their own records, while HR and Admin users can access broader company records.</p>
+                </>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setPolicyModal(null)}
+              className="mt-6 w-full rounded-xl py-3 font-semibold text-white shadow-lg transition-all hover:brightness-110"
+              style={{ background: 'linear-gradient(135deg, #543884 0%, #A13670 50%, #EC4176 100%)' }}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

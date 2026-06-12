@@ -1,4 +1,5 @@
 import { Shield, UserPlus, Edit2, Trash2, Lock, Unlock, AlertTriangle, CheckCircle, Filter, Download } from "lucide-react";
+import { useMemo, useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/Card";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
@@ -124,6 +125,39 @@ const severityColors = {
 };
 
 export function AuditTimeline() {
+  const [range, setRange] = useState("7");
+  const [showOnlyWarnings, setShowOnlyWarnings] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(6);
+
+  const visibleLogs = useMemo(() => {
+    const filtered = showOnlyWarnings
+      ? auditLogs.filter((log) => log.severity === "warning" || log.severity === "error")
+      : auditLogs;
+    return filtered.slice(0, visibleCount);
+  }, [showOnlyWarnings, visibleCount]);
+
+  const exportAuditLogs = () => {
+    const rows = [
+      ["Timestamp", "Action", "Target", "User", "Severity", "Description"],
+      ...visibleLogs.map((log) => [
+        log.timestamp,
+        log.action,
+        log.target,
+        log.user.name,
+        log.severity,
+        log.description,
+      ]),
+    ];
+    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `role-audit-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -133,17 +167,26 @@ export function AuditTimeline() {
             <p className="text-sm text-muted-foreground mt-1">Complete history of role and permission changes</p>
           </div>
           <div className="flex gap-2">
-            <select className="px-4 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
-              <option>Last 7 Days</option>
-              <option>Last 30 Days</option>
-              <option>Last 90 Days</option>
-              <option>All Time</option>
+            <select
+              value={range}
+              onChange={(event) => setRange(event.target.value)}
+              className="px-4 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+            >
+              <option value="7">Last 7 Days</option>
+              <option value="30">Last 30 Days</option>
+              <option value="90">Last 90 Days</option>
+              <option value="all">All Time</option>
             </select>
-            <Button variant="outline" size="sm" className="gap-2">
+            <Button
+              variant={showOnlyWarnings ? "primary" : "outline"}
+              size="sm"
+              className="gap-2"
+              onClick={() => setShowOnlyWarnings((current) => !current)}
+            >
               <Filter className="w-4 h-4" />
-              Filter
+              {showOnlyWarnings ? "Risk Only" : "Filter"}
             </Button>
-            <Button variant="outline" size="sm" className="gap-2">
+            <Button variant="outline" size="sm" className="gap-2" onClick={exportAuditLogs}>
               <Download className="w-4 h-4" />
               Export
             </Button>
@@ -158,7 +201,7 @@ export function AuditTimeline() {
 
           {/* Timeline Items */}
           <div className="space-y-6">
-            {auditLogs.map((log, index) => {
+            {visibleLogs.map((log) => {
               const Icon = log.icon;
               return (
                 <div key={log.id} className="relative pl-16">
@@ -199,8 +242,13 @@ export function AuditTimeline() {
 
         {/* Load More */}
         <div className="mt-6 text-center">
-          <Button variant="outline" className="gap-2">
-            Load More Activity
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={() => setVisibleCount((count) => Math.min(count + 4, auditLogs.length))}
+            disabled={visibleCount >= auditLogs.length}
+          >
+            {visibleCount >= auditLogs.length ? "All Activity Loaded" : "Load More Activity"}
           </Button>
         </div>
       </CardContent>
