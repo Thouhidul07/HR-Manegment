@@ -410,37 +410,6 @@ const listTasks = asyncHandler(async (req, res) => {
   res.json({ tasks: tasks.map(mapTask) });
 });
 
-const getProjectStatsLegacy = asyncHandler(async (req, res) => {
-  await ensureProjectTasksTable();
-  const [statusRows] = await query(
-    `SELECT status, COUNT(*) AS total
-     FROM project_tasks
-     GROUP BY status`
-  );
-  const [projectRows] = await query(
-    `SELECT project,
-      COUNT(*) AS total,
-      SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS completed,
-      SUM(CASE WHEN deadline < CURDATE() AND status <> 'completed' THEN 1 ELSE 0 END) AS overdue
-     FROM project_tasks
-     GROUP BY project
-     ORDER BY project`
-  );
-
-  res.json({
-    byStatus: statusRows.reduce((stats, row) => {
-      stats[row.status] = Number(row.total);
-      return stats;
-    }, {}),
-    projects: projectRows.map((row) => ({
-      name: row.project,
-      total: Number(row.total),
-      completed: Number(row.completed || 0),
-      overdue: Number(row.overdue || 0),
-    })),
-  });
-});
-
 const getProjectStats = asyncHandler(async (req, res) => {
   await ensureProjectTasksTable();
   await ensureProjectManagementTables();
@@ -598,28 +567,6 @@ const getAdminOverview = asyncHandler(async (req, res) => {
       completedWbsItems: Number(row.completed_wbs_items || 0),
     })),
   });
-});
-
-const getProjectHistoryLegacy = asyncHandler(async (req, res) => {
-  await ensureProjectTasksTable();
-  await seedProjectsFromTasks();
-  const [projects] = await query(
-    `SELECT p.*, owner.name AS owner_name,
-            COUNT(pt.id) AS tasks,
-            SUM(pt.status = 'completed') AS completed_tasks,
-            SUM(pt.deadline < CURDATE() AND pt.status <> 'completed') AS overdue_tasks,
-            GREATEST(p.updated_at, COALESCE(MAX(pt.updated_at), p.updated_at)) AS last_activity
-     FROM projects p
-     LEFT JOIN users owner ON owner.id = p.owner_id
-     LEFT JOIN project_tasks pt ON pt.project = p.name
-     GROUP BY p.id
-     ORDER BY last_activity DESC`
-  );
-  res.json({ projects: projects.map((row) => ({
-    ...mapProject({ ...row, members: 0, milestones: 0 }),
-    overdueTasks: Number(row.overdue_tasks || 0),
-    lastActivity: row.last_activity,
-  })) });
 });
 
 const getProjectHistory = asyncHandler(async (req, res) => {

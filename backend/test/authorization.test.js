@@ -434,3 +434,66 @@ test("HR manager keeps HR access but cannot access detailed projects", async () 
   assert.equal(employeesResponse.status, 200);
   assert.equal(projectsResponse.status, 403);
 });
+
+test("published circulars and applications persist through the public API", async () => {
+  const createResponse = await request("/api/jobs", {
+    method: "POST",
+    token: tokens.admin,
+    body: {
+      title: "Integration circular " + Date.now(),
+      department: "Engineering",
+      employmentType: "Contract",
+      location: "Dhaka",
+      deadline: "2026-12-31",
+      status: "published",
+    },
+  });
+
+  assert.equal(createResponse.status, 201);
+  const circularId = createResponse.data.circular.id;
+
+  try {
+    assert.equal(createResponse.data.circular.employmentType, "Contract");
+
+    const publicResponse = await request("/api/jobs/public");
+    assert.equal(publicResponse.status, 200);
+    assert.ok(publicResponse.data.circulars.some((circular) => circular.id === circularId));
+
+    const applicationResponse = await request(`/api/jobs/public/${circularId}/apply`, {
+      method: "POST",
+      body: {
+        name: "Integration Applicant",
+        email: `integration-${Date.now()}@example.com`,
+        phone: "+8801700000000",
+        skills: ["TypeScript", "SQL"],
+        experienceYears: 2,
+      },
+    });
+    assert.equal(applicationResponse.status, 201);
+
+    const applicationsResponse = await request(`/api/jobs/${circularId}/applications`, {
+      token: tokens.admin,
+    });
+    assert.equal(applicationsResponse.status, 200);
+    assert.ok(
+      applicationsResponse.data.applications.some(
+        (application) => application.id === applicationResponse.data.applicationId
+      )
+    );
+
+    const invalidResponse = await request(`/api/jobs/public/${circularId}/apply`, {
+      method: "POST",
+      body: {
+        email: "missing-name@example.com",
+        phone: "+8801700000001",
+      },
+    });
+    assert.equal(invalidResponse.status, 422);
+  } finally {
+    const deleteResponse = await request(`/api/jobs/${circularId}`, {
+      method: "DELETE",
+      token: tokens.admin,
+    });
+    assert.equal(deleteResponse.status, 200);
+  }
+});

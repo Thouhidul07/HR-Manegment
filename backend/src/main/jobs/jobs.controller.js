@@ -25,6 +25,7 @@ async function ensureJobsTables() {
       "company_id INT NOT NULL DEFAULT 1, " +
       "title VARCHAR(180) NOT NULL, " +
       "department VARCHAR(100) NOT NULL, " +
+      "employment_type ENUM('Full-time', 'Part-time', 'Contract') NOT NULL DEFAULT 'Full-time', " +
       "location VARCHAR(160) NOT NULL, " +
       "salary_range VARCHAR(100), " +
       "description TEXT, " +
@@ -41,7 +42,12 @@ async function ensureJobsTables() {
     ")"
   );
 
-  await addColumnIfMissing("job_circulars", "job_type", "VARCHAR(50) NOT NULL DEFAULT 'Full-time'");
+  await addColumnIfMissing(
+    "job_circulars",
+    "employment_type",
+    "ENUM('Full-time', 'Part-time', 'Contract') NOT NULL DEFAULT 'Full-time'"
+  );
+  await addColumnIfMissing("job_circulars", "job_type", "VARCHAR(50)");
 
   await query(
     "CREATE TABLE IF NOT EXISTS job_applications (" +
@@ -52,6 +58,7 @@ async function ensureJobsTables() {
       "email VARCHAR(160) NOT NULL, " +
       "phone VARCHAR(60) NOT NULL, " +
       "cover_letter TEXT, " +
+      "cv_file VARCHAR(255), " +
       "skills JSON, " +
       "experience_years DECIMAL(4, 1) NOT NULL DEFAULT 0, " +
       "status ENUM('submitted', 'reviewing', 'shortlisted', 'rejected', 'hired') NOT NULL DEFAULT 'submitted', " +
@@ -63,6 +70,7 @@ async function ensureJobsTables() {
     ")"
   );
 
+  await addColumnIfMissing("job_applications", "cv_file", "VARCHAR(255)");
   await addColumnIfMissing("job_applications", "resume_path", "VARCHAR(255)");
   await addColumnIfMissing("job_applications", "notes", "TEXT");
   await addColumnIfMissing("job_applications", "applied_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
@@ -102,8 +110,8 @@ function mapCircular(row) {
     companyId: Number(row.company_id),
     title: row.title,
     department: row.department,
-    jobType: row.job_type || row.employment_type || "Full-time",
-    employmentType: row.job_type || row.employment_type || "Full-time",
+    jobType: row.employment_type || row.job_type || "Full-time",
+    employmentType: row.employment_type || row.job_type || "Full-time",
     location: row.location,
     salaryRange: row.salary_range,
     description: row.description || "",

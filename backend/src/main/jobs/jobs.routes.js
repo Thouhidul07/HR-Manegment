@@ -55,7 +55,12 @@ router.post(
   handleUpload,
   [
     param("id").isInt({ min: 1 }),
-    body("name").optional().trim().notEmpty(),
+    body("name").custom((value, { req }) => {
+      if (!String(value || req.body.applicant_name || "").trim()) {
+        throw new Error("Applicant name is required");
+      }
+      return true;
+    }),
     body("applicant_name").optional().trim().notEmpty(),
     body("email").isEmail().withMessage("Valid email is required"),
     body("phone").trim().notEmpty().withMessage("Phone number is required"),
