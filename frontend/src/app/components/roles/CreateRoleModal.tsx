@@ -26,6 +26,7 @@ export function CreateRoleModal({ isOpen, onClose }: CreateRoleModalProps) {
   const [roleName, setRoleName] = useState("");
   const [roleDescription, setRoleDescription] = useState("");
   const [selectedPermissions, setSelectedPermissions] = useState<number[]>([]);
+  const [draftMessage, setDraftMessage] = useState("");
 
   if (!isOpen) return null;
 
@@ -38,6 +39,18 @@ export function CreateRoleModal({ isOpen, onClose }: CreateRoleModalProps) {
   const handleSubmit = () => {
     console.log("Creating role:", { roleName, roleDescription, selectedPermissions });
     onClose();
+  };
+
+  const saveDraft = () => {
+    const draft = {
+      roleName,
+      roleDescription,
+      selectedPermissions,
+      savedAt: new Date().toISOString(),
+    };
+    localStorage.setItem("hrspace-role-draft", JSON.stringify(draft));
+    setDraftMessage("Draft saved on this device.");
+    window.setTimeout(() => setDraftMessage(""), 2400);
   };
 
   return (
@@ -69,6 +82,11 @@ export function CreateRoleModal({ isOpen, onClose }: CreateRoleModalProps) {
           <div className="p-6 space-y-6">
             {/* Basic Information */}
             <div className="space-y-4">
+              {draftMessage && (
+                <div className="rounded-lg border border-[var(--success)]/30 bg-[var(--success)]/10 px-4 py-3 text-sm text-[var(--success)]">
+                  {draftMessage}
+                </div>
+              )}
               <div>
                 <label className="block text-sm text-foreground mb-2">
                   Role Name <span className="text-destructive">*</span>
@@ -166,7 +184,7 @@ export function CreateRoleModal({ isOpen, onClose }: CreateRoleModalProps) {
             Cancel
           </Button>
           <div className="flex gap-3">
-            <Button variant="outline">Save as Draft</Button>
+            <Button variant="outline" onClick={saveDraft}>Save as Draft</Button>
             <Button
               variant="primary"
               onClick={handleSubmit}

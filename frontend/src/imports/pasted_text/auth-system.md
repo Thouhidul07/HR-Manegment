@@ -22,9 +22,9 @@ Create a complete, production-quality authentication system with these files:
 - AuthContextType: { user, login, logout, isAuthenticated, isLoading }
 - User type: { id, name, email, role: 'admin' | 'hr_manager' | 'employee', avatar? }
 - login(email, password): Promise<void> — mock with setTimeout(800ms), 
-  accept any @hrms.com email with password 'password123', 
-  or hardcode: admin@hrms.com / Admin@1234, hr@hrms.com / Hr@1234, 
-  employee@hrms.com / Emp@1234 (each gets corresponding role)
+  accept any @nexoratech.com email with password 'password123', 
+  or hardcode: admin@nexoratech.com / Admin@1234, hr.manager01@nexoratech.com / Hr@1234, 
+  employee01@nexoratech.com / Emp@1234 (each gets corresponding role)
 - Persist auth state to localStorage key 'hrms-auth'
 - Expose AuthProvider and useAuth hook
 

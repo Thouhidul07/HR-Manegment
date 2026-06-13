@@ -168,6 +168,7 @@ export function Expense() {
   const [reviewingExpenseId, setReviewingExpenseId] = useState<number | null>(
     null,
   );
+  const [selectedClaim, setSelectedClaim] = useState<ExpenseClaim | null>(null);
   const [expenseMessage, setExpenseMessage] = useState("");
   const [expenseError, setExpenseError] = useState("");
   const isAdmin = user?.role === "admin";
@@ -450,27 +451,39 @@ export function Expense() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="p-4">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 rounded-lg bg-[var(--chart-1)]/20">
-              <Receipt className="w-5 h-5 text-[var(--chart-1)]" />
+        <Card 
+          className={`p-4 cursor-pointer transition-all hover:scale-102 hover:shadow-sm border-2 ${activeFilter === "All" ? "border-primary bg-primary/5" : "border-transparent"}`}
+          onClick={() => setActiveFilter("All")}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-[var(--chart-1)]/20">
+                <Receipt className="w-5 h-5 text-[var(--chart-1)]" />
+              </div>
+              <p className="text-sm text-muted-foreground">Total Claims</p>
             </div>
-            <p className="text-sm text-muted-foreground">Total Claims</p>
+            {activeFilter === "All" && <Badge variant="default" size="sm">Filtered</Badge>}
           </div>
-          <p className="text-2xl text-foreground">
+          <p className="text-2xl text-foreground font-bold">
             {formatCurrencyBDT(totalClaims)}
           </p>
-          <p className="text-xs text-muted-foreground mt-1">This month</p>
+          <p className="text-xs text-muted-foreground mt-1 font-sans">This month</p>
         </Card>
 
-        <Card className="p-4">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 rounded-lg bg-[var(--chart-2)]/20">
-              <Wallet className="w-5 h-5 text-[var(--chart-2)]" />
+        <Card 
+          className={`p-4 cursor-pointer transition-all hover:scale-102 hover:shadow-sm border-2 ${activeFilter === "Approved" ? "border-primary bg-primary/5" : "border-transparent"}`}
+          onClick={() => setActiveFilter(activeFilter === "Approved" ? "All" : "Approved")}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-[var(--chart-2)]/20">
+                <Wallet className="w-5 h-5 text-[var(--chart-2)]" />
+              </div>
+              <p className="text-sm text-muted-foreground">Approved</p>
             </div>
-            <p className="text-sm text-muted-foreground">Approved</p>
+            {activeFilter === "Approved" && <Badge variant="success" size="sm">Filtered</Badge>}
           </div>
-          <p className="text-2xl text-foreground">
+          <p className="text-2xl text-foreground font-bold">
             {formatCurrencyBDT(approvedClaims)}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
@@ -478,14 +491,20 @@ export function Expense() {
           </p>
         </Card>
 
-        <Card className="p-4">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 rounded-lg bg-[var(--chart-3)]/20">
-              <TrendingUp className="w-5 h-5 text-[var(--chart-3)]" />
+        <Card 
+          className={`p-4 cursor-pointer transition-all hover:scale-102 hover:shadow-sm border-2 ${activeFilter === "Pending" ? "border-primary bg-primary/5" : "border-transparent"}`}
+          onClick={() => setActiveFilter(activeFilter === "Pending" ? "All" : "Pending")}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-[var(--chart-3)]/20">
+                <TrendingUp className="w-5 h-5 text-[var(--chart-3)]" />
+              </div>
+              <p className="text-sm text-muted-foreground">Pending</p>
             </div>
-            <p className="text-sm text-muted-foreground">Pending</p>
+            {activeFilter === "Pending" && <Badge variant="warning" size="sm">Filtered</Badge>}
           </div>
-          <p className="text-2xl text-foreground">
+          <p className="text-2xl text-foreground font-bold">
             {formatCurrencyBDT(pendingClaims)}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
@@ -493,9 +512,9 @@ export function Expense() {
           </p>
         </Card>
 
-        <Card className="p-4">
+        <Card className="p-4 bg-card">
           <p className="text-sm text-muted-foreground">Avg. Claim Amount</p>
-          <p className="text-2xl text-foreground mt-1">
+          <p className="text-2xl text-foreground mt-1 font-bold">
             {formatCurrencyBDT(
               Math.round(totalClaims / visibleClaims.length || 0),
             )}
@@ -711,7 +730,7 @@ export function Expense() {
                       </div>
                     )}
                     {(!canReviewExpenses || claim.status !== "Pending") && (
-                      <Button variant="ghost" size="sm">
+                      <Button variant="ghost" size="sm" onClick={() => setSelectedClaim(claim)}>
                         View
                       </Button>
                     )}
@@ -722,6 +741,58 @@ export function Expense() {
           </Table>
         </CardContent>
       </Card>
+
+      <Modal
+        isOpen={Boolean(selectedClaim)}
+        onClose={() => setSelectedClaim(null)}
+        title="Expense Details"
+        size="lg"
+        footer={<Button variant="primary" onClick={() => setSelectedClaim(null)}>Close</Button>}
+      >
+        {selectedClaim && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between rounded-lg border border-border p-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Claimed by</p>
+                <p className="text-foreground">{selectedClaim.employee}</p>
+              </div>
+              <Badge
+                variant={
+                  selectedClaim.status === "Approved"
+                    ? "success"
+                    : selectedClaim.status === "Pending"
+                      ? "warning"
+                      : "error"
+                }
+              >
+                {selectedClaim.status}
+              </Badge>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs text-muted-foreground">Category</p>
+                <p className="text-sm text-foreground">{selectedClaim.type}</p>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs text-muted-foreground">Amount</p>
+                <p className="text-sm text-foreground">{formatCurrencyBDT(selectedClaim.amount)}</p>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs text-muted-foreground">Date</p>
+                <p className="text-sm text-foreground">{selectedClaim.date}</p>
+              </div>
+              <div className="rounded-lg border border-border p-3">
+                <p className="text-xs text-muted-foreground">Receipt</p>
+                <p className="text-sm text-foreground">{selectedClaim.receiptUrl ? "Attached" : "Not attached"}</p>
+              </div>
+            </div>
+            <div className="rounded-lg border border-border p-3">
+              <p className="text-xs text-muted-foreground">Description</p>
+              <p className="mt-1 text-sm text-foreground">{selectedClaim.description}</p>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <Modal
         isOpen={canSubmitExpense && isSubmitModalOpen}

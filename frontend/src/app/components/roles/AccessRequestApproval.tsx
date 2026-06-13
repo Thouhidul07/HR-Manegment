@@ -1,4 +1,5 @@
 import { Check, X, Clock, User, Shield, AlertCircle } from "lucide-react";
+import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "../ui/Card";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
@@ -6,7 +7,7 @@ import { Button } from "../ui/Button";
 const accessRequests = [
   {
     id: 1,
-    user: { name: "Rafi Ahmed", email: "rafi.ahmed@hrspace.local", avatar: "RA" },
+    user: { name: "Rafi Ahmed", email: "rafi.ahmed@nexoratech.com", avatar: "RA" },
     requestedRole: "HR Manager",
     currentRole: "Recruiter",
     reason: "Need access to employee records for new recruitment analytics project",
@@ -16,7 +17,7 @@ const accessRequests = [
   },
   {
     id: 2,
-    user: { name: "Sadia Rahman", email: "sadia.rahman@hrspace.local", avatar: "SR" },
+    user: { name: "Sadia Rahman", email: "sadia.rahman@nexoratech.com", avatar: "SR" },
     requestedRole: "Finance Officer",
     currentRole: "Employee Manager",
     reason: "Temporary access required for Q2 budget planning",
@@ -26,7 +27,7 @@ const accessRequests = [
   },
   {
     id: 3,
-    user: { name: "Mahmudul Karim", email: "mahmudul.karim@hrspace.local", avatar: "MK" },
+    user: { name: "Mahmudul Karim", email: "mahmudul.karim@nexoratech.com", avatar: "MK" },
     requestedRole: "Super Admin",
     currentRole: "HR Manager",
     reason: "System migration and configuration updates needed",
@@ -36,7 +37,7 @@ const accessRequests = [
   },
   {
     id: 4,
-    user: { name: "Jannatul Ferdous", email: "jannatul.ferdous@hrspace.local", avatar: "JF" },
+    user: { name: "Jannatul Ferdous", email: "jannatul.ferdous@nexoratech.com", avatar: "JF" },
     requestedRole: "Employee Manager",
     currentRole: "Recruiter",
     reason: "Promotion to team lead position",
@@ -66,6 +67,27 @@ const recentDecisions = [
 ];
 
 export function AccessRequestApproval() {
+  const [requests, setRequests] = useState(accessRequests);
+  const [decisions, setDecisions] = useState(recentDecisions);
+  const [priorityFilter, setPriorityFilter] = useState("all");
+
+  const decideRequest = (request: (typeof accessRequests)[number], status: "approved" | "rejected") => {
+    setRequests((current) => current.filter((item) => item.id !== request.id));
+    setDecisions((current) => [
+      {
+        id: Date.now(),
+        user: request.user.name,
+        role: request.requestedRole,
+        status,
+        decidedBy: "Current Admin",
+        decidedDate: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+      },
+      ...current,
+    ]);
+  };
+
+  const visibleRequests = requests.filter((request) => priorityFilter === "all" || request.priority === priorityFilter);
+
   return (
     <div className="space-y-6">
       {/* Pending Requests */}
@@ -77,18 +99,22 @@ export function AccessRequestApproval() {
               <p className="text-sm text-muted-foreground mt-1">Review and approve role change requests</p>
             </div>
             <div className="flex gap-2">
-              <select className="px-4 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
-                <option>All Priorities</option>
-                <option>High Priority</option>
-                <option>Medium Priority</option>
-                <option>Low Priority</option>
+              <select
+                value={priorityFilter}
+                onChange={(event) => setPriorityFilter(event.target.value)}
+                className="px-4 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              >
+                <option value="all">All Priorities</option>
+                <option value="high">High Priority</option>
+                <option value="medium">Medium Priority</option>
+                <option value="low">Low Priority</option>
               </select>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {accessRequests.map((request) => (
+            {visibleRequests.map((request) => (
               <div
                 key={request.id}
                 className="p-5 rounded-xl border border-border hover:border-[var(--primary)]/50 transition-all hover:shadow-md bg-card hover:bg-accent/20"
@@ -150,6 +176,7 @@ export function AccessRequestApproval() {
                       variant="primary"
                       size="sm"
                       className="gap-2 bg-[var(--success)] hover:bg-[var(--success)]/90"
+                      onClick={() => decideRequest(request, "approved")}
                     >
                       <Check className="w-4 h-4" />
                       Approve
@@ -158,6 +185,7 @@ export function AccessRequestApproval() {
                       variant="outline"
                       size="sm"
                       className="gap-2 text-destructive hover:bg-destructive/10 hover:border-destructive"
+                      onClick={() => decideRequest(request, "rejected")}
                     >
                       <X className="w-4 h-4" />
                       Reject
@@ -166,6 +194,11 @@ export function AccessRequestApproval() {
                 </div>
               </div>
             ))}
+            {!visibleRequests.length && (
+              <div className="rounded-xl border border-border p-6 text-center text-sm text-muted-foreground">
+                No pending access requests match this filter.
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -178,7 +211,7 @@ export function AccessRequestApproval() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {recentDecisions.map((decision) => (
+            {decisions.map((decision) => (
               <div
                 key={decision.id}
                 className="flex items-center justify-between p-4 rounded-lg border border-border bg-[var(--accent)]/30"

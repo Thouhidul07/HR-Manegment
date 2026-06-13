@@ -11,7 +11,7 @@ import { formatCurrencyBDT } from "../utils/formatters";
 const fallbackEmployee = {
   id: 1,
   name: "Tanvir Hasan",
-  email: "tanvir.hasan@hrspace.local",
+  email: "tanvir.hasan@nexoratech.com",
   phone: "+8801712345678",
   department: "Information Technology",
   designation: "Senior Software Engineer",

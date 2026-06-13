@@ -23,7 +23,6 @@ interface JobCircular {
   status: 'open' | 'closing-soon' | 'closed';
   applied: boolean;
 }
-
 type JobFilterType = 'all' | 'open' | 'applied';
 
 const jobFilterStyles: Record<

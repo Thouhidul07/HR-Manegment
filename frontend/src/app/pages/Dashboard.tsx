@@ -13,21 +13,21 @@ import {
 } from "recharts";
 import { AdminDashboard } from "../components/dashboard/AdminDashboard";
 import { useNavigate } from "react-router-dom";
-import { Button } from "../components/ui/Button";
-import { Input } from "../components/ui/Input";
-import { Modal } from "../components/ui/Modal";
 import {
   formatDashboardCurrency,
   getRoleDashboardSummary,
   RoleDashboardSummary,
 } from "../services/dashboardData";
+import { Button } from "../components/ui/Button";
+import { Input } from "../components/ui/Input";
+import { Modal } from "../components/ui/Modal";
 import api from "../services/api";
 
 export function Dashboard() {
   const { user } = useAuth();
   if (user?.role === 'admin')           return <AdminDashboard userName={user.name} />;
   if (user?.role === 'hr_manager')      return <HRManagerDashboard user={user} />;
-  if (user?.role === 'project_manager') return <ProjectManagerDashboard user={user} />;
+  if ((user?.role as string) === 'project_manager') return <ProjectManagerDashboard user={user} />;
   return <EmployeeDashboard user={user} />;
 }
 
@@ -56,15 +56,17 @@ interface StatCardProps {
   iconBg: string;
   subtitle?: string;
   index?: number;
+  onClick?: () => void;
 }
 
-function StatCard({ label, value, change, trend, icon: Icon, iconColor, iconBg, subtitle, index = 0 }: StatCardProps) {
+function StatCard({ label, value, change, trend, icon: Icon, iconColor, iconBg, subtitle, index = 0, onClick }: StatCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.06, duration: 0.25 }}
-      className="bg-card rounded-2xl border border-[#543884]/10 p-5 shadow-sm"
+      className={`bg-card rounded-2xl border border-[#543884]/10 p-5 shadow-sm ${onClick ? 'cursor-pointer hover:shadow-md hover:border-[#543884]/30 transition-all duration-200 hover:scale-102' : ''}`}
+      onClick={onClick}
     >
       <div className="flex items-start justify-between">
         <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: iconBg }}>
@@ -116,36 +118,70 @@ const chartTheme = {
 
 // HR Manager Dashboard
 function HRManagerDashboard({ user }: any) {
+  const navigate = useNavigate();
   const [summary, setSummary] = useState<RoleDashboardSummary | null>(null);
+  const [leaveRequests, setLeaveRequests] = useState<any[]>([]);
+  const [actioningLeave, setActioningLeave] = useState<number | null>(null);
+  const [leaveActionMsg, setLeaveActionMsg] = useState("");
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
-  useEffect(() => {
+  const loadHRData = () => {
     let isMounted = true;
 
     getRoleDashboardSummary("hr_manager")
-      .then((data) => {
-        if (isMounted) setSummary(data);
-      })
-      .catch((error) => {
-        console.warn("Unable to load HR manager dashboard summary", error);
-      });
+      .then((data) => { if (isMounted) setSummary(data); })
+      .catch((error) => { console.warn("Unable to load HR manager dashboard summary", error); });
 
-    return () => {
-      isMounted = false;
-    };
+    api.get("/leave", { params: { status: "pending", limit: 3 } })
+      .then((res) => {
+        if (isMounted) {
+          // backend returns { requests: [...] }; filter to only pending ones
+          const all = res.data.requests || res.data.leaves || res.data.leave || [];
+          const pending = all.filter((l: any) => {
+            const status = (l.status || "").toLowerCase();
+            return status === "pending";
+          });
+          setLeaveRequests(pending.slice(0, 3));
+        }
+      })
+      .catch(() => {/* leave widget stays empty */});
+
+    return () => { isMounted = false; };
+  };
+
+  useEffect(() => {
+    const cleanup = loadHRData();
+    return cleanup;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const activeEmployees = Number(summary?.activeEmployees ?? 247);
-  const pendingLeave = Number(summary?.pendingLeave ?? 12);
-  const upcomingTraining = Number(summary?.upcomingTraining ?? 18);
+  const activeEmployees = Number(summary?.activeEmployees ?? 11);
+  const pendingLeave = Number(summary?.pendingLeave ?? leaveRequests.length ?? 2);
+  const upcomingTraining = Number(summary?.upcomingTraining ?? 2);
+
+  const handleLeaveAction = async (leaveId: number, action: "approved" | "rejected") => {
+    setActioningLeave(leaveId);
+    try {
+      await api.patch(`/leave/${leaveId}/status`, { status: action });
+      setLeaveActionMsg(action === "approved" ? "Leave approved ✓" : "Leave rejected ✗");
+      setLeaveRequests((prev) => prev.filter((l) => l.id !== leaveId));
+      setSummary((prev) => prev ? { ...prev, pendingLeave: Math.max(0, Number(prev.pendingLeave ?? 0) - 1) } : prev);
+      window.setTimeout(() => setLeaveActionMsg(""), 2500);
+    } catch {
+      setLeaveActionMsg("Could not update leave status.");
+      window.setTimeout(() => setLeaveActionMsg(""), 2500);
+    } finally {
+      setActioningLeave(null);
+    }
+  };
 
   const weekData = [
-    { day: 'Mon', present: 238, leave: 9 },
-    { day: 'Tue', present: 242, leave: 5 },
-    { day: 'Wed', present: 235, leave: 12 },
-    { day: 'Thu', present: 240, leave: 7 },
-    { day: 'Fri', present: 230, leave: 15 }
+    { day: 'Mon', present: 10, leave: 1 },
+    { day: 'Tue', present: 11, leave: 0 },
+    { day: 'Wed', present: 9,  leave: 2 },
+    { day: 'Thu', present: 10, leave: 1 },
+    { day: 'Fri', present: 10, leave: 1 }
   ];
 
   return (
@@ -161,11 +197,11 @@ function HRManagerDashboard({ user }: any) {
         subtitle={`You have ${pendingLeave} pending leave requests and ${upcomingTraining} upcoming training sessions.`}
         actions={
           <>
-            <button className="rounded-xl px-4 py-2 text-sm text-white flex items-center gap-2 shadow-sm" style={{ background: 'linear-gradient(135deg, #543884, #A13670, #EC4176)' }}>
+            <button onClick={() => navigate('/dashboard/leave')} className="rounded-xl px-4 py-2 text-sm text-white flex items-center gap-2 shadow-sm" style={{ background: 'linear-gradient(135deg, #543884, #A13670, #EC4176)' }}>
               <CheckCircle className="w-4 h-4" />
               Approve Leaves
             </button>
-            <button className="border border-[#543884]/20 text-[#543884] rounded-xl px-4 py-2 text-sm flex items-center gap-2 hover:bg-[#543884]/5">
+            <button onClick={() => navigate('/dashboard/employees')} className="border border-[#543884]/20 text-[#543884] rounded-xl px-4 py-2 text-sm flex items-center gap-2 hover:bg-[#543884]/5">
               <UserPlus className="w-4 h-4" />
               Add Employee
             </button>
@@ -173,23 +209,11 @@ function HRManagerDashboard({ user }: any) {
         }
       />
 
-      {attendanceMessage && (
-        <div className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-300">
-          {attendanceMessage}
-        </div>
-      )}
-
-      {attendanceError && (
-        <div className="rounded-lg border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-300">
-          {attendanceError}
-        </div>
-      )}
-
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard label="Team Size" value={String(activeEmployees)} change={summary ? "Loaded from users table" : "8 new this month"} trend="up" icon={Users} iconBg="#5438841A" iconColor="#543884" index={0} />
-        <StatCard label="Attendance Rate" value="94.2%" change="+1.2% vs last week" trend="up" icon={Clock} iconBg="#9A77CF1A" iconColor="#9A77CF" index={1} />
-        <StatCard label="Leave Requests" value={String(pendingLeave)} change={summary ? "Awaiting approval" : "5 urgent"} trend="down" icon={Calendar} iconBg="#FFA45E1A" iconColor="#FFA45E" index={2} />
-        <StatCard label="Upcoming Training" value={String(upcomingTraining)} change={summary ? "Scheduled sessions" : "18 completions"} trend="up" icon={GraduationCap} iconBg="#EC41761A" iconColor="#EC4176" index={3} />
+        <StatCard label="Team Size" value={String(activeEmployees)} change={summary ? "Loaded from users table" : "8 new this month"} trend="up" icon={Users} iconBg="#5438841A" iconColor="#543884" index={0} onClick={() => navigate('/dashboard/employees')} />
+        <StatCard label="Attendance Rate" value="94.2%" change="+1.2% vs last week" trend="up" icon={Clock} iconBg="#9A77CF1A" iconColor="#9A77CF" index={1} onClick={() => navigate('/dashboard/attendance')} />
+        <StatCard label="Leave Requests" value={String(pendingLeave)} change={summary ? "Awaiting approval" : "5 urgent"} trend="down" icon={Calendar} iconBg="#FFA45E1A" iconColor="#FFA45E" index={2} onClick={() => navigate('/dashboard/leave')} />
+        <StatCard label="Upcoming Training" value={String(upcomingTraining)} change={summary ? "Scheduled sessions" : "18 completions"} trend="up" icon={GraduationCap} iconBg="#EC41761A" iconColor="#EC4176" index={3} onClick={() => navigate('/dashboard/training')} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
@@ -219,39 +243,56 @@ function HRManagerDashboard({ user }: any) {
         </div>
 
         <div className="lg:col-span-2">
-          <SectionCard title="Leave Requests" action={<a href="#" className="text-[#9A77CF] text-sm hover:text-[#EC4176]">View All →</a>}>
+          <SectionCard title="Leave Requests" action={<button type="button" onClick={() => navigate('/dashboard/leave')} className="text-[#9A77CF] text-sm hover:text-[#EC4176]">View All →</button>}>
+            {leaveActionMsg && (
+              <p className="text-xs text-[#543884] bg-[#543884]/10 px-3 py-1.5 rounded-lg mb-3">{leaveActionMsg}</p>
+            )}
             <div className="space-y-3">
-              {[
-                { name: 'Rafi Ahmed', days: 3, type: 'Annual Leave', initial: 'RA' },
-                { name: 'Priya Sen', days: 1, type: 'Sick Leave', initial: 'PS' },
-                { name: 'Karim Hassan', days: 5, type: 'Annual Leave', initial: 'KH' }
-              ].map((req, i) => (
-                <div key={i} className="flex items-center gap-3 py-2 border-b border-[#543884]/8 last:border-0">
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-medium" style={{ background: `linear-gradient(135deg, ${chartTheme.colors[i % 5]}, ${chartTheme.colors[(i + 1) % 5]})` }}>
-                    {req.initial}
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-[#262254] dark:text-white">{req.name}</p>
-                    <p className="text-xs text-muted-foreground">{req.days} days · {req.type}</p>
-                  </div>
-                  <div className="flex gap-1">
-                    <button className="bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg px-2 py-1 text-xs">✓</button>
-                    <button className="bg-[#EC4176]/10 text-[#EC4176] rounded-lg px-2 py-1 text-xs">✗</button>
-                  </div>
-                </div>
-              ))}
+              {leaveRequests.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">No pending leave requests.</p>
+              ) : (
+                leaveRequests.slice(0, 3).map((req, i) => {
+                  const employeeName = req.employee || req.employee_name || req.name || "?";
+                  const initials = employeeName.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
+                  return (
+                    <div key={req.id ?? i} className="flex items-center gap-3 py-2 border-b border-[#543884]/8 last:border-0">
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-medium" style={{ background: `linear-gradient(135deg, ${chartTheme.colors[i % 5]}, ${chartTheme.colors[(i + 1) % 5]})` }}>
+                        {initials}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-[#262254] dark:text-white truncate">{employeeName}</p>
+                        <p className="text-xs text-muted-foreground">{req.days ?? req.days_requested ?? req.total_days ?? "?"} days · {req.type || req.leave_type || "Leave"}</p>
+                      </div>
+                      <div className="flex gap-1">
+                        <button
+                          disabled={actioningLeave === req.id}
+                          onClick={() => handleLeaveAction(req.id, "approved")}
+                          className="bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg px-2 py-1 text-xs hover:bg-green-100 dark:hover:bg-green-900/50 disabled:opacity-50 transition-colors"
+                          title="Approve leave"
+                        >✓</button>
+                        <button
+                          disabled={actioningLeave === req.id}
+                          onClick={() => handleLeaveAction(req.id, "rejected")}
+                          className="bg-[#EC4176]/10 text-[#EC4176] rounded-lg px-2 py-1 text-xs hover:bg-[#EC4176]/20 disabled:opacity-50 transition-colors"
+                          title="Reject leave"
+                        >✗</button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </SectionCard>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <SectionCard title="Onboarding Pipeline" action={<a href="#" className="text-[#9A77CF] text-sm hover:text-[#EC4176]">Manage →</a>}>
+        <SectionCard title="Onboarding Pipeline" action={<button type="button" onClick={() => navigate('/dashboard/onboarding')} className="text-[#9A77CF] text-sm hover:text-[#EC4176]">Manage →</button>}>
           <div className="space-y-4">
             {[
-              { name: 'Sofia Rahman', progress: 92 },
-              { name: 'James Okafor', progress: 68 },
-              { name: 'Mei Lin', progress: 45 }
+              { name: 'Employee 07', progress: 92 },
+              { name: 'Employee 08', progress: 68 },
+              { name: 'Employee 06', progress: 45 }
             ].map((hire, i) => (
               <div key={i}>
                 <div className="flex justify-between text-sm mb-2">
@@ -269,9 +310,9 @@ function HRManagerDashboard({ user }: any) {
         <SectionCard title="Department Health">
           <div className="space-y-3">
             {[
-              { dept: 'Information Technology', score: 87, color: '#543884' },
-              { dept: 'Sales', score: 79, color: '#9A77CF' },
-              { dept: 'Marketing', score: 91, color: '#EC4176' }
+              { dept: 'Information Technology', score: 95, color: '#543884' },
+              { dept: 'Sales', score: 85, color: '#9A77CF' },
+              { dept: 'Marketing', score: 90, color: '#EC4176' }
             ].map((dept, i) => (
               <div key={i}>
                 <div className="flex justify-between text-sm mb-1">
@@ -291,9 +332,9 @@ function HRManagerDashboard({ user }: any) {
         <SectionCard title="Today's Agenda">
           <div className="space-y-3">
             {[
-              { time: '09:00', title: 'Interview: Senior Dev Role', badge: 'Interview', color: '#9A77CF' },
+              { time: '09:00', title: 'Interview: Candidate screening', badge: 'Interview', color: '#9A77CF' },
               { time: '11:00', title: 'Team Standup', badge: 'Meeting', color: '#543884' },
-              { time: '14:00', title: 'Performance Review: Rafi A.', badge: 'Review', color: '#EC4176' }
+              { time: '14:00', title: 'Performance Review: Employee 01', badge: 'Review', color: '#EC4176' }
             ].map((item, i) => (
               <div key={i} className="flex items-start gap-3">
                 <span className="text-xs text-[#9A77CF] font-mono mt-0.5">{item.time}</span>
@@ -308,7 +349,6 @@ function HRManagerDashboard({ user }: any) {
           </div>
         </SectionCard>
       </div>
-
     </motion.div>
   );
 }
@@ -318,11 +358,33 @@ function ProjectManagerDashboard({ user }: any) {
   const navigate = useNavigate();
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const [projectStats, setProjectStats] = useState<any>({ byStatus: {}, projects: [] });
+  const [projectTasks, setProjectTasks] = useState<any[]>([]);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
 
-  const projectData = [
-    { project: 'Website Redesign', completed: 6, inProgress: 3, todo: 2 },
-    { project: 'User Portal', completed: 4, inProgress: 5, todo: 3 }
-  ];
+  useEffect(() => {
+    let isMounted = true;
+    Promise.all([api.get("/projects/stats"), api.get("/projects/tasks"), api.get("/employees")])
+      .then(([statsRes, tasksRes, employeesRes]) => {
+        if (!isMounted) return;
+        setProjectStats(statsRes.data || { byStatus: {}, projects: [] });
+        setProjectTasks(tasksRes.data.tasks || []);
+        setTeamMembers(employeesRes.data.employees || []);
+      })
+      .catch((error) => console.warn("Unable to load project manager dashboard", error));
+    return () => { isMounted = false; };
+  }, []);
+
+  const projectData = (projectStats.projects || []).map((project: any) => ({
+    project: project.name,
+    completed: Number(project.completed || 0),
+    inProgress: Math.max(Number(project.total || 0) - Number(project.completed || 0), 0),
+    todo: 0,
+  }));
+  const totalTasks = projectTasks.length;
+  const completedTasks = Number(projectStats.byStatus?.completed || 0);
+  const activeProjects = projectData.filter((project: any) => project.inProgress + project.todo > 0).length;
+  const overdueTasks = projectTasks.filter((task) => task.status !== "completed" && task.deadline && new Date(task.deadline) < new Date()).length;
 
   return (
     <motion.div
@@ -357,17 +419,17 @@ function ProjectManagerDashboard({ user }: any) {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard label="Active Projects" value="2" change="On track" trend="neutral" icon={Briefcase} iconBg="#5438841A" iconColor="#543884" index={0} />
-        <StatCard label="Total Tasks" value="23" change="8 completed this week" trend="up" icon={CheckSquare} iconBg="#9A77CF1A" iconColor="#9A77CF" index={1} />
-        <StatCard label="Team Members" value="5" change="All active" trend="neutral" icon={Users} iconBg="#FFA45E1A" iconColor="#FFA45E" index={2} />
-        <StatCard label="Overdue Tasks" value="1" change="1 needs attention" trend="down" icon={Clock} iconBg="#EC41761A" iconColor="#EC4176" index={3} />
+        <StatCard label="Active Projects" value={String(activeProjects)} change="Loaded from projects" trend="neutral" icon={Briefcase} iconBg="#5438841A" iconColor="#543884" index={0} onClick={() => navigate('/dashboard/project-management')} />
+        <StatCard label="Total Tasks" value={String(totalTasks)} change={String(completedTasks) + " completed"} trend="up" icon={CheckSquare} iconBg="#9A77CF1A" iconColor="#9A77CF" index={1} onClick={() => navigate('/dashboard/project-management')} />
+        <StatCard label="Team Members" value={String(teamMembers.length)} change="Loaded from users" trend="neutral" icon={Users} iconBg="#FFA45E1A" iconColor="#FFA45E" index={2} onClick={() => navigate('/dashboard/employees')} />
+        <StatCard label="Overdue Tasks" value={String(overdueTasks)} change={overdueTasks ? "Needs attention" : "On track"} trend="down" icon={Clock} iconBg="#EC41761A" iconColor="#EC4176" index={3} onClick={() => navigate('/dashboard/project-management')} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <SectionCard title="Project Progress">
             <div className="space-y-6">
-              {projectData.map((project, i) => (
+              {(projectData.length ? projectData : [{ project: "No active project data", completed: 0, inProgress: 0, todo: 0 }]).map((project: any, i: number) => (
                 <div key={i}>
                   <div className="flex justify-between mb-3">
                     <h4 className="text-sm font-semibold text-[#262254] dark:text-white">{project.project}</h4>
@@ -409,24 +471,19 @@ function ProjectManagerDashboard({ user }: any) {
           </SectionCard>
         </div>
 
-        <SectionCard title="Team Performance" action={<a href="#" className="text-[#9A77CF] text-sm hover:text-[#EC4176]">View All →</a>}>
+        <SectionCard title="Team Performance" action={<button type="button" onClick={() => navigate('/dashboard/performance')} className="text-[#9A77CF] text-sm hover:text-[#EC4176]">View All →</button>}>
           <div className="space-y-3">
-            {[
-              { name: 'Sarah Johnson', tasks: 5, completed: 4, avatar: 'SJ' },
-              { name: 'Michael Chen', tasks: 6, completed: 5, avatar: 'MC' },
-              { name: 'Emily Rodriguez', tasks: 4, completed: 3, avatar: 'ER' },
-              { name: 'David Kim', tasks: 3, completed: 2, avatar: 'DK' }
-            ].map((member, i) => (
+            {teamMembers.slice(0, 4).map((member, i) => (
               <div key={i} className="flex items-center gap-3 py-2 border-b border-[#543884]/8 last:border-0">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#543884] to-[#9A77CF] flex items-center justify-center text-white text-xs font-semibold">
-                  {member.avatar}
+                  {member.avatar || member.initials || member.name?.slice(0, 2).toUpperCase()}
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-medium text-[#262254] dark:text-white">{member.name}</p>
-                  <p className="text-xs text-muted-foreground">{member.completed}/{member.tasks} tasks completed</p>
+                  <p className="text-xs text-muted-foreground">{member.designation || member.role}</p>
                 </div>
                 <div className="text-right">
-                  <span className="text-sm font-semibold text-[#543884]">{Math.round((member.completed / member.tasks) * 100)}%</span>
+                  <span className="text-sm font-semibold text-[#543884]">{member.status || "active"}</span>
                 </div>
               </div>
             ))}
@@ -435,19 +492,15 @@ function ProjectManagerDashboard({ user }: any) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <SectionCard title="Upcoming Deadlines" action={<a href="#" className="text-[#9A77CF] text-sm hover:text-[#EC4176]">View All →</a>}>
+        <SectionCard title="Upcoming Deadlines" action={<button type="button" onClick={() => navigate('/dashboard/project-management')} className="text-[#9A77CF] text-sm hover:text-[#EC4176]">View All →</button>}>
           <div className="space-y-3">
-            {[
-              { task: 'Database Schema Migration', date: 'Jun 2', overdue: true },
-              { task: 'Design Homepage Mockup', date: 'Jun 5', overdue: false },
-              { task: 'Mobile Responsive Design', date: 'Jun 7', overdue: false }
-            ].map((item, i) => (
+            {[...projectTasks].filter((task) => task.status !== "completed").sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime()).slice(0, 4).map((item, i) => (
               <div key={i} className="flex items-start gap-3">
-                <div className={`w-2 h-2 rounded-full mt-1.5 ${item.overdue ? 'bg-red-500' : 'bg-[#9A77CF]'}`} />
+                <div className={`w-2 h-2 rounded-full mt-1.5 ${new Date(item.deadline) < new Date() ? 'bg-red-500' : 'bg-[#9A77CF]'}`} />
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-[#262254] dark:text-white">{item.task}</p>
-                  <p className={`text-xs ${item.overdue ? 'text-red-500' : 'text-muted-foreground'}`}>
-                    {item.overdue ? 'Overdue' : `Due ${item.date}`}
+                  <p className="text-sm font-medium text-[#262254] dark:text-white">{item.title}</p>
+                  <p className={`text-xs ${new Date(item.deadline) < new Date() ? 'text-red-500' : 'text-muted-foreground'}`}>
+                    {new Date(item.deadline) < new Date() ? 'Overdue' : "Due " + new Date(item.deadline).toLocaleDateString()}
                   </p>
                 </div>
               </div>
@@ -458,10 +511,10 @@ function ProjectManagerDashboard({ user }: any) {
         <SectionCard title="Task Distribution">
           <div className="space-y-4">
             {[
-              { status: 'To Do', count: 5, color: '#9A77CF' },
-              { status: 'In Progress', count: 8, color: '#543884' },
-              { status: 'In Review', count: 3, color: '#FFA45E' },
-              { status: 'Completed', count: 10, color: '#00C853' }
+              { status: 'To Do', count: Number(projectStats.byStatus?.todo || 0), color: '#9A77CF' },
+              { status: 'In Progress', count: Number(projectStats.byStatus?.['in-progress'] || 0), color: '#543884' },
+              { status: 'In Review', count: Number(projectStats.byStatus?.['in-review'] || 0), color: '#FFA45E' },
+              { status: 'Completed', count: completedTasks, color: '#00C853' }
             ].map((stat, i) => (
               <div key={i}>
                 <div className="flex justify-between text-sm mb-1">
@@ -471,7 +524,7 @@ function ProjectManagerDashboard({ user }: any) {
                 <div className="h-2 bg-[#543884]/10 rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full"
-                    style={{ width: `${(stat.count / 26) * 100}%`, backgroundColor: stat.color }}
+                    style={{ width: `${totalTasks ? (stat.count / totalTasks) * 100 : 0}%`, backgroundColor: stat.color }}
                   />
                 </div>
               </div>
@@ -481,17 +534,12 @@ function ProjectManagerDashboard({ user }: any) {
 
         <SectionCard title="Recent Activity">
           <div className="space-y-3">
-            {[
-              { action: 'Task assigned to Sarah', time: '10 min ago', color: '#543884' },
-              { action: 'David completed a task', time: '1 hour ago', color: '#00C853' },
-              { action: 'Emily updated design', time: '2 hours ago', color: '#9A77CF' },
-              { action: 'New task created', time: '3 hours ago', color: '#FFA45E' }
-            ].map((activity, i) => (
+            {projectTasks.slice(0, 4).map((activity, i) => (
               <div key={i} className="flex items-start gap-3">
-                <div className="w-2 h-2 rounded-full mt-1.5" style={{ backgroundColor: activity.color }} />
+                <div className="w-2 h-2 rounded-full mt-1.5" style={{ backgroundColor: activity.status === "completed" ? "#00C853" : "#543884" }} />
                 <div className="flex-1">
-                  <p className="text-sm text-[#262254] dark:text-white">{activity.action}</p>
-                  <p className="text-xs text-muted-foreground">{activity.time}</p>
+                  <p className="text-sm text-[#262254] dark:text-white">{activity.title}</p>
+                  <p className="text-xs text-muted-foreground">{activity.project} - {activity.status}</p>
                 </div>
               </div>
             ))}
@@ -543,6 +591,7 @@ function ProjectManagerDashboard({ user }: any) {
   );
 }
 
+// Employee Dashboard helpers and types
 type AttendanceMonth = NonNullable<RoleDashboardSummary["monthAttendance"]>;
 type AttendanceDay = AttendanceMonth["days"][number];
 type AttendanceFilter = "all" | "present" | "late" | "absent" | "leave";
@@ -650,6 +699,7 @@ function EmployeeDashboard({ user }: any) {
   const [summary, setSummary] = useState<RoleDashboardSummary | null>(null);
   const [attendanceFilter, setAttendanceFilter] = useState<AttendanceFilter>("all");
   const [payslips, setPayslips] = useState<EmployeePayslip[]>([]);
+  const [myTasks, setMyTasks] = useState<Array<{ id: number; title: string; status: string; due_date: string | null }>>([]);
   const [downloadingPayslipId, setDownloadingPayslipId] = useState<number | null>(null);
   const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false);
   const [attendanceSaving, setAttendanceSaving] = useState(false);
@@ -686,6 +736,12 @@ function EmployeeDashboard({ user }: any) {
       .catch((error) => {
         console.warn("Unable to load employee payslips", error);
       });
+
+    api.get("/tasks", { params: { limit: 3 } })
+      .then((response) => {
+        if (isMounted) setMyTasks(response.data.tasks || []);
+      })
+      .catch(() => {/* tasks widget stays empty */});
 
     return () => {
       isMounted = false;
@@ -777,7 +833,7 @@ function EmployeeDashboard({ user }: any) {
           <>
             <button
               onClick={() => navigate("/dashboard/leave")}
-              className="rounded-xl px-4 py-2 text-sm text-white flex items-center gap-2 shadow-sm"
+              className="rounded-xl px-4 py-2 text-sm text-white flex items-center gap-2 shadow-sm cursor-pointer"
               style={{ background: 'linear-gradient(135deg, #543884, #A13670, #EC4176)' }}
             >
               <CalendarPlus className="w-4 h-4" />
@@ -785,7 +841,7 @@ function EmployeeDashboard({ user }: any) {
             </button>
             <button
               onClick={() => setIsAttendanceModalOpen(true)}
-              className="border border-[#543884]/20 text-[#543884] rounded-xl px-4 py-2 text-sm flex items-center gap-2 hover:bg-[#543884]/5"
+              className="border border-[#543884]/20 text-[#543884] rounded-xl px-4 py-2 text-sm flex items-center gap-2 hover:bg-[#543884]/5 cursor-pointer"
             >
               <Clock className="w-4 h-4" />
               Log Attendance
@@ -795,11 +851,23 @@ function EmployeeDashboard({ user }: any) {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard label="My Attendance" value={`${attendedDays} / ${workdaysInMonth}`} change={`${daysPresent} present, ${daysLate} late, ${daysAbsent} absent`} trend={daysAbsent > 0 ? "down" : "up"} icon={Clock} iconBg="#5438841A" iconColor="#543884" index={0} subtitle="attended workdays" />
-        <StatCard label="Pending Leave" value={String(pendingLeave)} change={summary ? "Requests awaiting decision" : "6 used this year"} trend="neutral" icon={Palmtree} iconBg="#9A77CF1A" iconColor="#9A77CF" index={1} />
-        <StatCard label="Latest Payroll" value={latestPayroll ? formatDashboardCurrency(latestPayroll) : "N/A"} change={summary ? "Most recent payroll record" : "1 overdue"} trend="neutral" icon={CheckSquare} iconBg="#EC41761A" iconColor="#EC4176" index={2} />
-        <StatCard label="Training Progress" value="2 / 5" change="40% complete" trend="neutral" icon={BookOpen} iconBg="#FFA45E1A" iconColor="#FFA45E" index={3} />
+        <StatCard label="My Attendance" value={`${attendedDays} / ${workdaysInMonth}`} change={`${daysPresent} present, ${daysLate} late, ${daysAbsent} absent`} trend={daysAbsent > 0 ? "down" : "up"} icon={Clock} iconBg="#5438841A" iconColor="#543884" index={0} subtitle="attended workdays" onClick={() => navigate('/dashboard/attendance')} />
+        <StatCard label="Pending Leave" value={String(pendingLeave)} change={summary ? "Requests awaiting decision" : "6 used this year"} trend="neutral" icon={Palmtree} iconBg="#9A77CF1A" iconColor="#9A77CF" index={1} onClick={() => navigate('/dashboard/leave')} />
+        <StatCard label="Latest Payroll" value={latestPayroll ? formatDashboardCurrency(latestPayroll) : "N/A"} change={summary ? "Most recent payroll record" : "1 overdue"} trend="neutral" icon={CheckSquare} iconBg="#EC41761A" iconColor="#EC4176" index={2} onClick={() => navigate('/dashboard/payslips')} />
+        <StatCard label="Training Progress" value="2 / 5" change="40% complete" trend="neutral" icon={BookOpen} iconBg="#FFA45E1A" iconColor="#FFA45E" index={3} onClick={() => navigate('/dashboard/training')} />
       </div>
+
+      {attendanceMessage && (
+        <div className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-300">
+          {attendanceMessage}
+        </div>
+      )}
+
+      {attendanceError && (
+        <div className="rounded-lg border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-300">
+          {attendanceError}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <SectionCard title="My Attendance This Month">
@@ -861,7 +929,7 @@ function EmployeeDashboard({ user }: any) {
                 key={filter.key}
                 type="button"
                 onClick={() => setAttendanceFilter(filter.key as AttendanceFilter)}
-                className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-colors ${
+                className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-colors cursor-pointer ${
                   attendanceFilter === filter.key ? filter.active : filter.idle
                 }`}
               >
@@ -905,30 +973,36 @@ function EmployeeDashboard({ user }: any) {
             <button
               type="button"
               onClick={() => navigate("/dashboard/tasks")}
-              className="text-[#9A77CF] text-sm hover:text-[#EC4176]"
+              className="text-[#9A77CF] text-sm hover:text-[#EC4176] cursor-pointer"
             >
               View All →
             </button>
           }
         >
           <div className="space-y-0">
-            {[
-              { task: 'Complete Q1 self-review', done: true, due: '' },
-              { task: 'Submit expense report', done: false, due: 'Due today' },
-              { task: 'Complete Safety Training', done: false, due: 'Due Apr 8' }
-            ].map((item, i) => (
-              <div key={i} className="flex items-center gap-3 py-2.5 border-b border-[#543884]/8 last:border-0">
-                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                  item.done ? 'bg-[#543884] border-[#543884]' : 'border-[#9A77CF]/40'
-                }`}>
-                  {item.done && <Check className="w-3 h-3 text-white" />}
-                </div>
-                <span className={`text-sm flex-1 ${item.done ? 'line-through text-muted-foreground' : 'text-[#262254] dark:text-white'}`}>
-                  {item.task}
-                </span>
-                {item.due && <span className="text-xs text-muted-foreground">{item.due}</span>}
-              </div>
-            ))}
+            {myTasks.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">No tasks yet. <button type="button" onClick={() => navigate("/dashboard/tasks")} className="text-[#9A77CF] hover:underline">Create one →</button></p>
+            ) : (
+              myTasks.slice(0, 3).map((task) => {
+                const isDone = task.status === "completed";
+                const dueLabel = task.due_date
+                  ? `Due ${new Date(task.due_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+                  : "";
+                return (
+                  <div key={task.id} className="flex items-center gap-3 py-2.5 border-b border-[#543884]/8 last:border-0">
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                      isDone ? 'bg-[#543884] border-[#543884]' : 'border-[#9A77CF]/40'
+                    }`}>
+                      {isDone && <Check className="w-3 h-3 text-white" />}
+                    </div>
+                    <span className={`text-sm flex-1 truncate ${isDone ? 'line-through text-muted-foreground' : 'text-[#262254] dark:text-white'}`}>
+                      {task.title}
+                    </span>
+                    {dueLabel && <span className="text-xs text-muted-foreground flex-shrink-0">{dueLabel}</span>}
+                  </div>
+                );
+              })
+            )}
           </div>
         </SectionCard>
 
@@ -938,7 +1012,7 @@ function EmployeeDashboard({ user }: any) {
             <button
               type="button"
               onClick={() => navigate("/dashboard/training")}
-              className="text-[#9A77CF] text-sm hover:text-[#EC4176]"
+              className="text-[#9A77CF] text-sm hover:text-[#EC4176] cursor-pointer"
             >
               Browse Courses →
             </button>
@@ -988,7 +1062,7 @@ function EmployeeDashboard({ user }: any) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <SectionCard title="Recent Payslips" action={<button type="button" onClick={() => navigate("/dashboard/payslips")} className="text-[#9A77CF] text-sm hover:text-[#EC4176]">View All →</button>}>
+        <SectionCard title="Recent Payslips" action={<button type="button" onClick={() => navigate("/dashboard/payslips")} className="text-[#9A77CF] text-sm hover:text-[#EC4176] cursor-pointer">View All →</button>}>
           <div className="space-y-0">
             {recentPayslips.length ? recentPayslips.map((slip) => (
               <div key={slip.id} className="flex items-center justify-between py-3 border-b border-[#543884]/8 last:border-0">
@@ -1007,7 +1081,7 @@ function EmployeeDashboard({ user }: any) {
                     type="button"
                     onClick={() => handleDownloadPayslip(slip)}
                     disabled={downloadingPayslipId === slip.id}
-                    className="text-[#9A77CF] hover:text-[#EC4176] disabled:opacity-50"
+                    className="text-[#9A77CF] hover:text-[#EC4176] disabled:opacity-50 cursor-pointer"
                     aria-label={`Download ${payslipMonthLabel(slip.pay_period)} payslip`}
                   >
                     <Download className="w-4 h-4" />
@@ -1135,4 +1209,3 @@ function EmployeeDashboard({ user }: any) {
     </motion.div>
   );
 }
-

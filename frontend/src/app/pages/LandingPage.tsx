@@ -638,7 +638,13 @@ const Footer = () => (
           <p className="text-white/60 text-sm mb-4">Streamlining HR for modern teams.</p>
           <div className="flex gap-3">
             {[Github, Twitter, Linkedin].map((Icon, i) => (
-              <a key={i} href="#" className="w-10 h-10 rounded-full border border-white/15 flex items-center justify-center hover:border-[#9A77CF] transition-colors">
+              <a
+                key={i}
+                href={i === 0 ? "https://github.com" : i === 1 ? "https://twitter.com" : "https://linkedin.com"}
+                target="_blank"
+                rel="noreferrer"
+                className="w-10 h-10 rounded-full border border-white/15 flex items-center justify-center hover:border-[#9A77CF] transition-colors"
+              >
                 <Icon className="w-4 h-4" />
               </a>
             ))}
@@ -649,17 +655,17 @@ const Footer = () => (
           <h4 className="font-semibold mb-3">Product</h4>
           <div className="space-y-2 text-sm text-white/70">
             <a href="#features" className="block hover:text-[#9A77CF] transition-colors">Features</a>
-            <a href="#" className="block hover:text-[#9A77CF] transition-colors">Pricing</a>
-            <a href="#" className="block hover:text-[#9A77CF] transition-colors">Changelog</a>
+            <a href="#pricing" className="block hover:text-[#9A77CF] transition-colors">Pricing</a>
+            <a href="#features" className="block hover:text-[#9A77CF] transition-colors">Changelog</a>
           </div>
         </div>
 
         <div>
           <h4 className="font-semibold mb-3">Company</h4>
           <div className="space-y-2 text-sm text-white/70">
-            <a href="#" className="block hover:text-[#9A77CF] transition-colors">About</a>
-            <a href="#" className="block hover:text-[#9A77CF] transition-colors">Blog</a>
-            <a href="#" className="block hover:text-[#9A77CF] transition-colors">Careers</a>
+            <a href="#how-it-works" className="block hover:text-[#9A77CF] transition-colors">About</a>
+            <a href="#features" className="block hover:text-[#9A77CF] transition-colors">Blog</a>
+            <a href="#contact" className="block hover:text-[#9A77CF] transition-colors">Careers</a>
           </div>
         </div>
 
@@ -672,6 +678,7 @@ const Footer = () => (
               className="flex-1 px-3 py-2 rounded-lg text-sm bg-white/10 border-none placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-[#9A77CF]"
             />
             <button
+              onClick={() => window.alert("Thanks for subscribing. We'll send HRSpace updates to the email you entered.")}
               className="px-4 py-2 rounded-lg text-sm text-white"
               style={{ background: 'linear-gradient(135deg, #543884 0%, #A13670 50%, #EC4176 100%)' }}
             >

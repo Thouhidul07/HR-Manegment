@@ -1,4 +1,5 @@
 import { useState } from "react";
+import api from "../services/api";
 import {
   Network,
   Plus,
@@ -168,39 +169,42 @@ export function DesignWBS() {
   };
 
   // Save WBS
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!projectName || !startDate || !endDate || !totalBudget) {
       alert("Please fill in all required fields: Project Name, Start Date, End Date, and Total Budget");
       return;
     }
 
-    const wbsData = {
-      id: Date.now(),
-      name: projectName,
-      description: projectDescription,
-      status: projectStatus,
-      startDate,
-      endDate,
-      budget: totalBudget,
-      spent: "$0",
-      team: parseInt(teamSize) || 0,
-      completion: projectStatus === 'planning' ? 0 : calculateCompletion(wbsTree),
-      wbs: wbsTree,
-      createdAt: new Date().toISOString()
-    };
+    try {
+      const projectsResponse = await api.get("/projects");
+      let project = (projectsResponse.data.projects || []).find(
+        (item: any) => item.name.toLowerCase() === projectName.trim().toLowerCase()
+      );
 
-    // Get existing projects from localStorage
-    const existingProjects = JSON.parse(localStorage.getItem('wbsProjects') || '[]');
+      if (!project) {
+        const projectResponse = await api.post("/projects", {
+          name: projectName.trim(),
+          description: projectDescription,
+          status: projectStatus === "planning" ? "planning" : "active",
+          startDate,
+          endDate,
+        });
+        project = projectResponse.data.project;
+      }
 
-    // Add new project
-    const updatedProjects = [...existingProjects, wbsData];
+      await api.post("/projects/wbs", {
+        projectId: project.id,
+        title: projectName.trim() + " WBS",
+        description: projectDescription,
+        nodes: wbsTree,
+      });
 
-    // Save to localStorage
-    localStorage.setItem('wbsProjects', JSON.stringify(updatedProjects));
-
-    console.log("Saving WBS:", wbsData);
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 3000);
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+    } catch (error: any) {
+      alert(error?.response?.data?.message || "Failed to save WBS");
+      return;
+    }
 
     // Reset form
     setTimeout(() => {
@@ -583,7 +587,7 @@ export function DesignWBS() {
                 </span>
                 <span className="font-semibold">
                   {totalBudget
-                    ? `${((totalEstimatedCost / parseFloat(totalBudget.replace(/[$,]/g, '') || 1)) * 100).toFixed(1)}%`
+                    ? `${((totalEstimatedCost / parseFloat(totalBudget.replace(/[$,]/g, '') || '1')) * 100).toFixed(1)}%`
                     : '0%'}
                 </span>
               </div>

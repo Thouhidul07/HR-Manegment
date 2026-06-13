@@ -33,8 +33,12 @@ function mapLeaveRequest(row) {
 }
 
 const listLeaveRequests = asyncHandler(async (req, res) => {
-  const userFilter = req.user.role === "employee" ? "WHERE l.user_id = ?" : "";
-  const params = req.user.role === "employee" ? [req.user.id] : [];
+  const userFilter = req.user.role === "employee" 
+    ? "WHERE l.user_id = ? AND u.company_id = ?" 
+    : "WHERE u.company_id = ?";
+  const params = req.user.role === "employee" 
+    ? [req.user.id, req.user.company_id] 
+    : [req.user.company_id];
   const [requests] = await query(
     `SELECT l.*, u.name AS employee_name FROM leave_requests l JOIN users u ON u.id = l.user_id ${userFilter} ORDER BY l.created_at DESC`,
     params
@@ -54,8 +58,8 @@ const createLeaveRequest = asyncHandler(async (req, res) => {
     `SELECT l.*, u.name AS employee_name
      FROM leave_requests l
      JOIN users u ON u.id = l.user_id
-     WHERE l.id = ?`,
-    [result.insertId]
+     WHERE l.id = ? AND u.company_id = ?`,
+    [result.insertId, req.user.company_id]
   );
 
   res.status(201).json({ request: mapLeaveRequest(rows[0]) });
@@ -63,10 +67,11 @@ const createLeaveRequest = asyncHandler(async (req, res) => {
 
 const updateLeaveStatus = asyncHandler(async (req, res) => {
   const [result] = await query(
-    `UPDATE leave_requests
-     SET status = ?, reviewed_by = ?, reviewed_at = NOW()
-     WHERE id = ?`,
-    [req.body.status, req.user.id, req.params.id]
+    `UPDATE leave_requests l
+     JOIN users u ON u.id = l.user_id
+     SET l.status = ?, l.reviewed_by = ?, l.reviewed_at = NOW()
+     WHERE l.id = ? AND u.company_id = ?`,
+    [req.body.status, req.user.id, req.params.id, req.user.company_id]
   );
 
   if (!result.affectedRows) {
@@ -77,8 +82,8 @@ const updateLeaveStatus = asyncHandler(async (req, res) => {
     `SELECT l.*, u.name AS employee_name
      FROM leave_requests l
      JOIN users u ON u.id = l.user_id
-     WHERE l.id = ?`,
-    [req.params.id]
+     WHERE l.id = ? AND u.company_id = ?`,
+    [req.params.id, req.user.company_id]
   );
 
   res.json({ request: mapLeaveRequest(rows[0]) });

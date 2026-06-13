@@ -1,5 +1,5 @@
 import { Target, TrendingUp, Award, Star } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import {
   Card,
   CardHeader,
@@ -191,6 +191,7 @@ const reviewCycle = [
 
 export function Performance() {
   const { user } = useAuth();
+  const [reviewFilter, setReviewFilter] = useState<"All" | "Pending" | "Top Performers">("All");
   const [performanceData, setPerformanceData] = useState<PerformanceRecord[]>(
     fallbackPerformanceData,
   );
@@ -349,6 +350,20 @@ export function Performance() {
   const targetSkillAverage = Math.round(
     skillsData.reduce((sum, skill) => sum + skill.target, 0) / skillsData.length,
   );
+
+  const filteredPerformanceData = useMemo(() => {
+    if (reviewFilter === "Pending") {
+      return performanceData.filter((record) =>
+        ["draft", "Pending", "Submitted"].includes(record.status)
+      );
+    }
+    if (reviewFilter === "Top Performers") {
+      return performanceData.filter((record) =>
+        Number(record.overall || 0) >= 4.5
+      );
+    }
+    return performanceData;
+  }, [performanceData, reviewFilter]);
 
   const showPerformanceFeedback = (message: string, isError = false) => {
     if (isError) {
@@ -553,47 +568,56 @@ export function Performance() {
         )}
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="p-4">
+        <Card 
+          className={`p-4 cursor-pointer transition-all hover:scale-102 hover:shadow-sm border-2 ${reviewFilter === "All" ? "border-primary bg-primary/5" : "border-transparent"}`}
+          onClick={() => setReviewFilter("All")}
+        >
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 rounded-lg bg-[var(--chart-1)]/20">
               <Target className="w-5 h-5 text-[var(--chart-1)]" />
             </div>
             <p className="text-sm text-muted-foreground">Overall Rating</p>
           </div>
-          <p className="text-2xl text-foreground">{averageRating}/5.0</p>
+          <p className="text-2xl text-foreground font-bold">{averageRating}/5.0</p>
           <p className="text-xs text-muted-foreground mt-1">Average score</p>
         </Card>
 
-        <Card className="p-4">
+        <Card className="p-4 bg-card">
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 rounded-lg bg-[var(--chart-2)]/20">
               <TrendingUp className="w-5 h-5 text-[var(--chart-2)]" />
             </div>
             <p className="text-sm text-muted-foreground">Goals Achieved</p>
           </div>
-          <p className="text-2xl text-foreground">{goalsAchieved}%</p>
+          <p className="text-2xl text-foreground font-bold">{goalsAchieved}%</p>
           <p className="text-xs text-muted-foreground mt-1">This quarter</p>
         </Card>
 
-        <Card className="p-4">
+        <Card 
+          className={`p-4 cursor-pointer transition-all hover:scale-102 hover:shadow-sm border-2 ${reviewFilter === "Top Performers" ? "border-primary bg-primary/5" : "border-transparent"}`}
+          onClick={() => setReviewFilter(reviewFilter === "Top Performers" ? "All" : "Top Performers")}
+        >
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 rounded-lg bg-[var(--chart-3)]/20">
               <Award className="w-5 h-5 text-[var(--chart-3)]" />
             </div>
             <p className="text-sm text-muted-foreground">Top Performers</p>
           </div>
-          <p className="text-2xl text-foreground">{topPerformers}</p>
+          <p className="text-2xl text-foreground font-bold">{topPerformers}</p>
           <p className="text-xs text-muted-foreground mt-1">4.5+ rating</p>
         </Card>
 
-        <Card className="p-4">
+        <Card 
+          className={`p-4 cursor-pointer transition-all hover:scale-102 hover:shadow-sm border-2 ${reviewFilter === "Pending" ? "border-primary bg-primary/5" : "border-transparent"}`}
+          onClick={() => setReviewFilter(reviewFilter === "Pending" ? "All" : "Pending")}
+        >
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 rounded-lg bg-[var(--chart-4)]/20">
               <Star className="w-5 h-5 text-[var(--chart-4)]" />
             </div>
             <p className="text-sm text-muted-foreground">Reviews Pending</p>
           </div>
-          <p className="text-2xl text-foreground">{reviewsPending}</p>
+          <p className="text-2xl text-foreground font-bold">{reviewsPending}</p>
         </Card>
       </div>
 
@@ -683,43 +707,47 @@ export function Performance() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {goals.map((goal) => (
-                <div
-                  key={goal.id}
-                  className="p-4 rounded-lg border border-border hover:border-primary/50 transition-colors"
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <h4 className="text-sm text-foreground">{goal.title}</h4>
-                    <Badge
-                      variant={
-                        goal.status === "Ahead"
-                          ? "success"
-                          : goal.status === "On Track"
-                            ? "info"
-                            : "warning"
-                      }
-                      size="sm"
-                    >
-                      {goal.status}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground mb-2">
-                    Due: {goal.dueDate}
-                  </p>
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">Progress</span>
-                      <span className="text-foreground">{goal.progress}%</span>
+              {goals.length > 0 ? (
+                goals.map((goal) => (
+                  <div
+                    key={goal.id}
+                    className="p-4 rounded-lg border border-border hover:border-primary/50 transition-colors"
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <h4 className="text-sm text-foreground">{goal.title}</h4>
+                      <Badge
+                        variant={
+                          goal.status === "Ahead"
+                            ? "success"
+                            : goal.status === "On Track"
+                              ? "info"
+                              : "warning"
+                        }
+                        size="sm"
+                      >
+                        {goal.status}
+                      </Badge>
                     </div>
-                    <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-primary transition-all"
-                        style={{ width: `${goal.progress}%` }}
-                      />
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Due: {goal.dueDate}
+                    </p>
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Progress</span>
+                        <span className="text-foreground">{goal.progress}%</span>
+                      </div>
+                      <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-primary transition-all"
+                          style={{ width: `${goal.progress}%` }}
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-8">No goals added.</p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -818,7 +846,7 @@ export function Performance() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {performanceData.map((record) => {
+              {filteredPerformanceData.map((record) => {
                 const review = reviews.find((item) => item.id === record.id);
                 const canSubmitSelfAssessment =
                   isEmployee && review?.status === "draft";
@@ -897,6 +925,13 @@ export function Performance() {
                   </TableRow>
                 );
               })}
+              {!filteredPerformanceData.length && (
+                <TableRow>
+                  <TableCell colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
+                    No performance records found.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -1171,7 +1206,7 @@ export function Performance() {
             </div>
 
             <div>
-              <p className="text-sm font-medium text-foreground mb-2">Feedback</p>
+              <p className="text-sm font-medium text-foreground mb-2">Feedback / Comments</p>
               <p className="rounded-lg border border-border bg-background/40 p-3 text-sm text-muted-foreground">
                 {selectedReview.feedback || "No feedback added yet."}
               </p>

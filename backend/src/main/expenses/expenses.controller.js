@@ -51,8 +51,12 @@ function mapExpense(row) {
 
 const listExpenses = asyncHandler(async (req, res) => {
   await ensureExpensePaymentsTable();
-  const where = req.user.role === "employee" ? "WHERE e.user_id = ?" : "";
-  const params = req.user.role === "employee" ? [req.user.id] : [];
+  const where = req.user.role === "employee" 
+    ? "WHERE e.user_id = ? AND u.company_id = ?" 
+    : "WHERE u.company_id = ?";
+  const params = req.user.role === "employee" 
+    ? [req.user.id, req.user.company_id] 
+    : [req.user.company_id];
   const [rows] = await query(
     `SELECT e.*, u.name AS employee_name, reviewer.name AS reviewer_name,
        ep.id AS payment_id, ep.amount AS payment_amount, ep.payment_date,
@@ -87,8 +91,8 @@ const createExpense = asyncHandler(async (req, res) => {
      FROM expenses e
      JOIN users u ON u.id = e.user_id
      LEFT JOIN users reviewer ON reviewer.id = e.reviewed_by
-     WHERE e.id = ?`,
-    [result.insertId]
+     WHERE e.id = ? AND u.company_id = ?`,
+    [result.insertId, req.user.company_id]
   );
 
   res.status(201).json({ expense: mapExpense(rows[0]) });
@@ -96,7 +100,10 @@ const createExpense = asyncHandler(async (req, res) => {
 
 const updateExpense = asyncHandler(async (req, res) => {
   await ensureExpensePaymentsTable();
-  const [existingRows] = await query("SELECT * FROM expenses WHERE id = ?", [req.params.id]);
+  const [existingRows] = await query(
+    "SELECT e.* FROM expenses e JOIN users u ON u.id = e.user_id WHERE e.id = ? AND u.company_id = ?",
+    [req.params.id, req.user.company_id]
+  );
 
   if (!existingRows.length) {
     return res.status(404).json({ message: "Expense not found" });
@@ -152,8 +159,8 @@ const updateExpense = asyncHandler(async (req, res) => {
      LEFT JOIN users reviewer ON reviewer.id = e.reviewed_by
      LEFT JOIN expense_payments ep ON ep.expense_id = e.id
      LEFT JOIN users paid_by ON paid_by.id = ep.paid_by
-     WHERE e.id = ?`,
-    [req.params.id]
+     WHERE e.id = ? AND u.company_id = ?`,
+    [req.params.id, req.user.company_id]
   );
 
   res.json({ expense: mapExpense(rows[0]) });
@@ -163,7 +170,10 @@ const updateExpenseStatus = asyncHandler(async (req, res) => {
   const { status, paymentDate, paymentMethod, paymentReference } = req.body;
   await ensureExpensePaymentsTable();
 
-  const [expenseRows] = await query("SELECT * FROM expenses WHERE id = ?", [req.params.id]);
+  const [expenseRows] = await query(
+    "SELECT e.* FROM expenses e JOIN users u ON u.id = e.user_id WHERE e.id = ? AND u.company_id = ?",
+    [req.params.id, req.user.company_id]
+  );
 
   if (!expenseRows.length) {
     return res.status(404).json({ message: "Expense not found" });
@@ -171,8 +181,11 @@ const updateExpenseStatus = asyncHandler(async (req, res) => {
 
   const expense = expenseRows[0];
   const [result] = await query(
-    "UPDATE expenses SET status = ?, reviewed_by = ? WHERE id = ?",
-    [status, req.user.id, req.params.id]
+    `UPDATE expenses e
+     JOIN users u ON u.id = e.user_id
+     SET e.status = ?, e.reviewed_by = ?
+     WHERE e.id = ? AND u.company_id = ?`,
+    [status, req.user.id, req.params.id, req.user.company_id]
   );
 
   if (!result.affectedRows) {
@@ -210,15 +223,18 @@ const updateExpenseStatus = asyncHandler(async (req, res) => {
      LEFT JOIN users reviewer ON reviewer.id = e.reviewed_by
      LEFT JOIN expense_payments ep ON ep.expense_id = e.id
      LEFT JOIN users paid_by ON paid_by.id = ep.paid_by
-     WHERE e.id = ?`,
-    [req.params.id]
+     WHERE e.id = ? AND u.company_id = ?`,
+    [req.params.id, req.user.company_id]
   );
 
   res.json({ expense: mapExpense(rows[0]) });
 });
 
 const deleteExpense = asyncHandler(async (req, res) => {
-  const [rows] = await query("SELECT * FROM expenses WHERE id = ?", [req.params.id]);
+  const [rows] = await query(
+    "SELECT e.* FROM expenses e JOIN users u ON u.id = e.user_id WHERE e.id = ? AND u.company_id = ?",
+    [req.params.id, req.user.company_id]
+  );
 
   if (!rows.length) {
     return res.status(404).json({ message: "Expense not found" });
@@ -236,7 +252,12 @@ const deleteExpense = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "Only pending expenses can be deleted" });
   }
 
-  await query("DELETE FROM expenses WHERE id = ?", [req.params.id]);
+  await query(
+    `DELETE e FROM expenses e
+     JOIN users u ON u.id = e.user_id
+     WHERE e.id = ? AND u.company_id = ?`,
+     [req.params.id, req.user.company_id]
+  );
   res.json({ message: "Expense deleted" });
 });
 

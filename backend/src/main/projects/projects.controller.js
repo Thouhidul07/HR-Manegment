@@ -1,5 +1,21 @@
 const { query } = require("../../config/database");
 const asyncHandler = require("../../utils/asyncHandler");
+const { logAudit } = require("../../utils/auditLogger");
+
+function auditFromRequest(req, action, entityType, entityId, description, metadata = {}) {
+  return logAudit({
+    actorId: req.user.id,
+    actorName: req.user.name,
+    actorRole: req.user.role,
+    action,
+    module: "Project Management",
+    entityType,
+    entityId,
+    description,
+    metadata,
+    ipAddress: req.ip,
+  });
+}
 
 async function ensureProjectTasksTable() {
   await query(`
@@ -70,6 +86,20 @@ async function ensureProjectManagementTables() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (task_id) REFERENCES project_tasks(id) ON DELETE CASCADE,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    )
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS work_breakdown_structures (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      project_id INT NOT NULL,
+      title VARCHAR(180) NOT NULL,
+      description TEXT,
+      nodes_json JSON NOT NULL,
+      created_by INT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+      FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
     )
   `);
 }
@@ -207,7 +237,56 @@ const createProject = asyncHandler(async (req, res) => {
     [result.insertId]
   );
 
+  await auditFromRequest(req, "project_created", "project", result.insertId, "Created project " + req.body.name);
   res.status(201).json({ project: mapProject(rows[0]) });
+});
+
+const updateProject = asyncHandler(async (req, res) => {
+  await ensureProjectManagementTables();
+  const fields = [];
+  const params = [];
+  const allowed = {
+    name: "name",
+    description: "description",
+    ownerId: "owner_id",
+    status: "status",
+    startDate: "start_date",
+    endDate: "end_date",
+  };
+
+  for (const [key, column] of Object.entries(allowed)) {
+    if (req.body[key] !== undefined) {
+      fields.push(`${column} = ?`);
+      params.push(req.body[key] || null);
+    }
+  }
+
+  if (!fields.length) return res.status(400).json({ message: "No project updates provided" });
+
+  params.push(req.params.id);
+  const [result] = await query(`UPDATE projects SET ${fields.join(", ")} WHERE id = ?`, params);
+  if (!result.affectedRows) return res.status(404).json({ message: "Project not found" });
+
+  const [rows] = await query(
+    `SELECT p.*, owner.name AS owner_name, 0 AS members, 0 AS milestones,
+            (SELECT COUNT(*) FROM project_tasks pt WHERE pt.project = p.name) AS tasks,
+            (SELECT COUNT(*) FROM project_tasks pt WHERE pt.project = p.name AND pt.status = 'completed') AS completed_tasks
+     FROM projects p LEFT JOIN users owner ON owner.id = p.owner_id WHERE p.id = ?`,
+    [req.params.id]
+  );
+  await auditFromRequest(req, "project_updated", "project", req.params.id, "Updated project " + rows[0].name, { fields: Object.keys(req.body) });
+  res.json({ project: mapProject(rows[0]) });
+});
+
+const deleteProject = asyncHandler(async (req, res) => {
+  await ensureProjectManagementTables();
+  const [projects] = await query("SELECT name FROM projects WHERE id = ?", [req.params.id]);
+  if (!projects.length) return res.status(404).json({ message: "Project not found" });
+
+  await query("DELETE FROM project_tasks WHERE project = ?", [projects[0].name]);
+  await query("DELETE FROM projects WHERE id = ?", [req.params.id]);
+  await auditFromRequest(req, "project_deleted", "project", req.params.id, "Deleted project " + projects[0].name);
+  res.json({ message: "Project deleted" });
 });
 
 const listTasks = asyncHandler(async (req, res) => {
@@ -248,6 +327,137 @@ const getProjectStats = asyncHandler(async (req, res) => {
   });
 });
 
+const getAdminOverview = asyncHandler(async (req, res) => {
+  await ensureProjectTasksTable();
+  await seedProjectTasksIfEmpty();
+  await seedProjectsFromTasks();
+
+  const [[projectCounts], [overdueRows], [activityRows], [managerRows]] = await Promise.all([
+    query(`SELECT COUNT(*) AS total,
+                  SUM(status = 'active') AS active,
+                  SUM(status = 'completed') AS completed
+           FROM projects`),
+    query("SELECT COUNT(*) AS overdue FROM project_tasks WHERE deadline < CURDATE() AND status <> 'completed'"),
+    query(`SELECT id, title, project, status, updated_at
+           FROM project_tasks ORDER BY updated_at DESC LIMIT 6`),
+    query(`SELECT u.id, u.name, u.email,
+                  COUNT(DISTINCT p.id) AS projects,
+                  COUNT(DISTINCT CASE WHEN p.status = 'active' THEN p.id END) AS active_projects
+           FROM users u
+           LEFT JOIN projects p ON p.owner_id = u.id
+           WHERE u.role = 'project_manager' AND u.status = 'active'
+           GROUP BY u.id, u.name, u.email ORDER BY u.name`),
+  ]);
+
+  res.json({
+    totalProjects: Number(projectCounts[0]?.total || 0),
+    activeProjects: Number(projectCounts[0]?.active || 0),
+    completedProjects: Number(projectCounts[0]?.completed || 0),
+    overdueTasks: Number(overdueRows[0]?.overdue || 0),
+    recentActivity: activityRows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      project: row.project,
+      status: row.status,
+      updatedAt: row.updated_at,
+    })),
+    projectManagers: managerRows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      email: row.email,
+      projects: Number(row.projects || 0),
+      activeProjects: Number(row.active_projects || 0),
+    })),
+  });
+});
+
+const getProjectHistory = asyncHandler(async (req, res) => {
+  await ensureProjectTasksTable();
+  await seedProjectsFromTasks();
+  const [projects] = await query(
+    `SELECT p.*, owner.name AS owner_name,
+            COUNT(pt.id) AS tasks,
+            SUM(pt.status = 'completed') AS completed_tasks,
+            SUM(pt.deadline < CURDATE() AND pt.status <> 'completed') AS overdue_tasks,
+            GREATEST(p.updated_at, COALESCE(MAX(pt.updated_at), p.updated_at)) AS last_activity
+     FROM projects p
+     LEFT JOIN users owner ON owner.id = p.owner_id
+     LEFT JOIN project_tasks pt ON pt.project = p.name
+     GROUP BY p.id
+     ORDER BY last_activity DESC`
+  );
+  res.json({ projects: projects.map((row) => ({
+    ...mapProject({ ...row, members: 0, milestones: 0 }),
+    overdueTasks: Number(row.overdue_tasks || 0),
+    lastActivity: row.last_activity,
+  })) });
+});
+
+function mapWbs(row) {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    projectName: row.project_name,
+    title: row.title,
+    description: row.description || "",
+    nodes: typeof row.nodes_json === "string" ? JSON.parse(row.nodes_json) : row.nodes_json,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+const listWBS = asyncHandler(async (req, res) => {
+  await ensureProjectManagementTables();
+  const [rows] = await query(
+    `SELECT w.*, p.name AS project_name FROM work_breakdown_structures w
+     JOIN projects p ON p.id = w.project_id ORDER BY w.updated_at DESC`
+  );
+  res.json({ workBreakdownStructures: rows.map(mapWbs) });
+});
+
+const getWBSById = asyncHandler(async (req, res) => {
+  await ensureProjectManagementTables();
+  const [rows] = await query(
+    `SELECT w.*, p.name AS project_name FROM work_breakdown_structures w
+     JOIN projects p ON p.id = w.project_id WHERE w.id = ?`,
+    [req.params.id]
+  );
+  if (!rows.length) return res.status(404).json({ message: "WBS not found" });
+  res.json({ workBreakdownStructure: mapWbs(rows[0]) });
+});
+
+const createWBS = asyncHandler(async (req, res) => {
+  await ensureProjectManagementTables();
+  const [result] = await query(
+    `INSERT INTO work_breakdown_structures (project_id, title, description, nodes_json, created_by)
+     VALUES (?, ?, ?, ?, ?)`,
+    [req.body.projectId, req.body.title, req.body.description || null, JSON.stringify(req.body.nodes), req.user.id]
+  );
+  await auditFromRequest(req, "wbs_created", "wbs", result.insertId, "Created WBS " + req.body.title, { projectId: req.body.projectId });
+  req.params.id = result.insertId;
+  return getWBSById(req, res);
+});
+
+const updateWBS = asyncHandler(async (req, res) => {
+  await ensureProjectManagementTables();
+  const [result] = await query(
+    `UPDATE work_breakdown_structures
+     SET project_id = ?, title = ?, description = ?, nodes_json = ? WHERE id = ?`,
+    [req.body.projectId, req.body.title, req.body.description || null, JSON.stringify(req.body.nodes), req.params.id]
+  );
+  if (!result.affectedRows) return res.status(404).json({ message: "WBS not found" });
+  await auditFromRequest(req, "wbs_updated", "wbs", req.params.id, "Updated WBS " + req.body.title, { projectId: req.body.projectId });
+  return getWBSById(req, res);
+});
+
+const deleteWBS = asyncHandler(async (req, res) => {
+  await ensureProjectManagementTables();
+  const [result] = await query("DELETE FROM work_breakdown_structures WHERE id = ?", [req.params.id]);
+  if (!result.affectedRows) return res.status(404).json({ message: "WBS not found" });
+  await auditFromRequest(req, "wbs_deleted", "wbs", req.params.id, "Deleted WBS");
+  res.json({ message: "WBS deleted" });
+});
+
 const createTask = asyncHandler(async (req, res) => {
   await ensureProjectTasksTable();
   const assigneeAvatar = req.body.assigneeAvatar || initials(req.body.assignee);
@@ -270,6 +480,7 @@ const createTask = asyncHandler(async (req, res) => {
   );
 
   const [rows] = await query("SELECT * FROM project_tasks WHERE id = ?", [result.insertId]);
+  await auditFromRequest(req, "project_task_created", "project_task", result.insertId, "Created project task " + req.body.title, { project: req.body.project });
   res.status(201).json({ task: mapTask(rows[0]) });
 });
 
@@ -313,6 +524,7 @@ const updateTask = asyncHandler(async (req, res) => {
   }
 
   const [rows] = await query("SELECT * FROM project_tasks WHERE id = ?", [req.params.id]);
+  await auditFromRequest(req, "project_task_updated", "project_task", req.params.id, "Updated project task " + rows[0].title, { fields: Object.keys(req.body) });
   res.json({ task: mapTask(rows[0]) });
 });
 
@@ -324,7 +536,25 @@ const deleteTask = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: "Task not found" });
   }
 
+  await auditFromRequest(req, "project_task_deleted", "project_task", req.params.id, "Deleted project task");
   res.json({ message: "Task deleted" });
 });
 
-module.exports = { listProjects, createProject, listTasks, getProjectStats, createTask, updateTask, deleteTask };
+module.exports = {
+  getAdminOverview,
+  listProjects,
+  createProject,
+  updateProject,
+  deleteProject,
+  listTasks,
+  getProjectStats,
+  getProjectHistory,
+  createTask,
+  updateTask,
+  deleteTask,
+  listWBS,
+  getWBSById,
+  createWBS,
+  updateWBS,
+  deleteWBS,
+};

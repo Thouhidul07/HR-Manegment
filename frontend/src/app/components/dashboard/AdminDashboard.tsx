@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Users, UserCheck, UserX, Briefcase,
   FileText, UserPlus, Calendar, Receipt,
-  GraduationCap,
+  GraduationCap, ShieldCheck, Search, X, RefreshCw,
 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
@@ -10,33 +11,107 @@ import {
 } from 'recharts';
 import {
   getAdminStats, getAdminAttendanceTrend, getDepartmentBreakdown,
-  getPayrollSummary, getPendingApprovals, getAdminActivity,
-  getUpcomingEvents, ActivityItem, getRoleDashboardSummary,
+  getPayrollSummary, getPendingApprovals,
+  getUpcomingEvents, getRoleDashboardSummary,
   formatDashboardCurrency, RoleDashboardSummary,
 } from '../../services/dashboardData';
 import {
   C, CHART_COLORS, chartStyle, getGreeting,
   DashboardHeader, StatCard, SectionCard, GhostLink, CTAButton, OutlineButton,
 } from './shared';
+import api from '../../services/api';
 
-const activityConfig: Record<ActivityItem['type'], { icon: React.ElementType; color: string }> = {
-  leave:      { icon: Calendar,      color: C.mid },
-  onboarding: { icon: UserPlus,      color: C.primary },
-  expense:    { icon: Receipt,       color: C.warm },
-  training:   { icon: GraduationCap, color: C.action },
-  profile:    { icon: Users,         color: C.berry },
-  payroll:    { icon: FileText,      color: C.mid },
+interface AuditLog {
+  id: number;
+  user_name?: string;
+  actor_name?: string;
+  role?: string;
+  actor_role?: string;
+  action: string;
+  module: string;
+  description?: string;
+  created_at: string;
+}
+
+interface AuditFilters {
+  search: string;
+  module: string;
+  role: string;
+  startDate: string;
+  endDate: string;
+}
+
+const moduleConfig: Record<string, { icon: React.ElementType; color: string }> = {
+  Attendance: { icon: Calendar, color: C.mid },
+  Authentication: { icon: ShieldCheck, color: C.primary },
+  "Forum Moderation": { icon: UserCheck, color: C.action },
+  Payroll: { icon: Receipt, color: C.warm },
+  "Profile Documents": { icon: FileText, color: C.berry },
+  Projects: { icon: Briefcase, color: C.primary },
+  Recruitment: { icon: UserPlus, color: C.action },
+  Training: { icon: GraduationCap, color: C.mid },
 };
 
+function formatAuditAction(action: string) {
+  return action.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function formatAuditTime(value: string) {
+  if (!value) return 'Just now';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Just now';
+  return date.toLocaleString();
+}
+
+function getAuditIdentity(log: AuditLog) {
+  return log.user_name || log.actor_name || 'System';
+}
+
 export function AdminDashboard({ userName }: { userName: string }) {
+  const navigate = useNavigate();
   const [summary, setSummary] = useState<RoleDashboardSummary | null>(null);
+  const [projectOverview, setProjectOverview] = useState<any | null>(null);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [auditLoading, setAuditLoading] = useState(true);
+  const [auditError, setAuditError] = useState('');
+  const [auditModalOpen, setAuditModalOpen] = useState(false);
+  const [auditFilters, setAuditFilters] = useState<AuditFilters>({
+    search: '',
+    module: '',
+    role: '',
+    startDate: '',
+    endDate: '',
+  });
+  const [reporting, setReporting] = useState(false);
   const stats    = getAdminStats();
   const trend    = getAdminAttendanceTrend();
   const depts    = getDepartmentBreakdown();
   const payroll  = getPayrollSummary();
   const approvals= getPendingApprovals();
-  const activity = getAdminActivity();
   const events   = getUpcomingEvents();
+
+  const loadAuditLogs = (filters: AuditFilters = auditFilters) => {
+    setAuditLoading(true);
+    setAuditError('');
+
+    const params: Record<string, string | number> = { limit: 100 };
+    if (filters.search) params.search = filters.search;
+    if (filters.module) params.module = filters.module;
+    if (filters.role) params.role = filters.role;
+    if (filters.startDate) params.startDate = filters.startDate;
+    if (filters.endDate) params.endDate = filters.endDate;
+
+    api.get('/audit-logs', { params })
+      .then((response) => {
+        setAuditLogs(response.data?.logs || []);
+      })
+      .catch(() => {
+        setAuditError('Unable to load recent activity right now.');
+      })
+      .finally(() => {
+        setAuditLoading(false);
+      });
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -49,10 +124,32 @@ export function AdminDashboard({ userName }: { userName: string }) {
         console.warn("Unable to load admin dashboard summary", error);
       });
 
+    api.get("/projects/overview")
+      .then((response) => {
+        if (isMounted) setProjectOverview(response.data);
+      })
+      .catch((error) => {
+        console.warn("Unable to load admin project overview", error);
+      });
+
+    api.get('/audit-logs', { params: { limit: 100 } })
+      .then((response) => {
+        if (isMounted) setAuditLogs(response.data?.logs || []);
+      })
+      .catch(() => {
+        if (isMounted) setAuditError('Unable to load recent activity right now.');
+      })
+      .finally(() => {
+        if (isMounted) setAuditLoading(false);
+      });
+
     return () => {
       isMounted = false;
     };
   }, []);
+
+  const recentAuditLogs = auditLogs.slice(0, 6);
+  const filteredModules = Array.from(new Set(auditLogs.map((log) => log.module).filter(Boolean)));
 
   const liveStats = {
     ...stats,
@@ -85,6 +182,31 @@ export function AdminDashboard({ userName }: { userName: string }) {
       : approval
   );
 
+  const downloadDashboardReport = () => {
+    setReporting(true);
+
+    const rows = [
+      ['Metric', 'Value'],
+      ['Total Employees', liveStats.totalEmployees.value],
+      ['Present Today', liveStats.presentToday.value],
+      ['Pending Leave', liveStats.onLeave.value],
+      ['Open Positions', liveStats.openPositions.value],
+      ['Monthly Payroll', livePayroll.totalDisbursed],
+    ];
+    const csv = rows
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `hrspace-admin-dashboard-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+
+    window.setTimeout(() => setReporting(false), 400);
+  };
+
   return (
     <div className="space-y-6">
       <DashboardHeader
@@ -92,19 +214,71 @@ export function AdminDashboard({ userName }: { userName: string }) {
         subtitle="Here's your organisation overview for today."
         actions={
           <>
-            <OutlineButton><FileText className="w-4 h-4" /> Generate Report</OutlineButton>
-            <CTAButton><UserPlus className="w-4 h-4" /> Add Employee</CTAButton>
+            <OutlineButton onClick={downloadDashboardReport}>
+              <FileText className="w-4 h-4" />
+              {reporting ? 'Preparing...' : 'Generate Report'}
+            </OutlineButton>
+            <CTAButton onClick={() => navigate('/dashboard/employees')}>
+              <UserPlus className="w-4 h-4" /> Add Employee
+            </CTAButton>
           </>
         }
       />
 
       {/* ── Row 1: KPI Stats ─────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard {...liveStats.totalEmployees} icon={Users}     iconColor={C.primary} iconBg={`${C.primary}18`} />
-        <StatCard {...liveStats.presentToday}   icon={UserCheck} iconColor={C.mid}     iconBg={`${C.mid}18`} />
-        <StatCard {...liveStats.onLeave}        icon={UserX}     iconColor={C.warm}    iconBg={`${C.warm}20`} />
-        <StatCard {...liveStats.openPositions}  icon={Briefcase} iconColor={C.action}  iconBg={`${C.action}15`} />
+        <button type="button" onClick={() => navigate('/dashboard/employees')} className="text-left w-full cursor-pointer hover:scale-102 transition-all duration-200">
+          <StatCard {...liveStats.totalEmployees} icon={Users}     iconColor={C.primary} iconBg={`${C.primary}18`} />
+        </button>
+        <button type="button" onClick={() => navigate('/dashboard/attendance')} className="text-left w-full cursor-pointer hover:scale-102 transition-all duration-200">
+          <StatCard {...liveStats.presentToday}   icon={UserCheck} iconColor={C.mid}     iconBg={`${C.mid}18`} />
+        </button>
+        <button type="button" onClick={() => navigate('/dashboard/leave')} className="text-left w-full cursor-pointer hover:scale-102 transition-all duration-200">
+          <StatCard {...liveStats.onLeave}        icon={UserX}     iconColor={C.warm}    iconBg={`${C.warm}20`} />
+        </button>
+        <button type="button" onClick={() => navigate('/dashboard/cv-filter')} className="text-left w-full cursor-pointer hover:scale-102 transition-all duration-200">
+          <StatCard {...liveStats.openPositions}  icon={Briefcase} iconColor={C.action}  iconBg={`${C.action}15`} />
+        </button>
       </div>
+
+      <SectionCard
+        title="Project Overview"
+        subtitle="Read-only summary for admin oversight"
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+          <StatCard label="Total Projects" value={String(projectOverview?.totalProjects ?? 0)} subtitle="All project workspaces" trend={{ value: "Read only", isPositive: true }} icon={Briefcase} iconColor={C.primary} iconBg={`${C.primary}18`} />
+          <StatCard label="Active Projects" value={String(projectOverview?.activeProjects ?? 0)} subtitle="Currently in progress" trend={{ value: "Overview", isPositive: true }} icon={UserCheck} iconColor={C.mid} iconBg={`${C.mid}18`} />
+          <StatCard label="Completed Projects" value={String(projectOverview?.completedProjects ?? 0)} subtitle="Closed delivery work" trend={{ value: "Overview", isPositive: true }} icon={FileText} iconColor={C.warm} iconBg={`${C.warm}20`} />
+          <StatCard label="Overdue Tasks" value={String(projectOverview?.overdueTasks ?? 0)} subtitle="Needs PM attention" trend={{ value: "Monitor", isPositive: false }} icon={UserX} iconColor={C.action} iconBg={`${C.action}15`} />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div>
+            <h4 className="text-sm font-semibold mb-3 text-[#262254] dark:text-white">Recent Project Activity</h4>
+            <div className="space-y-2">
+              {(projectOverview?.recentActivity || []).slice(0, 5).map((item: any) => (
+                <div key={item.id} className="rounded-xl border border-[#543884]/10 p-3">
+                  <p className="text-sm font-medium text-[#262254] dark:text-white">{item.title}</p>
+                  <p className="text-xs text-muted-foreground">{item.project} - {item.status}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <h4 className="text-sm font-semibold mb-3 text-[#262254] dark:text-white">Project Manager Summary</h4>
+            <div className="space-y-2">
+              {(projectOverview?.projectManagers || []).map((manager: any) => (
+                <div key={manager.id} className="flex items-center justify-between rounded-xl border border-[#543884]/10 p-3">
+                  <div>
+                    <p className="text-sm font-medium text-[#262254] dark:text-white">{manager.name}</p>
+                    <p className="text-xs text-muted-foreground">{manager.email}</p>
+                  </div>
+                  <span className="text-xs font-semibold text-[#543884]">{manager.activeProjects}/{manager.projects} active</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </SectionCard>
 
       {/* ── Row 2: Attendance Chart + Department Pie ─────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -169,7 +343,7 @@ export function AdminDashboard({ userName }: { userName: string }) {
 
       {/* ── Row 3: Payroll + Approvals + Pipeline ────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <SectionCard title="Payroll Summary" action={<GhostLink>View Details →</GhostLink>}>
+        <SectionCard title="Payroll Summary" action={<GhostLink onClick={() => navigate('/dashboard/payroll')}>View Details →</GhostLink>}>
           <div className="space-y-0">
             {[
               { label: 'Total Disbursed', value: livePayroll.totalDisbursed, color: 'text-foreground' },
@@ -192,7 +366,7 @@ export function AdminDashboard({ userName }: { userName: string }) {
           </div>
         </SectionCard>
 
-        <SectionCard title="Pending Approvals" action={<GhostLink>View All →</GhostLink>}>
+        <SectionCard title="Pending Approvals" action={<GhostLink onClick={() => navigate('/dashboard/leave')}>View All →</GhostLink>}>
           <div className="space-y-0">
             {liveApprovals.map(a => (
               <div key={a.type} className="flex items-center gap-3 py-3 border-b border-border last:border-0">
@@ -210,7 +384,7 @@ export function AdminDashboard({ userName }: { userName: string }) {
           </div>
         </SectionCard>
 
-        <SectionCard title="Hiring Pipeline" action={<GhostLink>Manage →</GhostLink>}>
+        <SectionCard title="Hiring Pipeline" action={<GhostLink onClick={() => navigate('/dashboard/cv-filter')}>Manage →</GhostLink>}>
           {[
             { stage: 'Applied',   count: 142, pct: 100 },
             { stage: 'Screening', count: 89,  pct: 63 },
@@ -234,22 +408,39 @@ export function AdminDashboard({ userName }: { userName: string }) {
 
       {/* ── Row 4: Activity + Events ─────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <SectionCard title="Recent Activity" action={<GhostLink>View All →</GhostLink>}>
+        <SectionCard title="Recent Activity" action={<GhostLink onClick={() => setAuditModalOpen(true)}>View All →</GhostLink>}>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">Live audit log activity from the database</p>
+            <button type="button" onClick={() => setAuditModalOpen(true)} className="text-xs font-medium" style={{ color: C.mid }}>
+              Open Audit Logs
+            </button>
+          </div>
           <div className="space-y-0">
-            {activity.map(a => {
-              const cfg = activityConfig[a.type];
+            {auditLoading && (
+              <div className="py-6 text-sm text-muted-foreground">Loading recent activity...</div>
+            )}
+            {!auditLoading && auditError && (
+              <div className="py-6 text-sm text-[#EC4176]">{auditError}</div>
+            )}
+            {!auditLoading && !auditError && !recentAuditLogs.length && (
+              <div className="py-6 text-sm text-muted-foreground">No audit activity has been recorded yet.</div>
+            )}
+            {!auditLoading && !auditError && recentAuditLogs.map(log => {
+              const cfg = moduleConfig[log.module] || { icon: ShieldCheck, color: C.mid };
               const Icon = cfg.icon;
               return (
-                <div key={a.id} className="flex items-start gap-3 py-3 border-b border-border last:border-0">
+                <div key={log.id} className="flex items-start gap-3 py-3 border-b border-border last:border-0">
                   <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
                     style={{ background: `${cfg.color}15` }}>
                     <Icon className="w-4 h-4" style={{ color: cfg.color }} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-foreground">
-                      <span className="font-medium">{a.user}</span> {a.action}
+                      <span className="font-medium">{getAuditIdentity(log)}</span> {log.description || formatAuditAction(log.action)}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{a.time}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {log.module} - {log.role || log.actor_role || 'unknown role'} - {formatAuditTime(log.created_at)}
+                    </p>
                   </div>
                 </div>
               );
@@ -257,7 +448,7 @@ export function AdminDashboard({ userName }: { userName: string }) {
           </div>
         </SectionCard>
 
-        <SectionCard title="Upcoming Events" action={<GhostLink>Add Event →</GhostLink>}>
+        <SectionCard title="Upcoming Events">
           <div className="space-y-2">
             {events.map(ev => (
               <div key={ev.id}
@@ -280,6 +471,134 @@ export function AdminDashboard({ userName }: { userName: string }) {
           </div>
         </SectionCard>
       </div>
+
+      {auditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-5xl max-h-[88vh] overflow-hidden rounded-2xl bg-card shadow-2xl border border-border">
+            <div className="flex items-center justify-between gap-3 border-b border-border p-5">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">Audit Logs</h2>
+                <p className="text-xs text-muted-foreground">Admin-only activity from /api/audit-logs</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAuditModalOpen(false)}
+                className="rounded-full p-2 hover:bg-accent"
+                aria-label="Close audit logs"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="border-b border-border p-5">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                <label className="md:col-span-2">
+                  <span className="text-xs text-muted-foreground">Search</span>
+                  <div className="mt-1 flex items-center gap-2 rounded-xl border border-border px-3 py-2">
+                    <Search className="w-4 h-4 text-muted-foreground" />
+                    <input
+                      value={auditFilters.search}
+                      onChange={(event) => setAuditFilters({ ...auditFilters, search: event.target.value })}
+                      placeholder="Keyword, actor, action"
+                      className="w-full bg-transparent text-sm outline-none"
+                    />
+                  </div>
+                </label>
+                <label>
+                  <span className="text-xs text-muted-foreground">Module</span>
+                  <select
+                    value={auditFilters.module}
+                    onChange={(event) => setAuditFilters({ ...auditFilters, module: event.target.value })}
+                    className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm outline-none"
+                  >
+                    <option value="">All modules</option>
+                    {filteredModules.map((module) => <option key={module} value={module}>{module}</option>)}
+                  </select>
+                </label>
+                <label>
+                  <span className="text-xs text-muted-foreground">Role</span>
+                  <select
+                    value={auditFilters.role}
+                    onChange={(event) => setAuditFilters({ ...auditFilters, role: event.target.value })}
+                    className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm outline-none"
+                  >
+                    <option value="">All roles</option>
+                    <option value="admin">Admin</option>
+                    <option value="hr_manager">HR Manager</option>
+                    <option value="project_manager">Project Manager</option>
+                    <option value="employee">Employee</option>
+                  </select>
+                </label>
+                <label>
+                  <span className="text-xs text-muted-foreground">From</span>
+                  <input
+                    type="date"
+                    value={auditFilters.startDate}
+                    onChange={(event) => setAuditFilters({ ...auditFilters, startDate: event.target.value })}
+                    className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm outline-none"
+                  />
+                </label>
+                <label>
+                  <span className="text-xs text-muted-foreground">To</span>
+                  <input
+                    type="date"
+                    value={auditFilters.endDate}
+                    onChange={(event) => setAuditFilters({ ...auditFilters, endDate: event.target.value })}
+                    className="mt-1 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm outline-none"
+                  />
+                </label>
+              </div>
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <CTAButton onClick={() => loadAuditLogs(auditFilters)}>
+                  <Search className="w-4 h-4" /> Apply Filters
+                </CTAButton>
+                <OutlineButton
+                  onClick={() => {
+                    const emptyFilters = { search: '', module: '', role: '', startDate: '', endDate: '' };
+                    setAuditFilters(emptyFilters);
+                    loadAuditLogs(emptyFilters);
+                  }}
+                >
+                  <RefreshCw className="w-4 h-4" /> Reset
+                </OutlineButton>
+              </div>
+            </div>
+
+            <div className="max-h-[48vh] overflow-y-auto p-5">
+              {auditLoading && <div className="py-10 text-center text-sm text-muted-foreground">Loading audit logs...</div>}
+              {!auditLoading && auditError && <div className="py-10 text-center text-sm text-[#EC4176]">{auditError}</div>}
+              {!auditLoading && !auditError && !auditLogs.length && (
+                <div className="py-10 text-center text-sm text-muted-foreground">No audit logs match those filters.</div>
+              )}
+              {!auditLoading && !auditError && auditLogs.length > 0 && (
+                <div className="space-y-3">
+                  {auditLogs.map((log) => {
+                    const cfg = moduleConfig[log.module] || { icon: ShieldCheck, color: C.mid };
+                    const Icon = cfg.icon;
+                    return (
+                      <div key={log.id} className="flex items-start gap-3 rounded-xl border border-border p-3">
+                        <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${cfg.color}15` }}>
+                          <Icon className="w-4 h-4" style={{ color: cfg.color }} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-sm font-medium text-foreground">{formatAuditAction(log.action)}</p>
+                            <span className="text-xs text-muted-foreground flex-shrink-0">{formatAuditTime(log.created_at)}</span>
+                          </div>
+                          <p className="mt-1 text-sm text-muted-foreground">{log.description || 'No description provided.'}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {getAuditIdentity(log)} - {log.role || log.actor_role || 'unknown role'} - {log.module}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

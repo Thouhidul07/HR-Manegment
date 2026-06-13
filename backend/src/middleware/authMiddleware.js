@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const { query } = require("../config/database");
+const { ensureCompanyColumns } = require("../utils/companyScope");
 
 async function protect(req, res, next) {
   try {
@@ -11,8 +12,13 @@ async function protect(req, res, next) {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "development_secret");
+    await ensureCompanyColumns();
     const [users] = await query(
-      "SELECT id, name, email, role, avatar, status FROM users WHERE id = ? LIMIT 1",
+      `SELECT u.id, u.company_id, u.employee_code, u.name, u.email, u.role, u.avatar, u.status,
+              c.name AS company_name, c.domain AS company_domain
+       FROM users u
+       LEFT JOIN companies c ON c.id = u.company_id
+       WHERE u.id = ? LIMIT 1`,
       [decoded.id]
     );
 

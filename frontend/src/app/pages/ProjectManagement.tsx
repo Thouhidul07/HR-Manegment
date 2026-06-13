@@ -402,7 +402,7 @@ export function ProjectManagement() {
           count={tasksByStatus.todo.length}
           color="gray"
           tasks={tasksByStatus.todo}
-          onTaskClick={(task) => {
+          onTaskClick={(task: Task) => {
             setSelectedTask(task);
             setShowTaskModal(true);
           }}
@@ -416,7 +416,7 @@ export function ProjectManagement() {
           count={tasksByStatus['in-progress'].length}
           color="blue"
           tasks={tasksByStatus['in-progress']}
-          onTaskClick={(task) => {
+          onTaskClick={(task: Task) => {
             setSelectedTask(task);
             setShowTaskModal(true);
           }}
@@ -430,7 +430,7 @@ export function ProjectManagement() {
           count={tasksByStatus['in-review'].length}
           color="yellow"
           tasks={tasksByStatus['in-review']}
-          onTaskClick={(task) => {
+          onTaskClick={(task: Task) => {
             setSelectedTask(task);
             setShowTaskModal(true);
           }}
@@ -444,7 +444,7 @@ export function ProjectManagement() {
           count={tasksByStatus.completed.length}
           color="green"
           tasks={tasksByStatus.completed}
-          onTaskClick={(task) => {
+          onTaskClick={(task: Task) => {
             setSelectedTask(task);
             setShowTaskModal(true);
           }}

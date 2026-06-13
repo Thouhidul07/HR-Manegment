@@ -349,6 +349,15 @@ export function LeaveManagement() {
     );
   };
 
+  const onLeaveTodayCount = requestList.filter((request) => {
+    if (request.status !== "Approved") return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const start = new Date(request.from);
+    const end = new Date(request.to);
+    return today >= start && today <= end;
+  }).length;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -376,23 +385,29 @@ export function LeaveManagement() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="p-4">
+        <Card 
+          className={`p-4 cursor-pointer transition-all hover:scale-102 hover:shadow-sm border-2 ${activeLeaveFilter === "Pending" ? "border-primary bg-primary/5" : "border-transparent"}`}
+          onClick={() => setActiveLeaveFilter(activeLeaveFilter === "Pending" ? "All" : "Pending")}
+        >
           <p className="text-sm text-muted-foreground">Pending Requests</p>
-          <p className="text-2xl text-foreground mt-1">{pendingCount}</p>
+          <p className="text-2xl text-foreground mt-1 font-bold">{pendingCount}</p>
         </Card>
-        <Card className="p-4">
+        <Card 
+          className={`p-4 cursor-pointer transition-all hover:scale-102 hover:shadow-sm border-2 ${activeLeaveFilter === "Approved" ? "border-primary bg-primary/5" : "border-transparent"}`}
+          onClick={() => setActiveLeaveFilter(activeLeaveFilter === "Approved" ? "All" : "Approved")}
+        >
           <p className="text-sm text-muted-foreground">Approved This Month</p>
-          <p className="text-2xl text-foreground mt-1">
+          <p className="text-2xl text-foreground mt-1 font-bold">
             {approvedThisMonthCount}
           </p>
         </Card>
-        <Card className="p-4">
+        <Card className="p-4 bg-card">
           <p className="text-sm text-muted-foreground">On Leave Today</p>
-          <p className="text-2xl text-foreground mt-1">38</p>
+          <p className="text-2xl text-foreground mt-1 font-bold">{onLeaveTodayCount}</p>
         </Card>
-        <Card className="p-4">
+        <Card className="p-4 bg-card">
           <p className="text-sm text-muted-foreground">Upcoming Leaves</p>
-          <p className="text-2xl text-foreground mt-1">
+          <p className="text-2xl text-foreground mt-1 font-bold font-mono">
             {visibleUpcomingLeaves.length}
           </p>
         </Card>
@@ -536,7 +551,7 @@ export function LeaveManagement() {
                     {request.reason}
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline" className={statusVariant(request.status)}>
+                    <Badge variant={statusVariant(request.status)}>
                       {request.status}
                     </Badge>
                   </TableCell>
@@ -568,13 +583,6 @@ export function LeaveManagement() {
                   </TableCell>
                 </TableRow>
               ))}
-              {!filteredLeaveRequests.length && (
-                <TableRow>
-                  <TableCell colSpan={8} className="py-8 text-center text-sm text-muted-foreground">
-                    No {activeLeaveFilter === "All" ? "" : activeLeaveFilter.toLowerCase()} leave requests found.
-                  </TableCell>
-                </TableRow>
-              )}
             </TableBody>
           </Table>
         </CardContent>

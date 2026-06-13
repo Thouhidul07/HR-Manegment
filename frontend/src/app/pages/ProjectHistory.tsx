@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import api from "../services/api";
 import {
   FolderGit2,
   ChevronRight,
@@ -51,11 +52,29 @@ export function ProjectHistory() {
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // Load saved projects from localStorage
-  const loadSavedProjects = (): Project[] => {
+  const loadSavedProjects = async (): Promise<Project[]> => {
     try {
-      const saved = localStorage.getItem('wbsProjects');
-      return saved ? JSON.parse(saved) : [];
+      const [historyResponse, wbsResponse] = await Promise.all([
+        api.get("/projects/history"),
+        api.get("/projects/wbs"),
+      ]);
+      const workBreakdownStructures = wbsResponse.data.workBreakdownStructures || [];
+      return (historyResponse.data.projects || []).map((project: any) => {
+        const wbs = workBreakdownStructures.find((item: any) => Number(item.projectId) === Number(project.id));
+        return {
+          id: project.id,
+          name: project.name,
+          status: project.status === "completed" ? "completed" : project.status === "planning" ? "planning" : "current",
+          startDate: project.startDate || "",
+          endDate: project.endDate || "",
+          budget: "",
+          spent: "",
+          team: Number(project.members || 0),
+          completion: project.tasks ? Math.round((Number(project.completedTasks || 0) / Number(project.tasks)) * 100) : 0,
+          description: project.description || "",
+          wbs: wbs?.nodes || [],
+        };
+      });
     } catch (error) {
       console.error('Error loading saved projects:', error);
       return [];
@@ -64,12 +83,12 @@ export function ProjectHistory() {
 
   // Load projects on mount
   useEffect(() => {
-    setSavedProjects(loadSavedProjects());
+    loadSavedProjects().then(setSavedProjects);
   }, []);
 
   // Refresh projects
   const handleRefresh = () => {
-    setSavedProjects(loadSavedProjects());
+    loadSavedProjects().then(setSavedProjects);
   };
 
   // Check if project is deletable (only saved projects, not mock ones)
@@ -95,18 +114,12 @@ export function ProjectHistory() {
   };
 
   // Confirm delete
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!projectToDelete) return;
 
     try {
-      // Get current saved projects
-      const currentProjects = loadSavedProjects();
-
-      // Filter out the project to delete
-      const updatedProjects = currentProjects.filter(p => p.id !== projectToDelete.id);
-
-      // Save back to localStorage
-      localStorage.setItem('wbsProjects', JSON.stringify(updatedProjects));
+      await api.delete(`/projects/${projectToDelete.id}`);
+      const updatedProjects = savedProjects.filter(p => p.id !== projectToDelete.id);
 
       // Update state
       setSavedProjects(updatedProjects);
@@ -420,8 +433,7 @@ export function ProjectHistory() {
     }
   ];
 
-  // Merge mock projects with saved projects
-  const projects: Project[] = [...mockProjects, ...savedProjects];
+  const projects: Project[] = savedProjects;
 
   const toggleNode = (nodeId: string) => {
     const newExpanded = new Set(expandedNodes);
@@ -462,7 +474,14 @@ export function ProjectHistory() {
           onClick={() => hasChildren && toggleNode(node.id)}
         >
           {hasChildren && (
-            <button className="p-0.5 hover:bg-accent rounded transition-colors">
+            <button
+              type="button"
+              className="p-0.5 hover:bg-accent rounded transition-colors"
+              onClick={(event) => {
+                event.stopPropagation();
+                toggleNode(node.id);
+              }}
+            >
               {isExpanded ? (
                 <ChevronDown className="w-4 h-4 text-muted-foreground" />
               ) : (

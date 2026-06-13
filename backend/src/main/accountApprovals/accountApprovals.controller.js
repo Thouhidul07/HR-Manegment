@@ -1,6 +1,8 @@
 const { query } = require("../../config/database");
 const asyncHandler = require("../../utils/asyncHandler");
 const { ensureUserStatusWorkflow } = require("../../utils/userStatus");
+const { ensureCompanyColumns } = require("../../utils/companyScope");
+const { logAudit } = require("../../utils/auditLogger");
 
 function mapAccount(row) {
   return {
@@ -17,12 +19,14 @@ function mapAccount(row) {
 
 const listPendingAccounts = asyncHandler(async (req, res) => {
   await ensureUserStatusWorkflow();
+  await ensureCompanyColumns();
 
   const [accounts] = await query(
     `SELECT id, name, email, role, phone, department, status, created_at
      FROM users
-     WHERE status IN ('pending', 'rejected')
-     ORDER BY status = 'rejected', created_at DESC`
+     WHERE company_id = ? AND status IN ('pending', 'rejected')
+     ORDER BY status = 'rejected', created_at DESC`,
+    [req.user.company_id]
   );
 
   res.json({ accounts: accounts.map(mapAccount) });
@@ -30,8 +34,9 @@ const listPendingAccounts = asyncHandler(async (req, res) => {
 
 const approveAccount = asyncHandler(async (req, res) => {
   await ensureUserStatusWorkflow();
+  await ensureCompanyColumns();
 
-  const [accounts] = await query("SELECT id, role, status FROM users WHERE id = ? LIMIT 1", [req.params.id]);
+  const [accounts] = await query("SELECT id, role, status FROM users WHERE id = ? AND company_id = ? LIMIT 1", [req.params.id, req.user.company_id]);
   if (!accounts.length) {
     return res.status(404).json({ message: "Account request not found" });
   }
@@ -44,19 +49,32 @@ const approveAccount = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "Only pending accounts can be approved" });
   }
 
-  await query("UPDATE users SET status = 'active' WHERE id = ?", [req.params.id]);
+  await query("UPDATE users SET status = 'active' WHERE id = ? AND company_id = ?", [req.params.id, req.user.company_id]);
   const [rows] = await query(
-    "SELECT id, name, email, role, phone, department, status, created_at FROM users WHERE id = ?",
-    [req.params.id]
+    "SELECT id, name, email, role, phone, department, status, created_at FROM users WHERE id = ? AND company_id = ?",
+    [req.params.id, req.user.company_id]
   );
 
+  await logAudit({
+    actorId: req.user.id,
+    actorName: req.user.name,
+    actorRole: req.user.role,
+    action: "account_approved",
+    module: "Account Approvals",
+    entityType: "user",
+    entityId: rows[0].id,
+    description: "Approved account for " + rows[0].name,
+    metadata: { email: rows[0].email },
+    ipAddress: req.ip,
+  });
   res.json({ message: "Account approved", account: mapAccount(rows[0]) });
 });
 
 const rejectAccount = asyncHandler(async (req, res) => {
   await ensureUserStatusWorkflow();
+  await ensureCompanyColumns();
 
-  const [accounts] = await query("SELECT id, role, status FROM users WHERE id = ? LIMIT 1", [req.params.id]);
+  const [accounts] = await query("SELECT id, role, status FROM users WHERE id = ? AND company_id = ? LIMIT 1", [req.params.id, req.user.company_id]);
   if (!accounts.length) {
     return res.status(404).json({ message: "Account request not found" });
   }
@@ -69,12 +87,24 @@ const rejectAccount = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: "Only pending accounts can be rejected" });
   }
 
-  await query("UPDATE users SET status = 'rejected' WHERE id = ?", [req.params.id]);
+  await query("UPDATE users SET status = 'rejected' WHERE id = ? AND company_id = ?", [req.params.id, req.user.company_id]);
   const [rows] = await query(
-    "SELECT id, name, email, role, phone, department, status, created_at FROM users WHERE id = ?",
-    [req.params.id]
+    "SELECT id, name, email, role, phone, department, status, created_at FROM users WHERE id = ? AND company_id = ?",
+    [req.params.id, req.user.company_id]
   );
 
+  await logAudit({
+    actorId: req.user.id,
+    actorName: req.user.name,
+    actorRole: req.user.role,
+    action: "account_rejected",
+    module: "Account Approvals",
+    entityType: "user",
+    entityId: rows[0].id,
+    description: "Rejected account for " + rows[0].name,
+    metadata: { email: rows[0].email },
+    ipAddress: req.ip,
+  });
   res.json({ message: "Account rejected", account: mapAccount(rows[0]) });
 });
 

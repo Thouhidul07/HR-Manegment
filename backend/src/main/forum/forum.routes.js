@@ -13,6 +13,7 @@ const {
   reportContent,
   listReports,
   moderateReport,
+  getReportContext,
 } = require("./forum.controller");
 const validate = require("../../utils/validation");
 const { protect, authorize } = require("../../middleware/authMiddleware");
@@ -24,7 +25,7 @@ router.get("/posts/:id", [param("id").isInt({ min: 1 })], validate, getPost);
 
 router.post(
   "/posts",
-  authorize("employee", "hr_manager"),
+  authorize("employee", "hr_manager", "project_manager"),
   [
     body("title").trim().notEmpty(),
     body("content").trim().notEmpty(),
@@ -42,7 +43,7 @@ router.post(
 
 router.post(
   "/posts/:id/replies",
-  authorize("employee", "hr_manager"),
+  authorize("employee", "hr_manager", "project_manager"),
   [
     param("id").isInt({ min: 1 }),
     body("content").trim().notEmpty(),
@@ -119,10 +120,22 @@ router.post(
 );
 
 router.get("/reports", authorize("admin", "hr_manager"), listReports);
+
+router.get(
+  "/reports/:id/context",
+  authorize("admin", "hr_manager"),
+  [param("id").isInt({ min: 1 })],
+  validate,
+  getReportContext
+);
+
 router.patch(
   "/reports/:id",
   authorize("admin", "hr_manager"),
-  [param("id").isInt({ min: 1 }), body("action").isIn(["approve", "remove", "dismiss"])],
+  [
+    param("id").isInt({ min: 1 }),
+    body("action").isIn(["approve", "remove", "dismiss", "warn", "hide", "resolve"])
+  ],
   validate,
   moderateReport
 );

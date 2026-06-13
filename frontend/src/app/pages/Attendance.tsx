@@ -31,8 +31,8 @@ type AttendanceRecord = {
   id: number | string;
   name?: string;
   avatar?: string;
-  workDate?: string;
   date?: string;
+  workDate?: string;
   checkIn: string;
   checkOut: string;
   hours: string;
@@ -40,8 +40,6 @@ type AttendanceRecord = {
   break: string;
   hoursMinutes?: number | null;
 };
-
-type WeeklyOverviewFilter = "all" | "present" | "late" | "absent" | "leave";
 
 const attendanceData: AttendanceRecord[] = [
   {
@@ -127,11 +125,11 @@ const attendanceData: AttendanceRecord[] = [
 ];
 
 const weeklyAttendance = [
-  { day: "Mon", present: 1156, late: 45, absent: 12, leave: 21 },
-  { day: "Tue", present: 1180, late: 32, absent: 8, leave: 14 },
-  { day: "Wed", present: 1165, late: 38, absent: 15, leave: 16 },
-  { day: "Thu", present: 1175, late: 28, absent: 10, leave: 21 },
-  { day: "Fri", present: 1142, late: 52, absent: 18, leave: 22 },
+  { day: "Mon", present: 8, late: 1, absent: 1, leave: 1 },
+  { day: "Tue", present: 9, late: 0, absent: 1, leave: 1 },
+  { day: "Wed", present: 8, late: 2, absent: 0, leave: 1 },
+  { day: "Thu", present: 9, late: 1, absent: 0, leave: 1 },
+  { day: "Fri", present: 7, late: 2, absent: 1, leave: 1 },
 ];
 
 const myAttendanceData: AttendanceRecord[] = [
@@ -183,10 +181,10 @@ const myAttendanceData: AttendanceRecord[] = [
 ];
 
 const statusVariant = (status: string) => {
-  if (status === "Present") return "border-emerald-400/30 bg-emerald-400/15 text-emerald-300";
-  if (status === "Late") return "border-amber-400/30 bg-amber-400/15 text-amber-300";
-  if (status === "On Leave") return "border-sky-400/30 bg-sky-400/15 text-sky-300";
-  return "border-rose-400/30 bg-rose-400/15 text-rose-300";
+  if (status === "Present") return "success";
+  if (status === "Late") return "warning";
+  if (status === "On Leave") return "info";
+  return "error";
 };
 
 const formatTime = (timeValue: string) =>
@@ -224,6 +222,32 @@ const getDisplayDate = (dateValue: string) => {
     day: "numeric",
     year: "numeric",
   });
+};
+
+type WeeklyOverviewFilter = "all" | "present" | "late" | "absent" | "leave";
+type WeeklyOverviewDay = {
+  day: string;
+  present: number;
+  late: number;
+  absent: number;
+  leave: number;
+};
+
+type PersonalWeekDay = {
+  day: string;
+  dateLabel: string;
+  status?: string;
+  checkIn?: string;
+  checkOut?: string;
+  hours?: string;
+};
+
+const statusToWeeklyKey = (status: string): Exclude<WeeklyOverviewFilter, "all"> => {
+  const normalized = status.toLowerCase();
+  if (normalized === "on leave" || normalized === "leave") return "leave";
+  if (normalized === "late") return "late";
+  if (normalized === "absent") return "absent";
+  return "present";
 };
 
 const getDateKey = (date: Date) =>
@@ -271,12 +295,10 @@ export function Attendance() {
   const [attendanceError, setAttendanceError] = useState("");
   const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [clockAction, setClockAction] = useState<"in" | "out" | null>(null);
-  const [weeklyOverviewFilter, setWeeklyOverviewFilter] =
-    useState<WeeklyOverviewFilter>("all");
+  const [hasLoadedAttendance, setHasLoadedAttendance] = useState(false);
   const [attendanceRecords, setAttendanceRecords] = useState<
     AttendanceRecord[]
   >([]);
-  const [periodFilter, setPeriodFilter] = useState("month");
   const [attendanceForm, setAttendanceForm] = useState({
     workDate: new Date().toISOString().slice(0, 10),
     checkIn: "09:00",
@@ -284,8 +306,15 @@ export function Attendance() {
     breakMinutes: "45",
     status: "present",
   });
-  const attendanceStatusRequiresTime =
-    attendanceForm.status === "present" || attendanceForm.status === "late";
+
+  // Interactive Filter states
+  const [selectedStatus, setSelectedStatus] = useState<string>("All");
+  const [weeklyOverview, setWeeklyOverview] = useState<WeeklyOverviewDay[]>([]);
+  const [summaryData, setSummaryData] = useState<any>({ present: 0, late: 0, absent: 0, leave: 0 });
+  const [weeklyOverviewFilter, setWeeklyOverviewFilter] = useState<WeeklyOverviewFilter>("all");
+  const [periodFilter, setPeriodFilter] = useState("month");
+  const attendanceStatusRequiresTime = attendanceForm.status === "present" || attendanceForm.status === "late";
+
   const isAdmin = user?.role === "admin";
   const isEmployee = user?.role === "employee";
   const pageTitle =
@@ -316,8 +345,8 @@ export function Attendance() {
       id: record.id,
       name: record.name,
       avatar: record.avatar,
-      workDate: String(record.date).slice(0, 10),
       date: getDisplayDate(record.date),
+      workDate: record.workDate || (record.date ? String(record.date).slice(0, 10) : ""),
       checkIn: checkInDate
         ? checkInDate.toLocaleTimeString("en-US", {
             hour: "numeric",
@@ -346,18 +375,41 @@ export function Attendance() {
     setAttendanceLoading(true);
 
     try {
-      const response = await api.get("/attendance");
+      const params: any = {};
+      if (selectedStatus !== "All") {
+        const apiStatusMap: Record<string, string> = {
+          "Present": "present",
+          "Late": "late",
+          "Absent": "absent",
+          "On Leave": "leave"
+        };
+        params.status = apiStatusMap[selectedStatus] || selectedStatus;
+      }
+      const response = await api.get("/attendance", { params });
       setAttendanceRecords(
         response.data.records?.length
           ? response.data.records.map(mapApiAttendanceRecord)
           : [],
       );
+
+      // load summary and weekly overview
+      const [summaryRes, weeklyRes] = await Promise.all([
+        api.get("/attendance/summary"),
+        api.get("/attendance/weekly-overview")
+      ]);
+      if (summaryRes.data) {
+        setSummaryData(summaryRes.data);
+      }
+      if (weeklyRes.data?.overview) {
+        setWeeklyOverview(weeklyRes.data.overview);
+      }
     } catch {
       setAttendanceRecords([]);
     } finally {
+      setHasLoadedAttendance(true);
       setAttendanceLoading(false);
     }
-  }, [mapApiAttendanceRecord]);
+  }, [selectedStatus, mapApiAttendanceRecord]);
 
   useEffect(() => {
     if (isEmployee && location.state?.openLogAttendance) {
@@ -375,11 +427,23 @@ export function Attendance() {
     loadAttendance();
   }, [loadAttendance]);
 
-  const visibleRecords = attendanceRecords.length
+  const rawRecords = attendanceRecords.length
     ? attendanceRecords
+    : hasLoadedAttendance
+      ? []
     : isEmployee
       ? myAttendanceData
       : attendanceData;
+
+  const visibleRecords = useMemo(() => {
+    if (selectedStatus === "All") return rawRecords;
+    return rawRecords.filter((record) => {
+      const recStatus = record.status.toLowerCase() === "leave" ? "on leave" : record.status.toLowerCase();
+      const selStatus = selectedStatus.toLowerCase() === "leave" ? "on leave" : selectedStatus.toLowerCase();
+      return recStatus === selStatus;
+    });
+  }, [rawRecords, selectedStatus]);
+
   const filteredRecords = useMemo(() => {
     const today = new Date();
     const todayKey = getDateKey(today);
@@ -399,6 +463,7 @@ export function Attendance() {
       return true;
     });
   }, [periodFilter, visibleRecords]);
+
   const todayRecord = useMemo(
     () =>
       isEmployee
@@ -410,18 +475,44 @@ export function Attendance() {
     Boolean(todayRecord) && todayRecord?.checkIn !== "-";
   const hasClockedOutToday =
     Boolean(todayRecord) && todayRecord?.checkOut !== "-";
-  const presentCount = filteredRecords.filter(
-    (record) => record.status === "Present",
-  ).length;
-  const lateCount = filteredRecords.filter(
-    (record) => record.status === "Late",
-  ).length;
-  const absentCount = filteredRecords.filter(
-    (record) => record.status === "Absent",
-  ).length;
-  const leaveCount = filteredRecords.filter(
-    (record) => record.status === "On Leave",
-  ).length;
+
+  const personalWeeklyOverview = useMemo<PersonalWeekDay[]>(() => {
+    const today = new Date();
+    const day = today.getDay();
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - (day === 0 ? 6 : day - 1));
+    monday.setHours(0, 0, 0, 0);
+
+    return Array.from({ length: 5 }, (_, index) => {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + index);
+      const dateKey = getDateKey(date);
+      const record = rawRecords.find((item) => getRecordDateKey(item) === dateKey);
+
+      return {
+        day: date.toLocaleDateString("en-US", { weekday: "short" }),
+        dateLabel: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        status: record?.status,
+        checkIn: record?.checkIn,
+        checkOut: record?.checkOut,
+        hours: record?.hours,
+      };
+    });
+  }, [rawRecords]);
+
+  // Use values from backend summary where available, otherwise count filtered records
+  const presentCount = attendanceRecords.length ? summaryData.present : filteredRecords.filter((record) => record.status === "Present").length;
+  const lateCount = attendanceRecords.length ? summaryData.late : filteredRecords.filter((record) => record.status === "Late").length;
+  const absentCount = attendanceRecords.length ? summaryData.absent : filteredRecords.filter((record) => record.status === "Absent").length;
+  const leaveCount = attendanceRecords.length ? summaryData.leave : filteredRecords.filter((record) => record.status === "On Leave").length;
+
+  const handleToggleFilter = (status: string) => {
+    if (selectedStatus === status) {
+      setSelectedStatus("All");
+    } else {
+      setSelectedStatus(status);
+    }
+  };
 
   const showAttendanceFeedback = (message: string, isError = false) => {
     if (isError) {
@@ -493,9 +584,7 @@ export function Attendance() {
             workDate: attendanceForm.workDate,
             status: attendanceForm.status,
           };
-      const response = await api.post("/attendance/log", {
-        ...payload,
-      });
+      const response = await api.post("/attendance/log", payload);
       const mappedRecord = mapApiAttendanceRecord(response.data.record);
 
       setAttendanceRecords((records) => [
@@ -503,9 +592,7 @@ export function Attendance() {
           ...mappedRecord,
           name: user?.name,
           avatar: currentUserInitials,
-          break: attendanceStatusRequiresTime
-            ? `${attendanceForm.breakMinutes}m`
-            : "-",
+          break: `${attendanceForm.breakMinutes}m`,
         },
         ...records.filter((record) => record.date !== mappedRecord.date),
       ]);
@@ -556,10 +643,10 @@ export function Attendance() {
                 </Button>
               )}
               {hasClockedOutToday && (
-                <div className="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-400/35 bg-emerald-400/15 px-4 py-2 text-sm font-medium text-emerald-300 shadow-sm shadow-emerald-950/20">
+                <Button variant="outline" className="gap-2" disabled>
                   <CheckCircle2 className="w-4 h-4" />
                   Clocked Out
-                </div>
+                </Button>
               )}
               <Button
                 variant="outline"
@@ -574,7 +661,7 @@ export function Attendance() {
           <select
             value={periodFilter}
             onChange={(event) => setPeriodFilter(event.target.value)}
-            className="px-4 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+            className="px-4 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent cursor-pointer"
           >
             <option value="today">Today</option>
             <option value="yesterday">Yesterday</option>
@@ -599,169 +686,237 @@ export function Attendance() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="p-4">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 rounded-lg bg-[var(--success)]/20">
-              <Users className="w-5 h-5 text-[var(--success)]" />
+        <Card 
+          className={`p-4 cursor-pointer transition-all hover:scale-102 hover:shadow-sm border-2 ${selectedStatus === "Present" ? "border-primary bg-primary/5" : "border-transparent"}`}
+          onClick={() => handleToggleFilter("Present")}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 rounded-lg bg-[var(--success)]/20">
+                <Users className="w-5 h-5 text-[var(--success)]" />
+              </div>
+              <p className="text-sm text-muted-foreground">Present</p>
             </div>
-            <p className="text-sm text-muted-foreground">Present</p>
+            {selectedStatus === "Present" && (
+              <Badge variant="success" size="sm">Filtered</Badge>
+            )}
           </div>
-          <p className="text-2xl text-foreground">
-            {isEmployee ? presentCount : "1,156"}
+          <p className="text-2xl text-foreground font-bold">
+            {presentCount}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            {isEmployee ? "Your records" : "93.7% of total"}
+            {isEmployee ? "Your records" : `${Math.round((presentCount / 11) * 100)}% of total`}
           </p>
         </Card>
 
-        <Card className="p-4">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 rounded-lg bg-[var(--warning)]/20">
-              <Clock className="w-5 h-5 text-[var(--warning)]" />
+        <Card 
+          className={`p-4 cursor-pointer transition-all hover:scale-102 hover:shadow-sm border-2 ${selectedStatus === "Late" ? "border-primary bg-primary/5" : "border-transparent"}`}
+          onClick={() => handleToggleFilter("Late")}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 rounded-lg bg-[var(--warning)]/20">
+                <Clock className="w-5 h-5 text-[var(--warning)]" />
+              </div>
+              <p className="text-sm text-muted-foreground">Late Arrivals</p>
             </div>
-            <p className="text-sm text-muted-foreground">Late Arrivals</p>
+            {selectedStatus === "Late" && (
+              <Badge variant="warning" size="sm">Filtered</Badge>
+            )}
           </div>
-          <p className="text-2xl text-foreground">
-            {isEmployee ? lateCount : "32"}
+          <p className="text-2xl text-foreground font-bold">
+            {lateCount}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            {isEmployee ? "Your records" : "2.6% of total"}
+            {isEmployee ? "Your records" : `${Math.round((lateCount / 11) * 100)}% of total`}
           </p>
         </Card>
 
-        <Card className="p-4">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 rounded-lg bg-destructive/20">
-              <Users className="w-5 h-5 text-destructive" />
+        <Card 
+          className={`p-4 cursor-pointer transition-all hover:scale-102 hover:shadow-sm border-2 ${selectedStatus === "Absent" ? "border-primary bg-primary/5" : "border-transparent"}`}
+          onClick={() => handleToggleFilter("Absent")}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 rounded-lg bg-destructive/20">
+                <Users className="w-5 h-5 text-destructive" />
+              </div>
+              <p className="text-sm text-muted-foreground">Absent</p>
             </div>
-            <p className="text-sm text-muted-foreground">Absent</p>
+            {selectedStatus === "Absent" && (
+              <Badge variant="error" size="sm">Filtered</Badge>
+            )}
           </div>
-          <p className="text-2xl text-foreground">
-            {isEmployee ? absentCount : "8"}
+          <p className="text-2xl text-foreground font-bold">
+            {absentCount}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            {isEmployee ? "Your records" : "0.6% of total"}
+            {isEmployee ? "Your records" : `${Math.round((absentCount / 11) * 100)}% of total`}
           </p>
         </Card>
 
-        <Card className="p-4">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 rounded-lg bg-[var(--info)]/20">
-              <CalendarIcon className="w-5 h-5 text-[var(--info)]" />
+        <Card 
+          className={`p-4 cursor-pointer transition-all hover:scale-102 hover:shadow-sm border-2 ${selectedStatus === "On Leave" ? "border-primary bg-primary/5" : "border-transparent"}`}
+          onClick={() => handleToggleFilter("On Leave")}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 rounded-lg bg-[var(--info)]/20">
+                <CalendarIcon className="w-5 h-5 text-[var(--info)]" />
+              </div>
+              <p className="text-sm text-muted-foreground">On Leave</p>
             </div>
-            <p className="text-sm text-muted-foreground">On Leave</p>
+            {selectedStatus === "On Leave" && (
+              <Badge variant="info" size="sm">Filtered</Badge>
+            )}
           </div>
-          <p className="text-2xl text-foreground">
-            {isEmployee ? leaveCount : "38"}
+          <p className="text-2xl text-foreground font-bold">
+            {leaveCount}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            {isEmployee ? "Your records" : "3.1% of total"}
+            {isEmployee ? "Your records" : `${Math.round((leaveCount / 11) * 100)}% of total`}
           </p>
         </Card>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Weekly Overview</CardTitle>
+          <CardTitle>{isEmployee ? "My Week" : "Weekly Overview"}</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {weeklyAttendance.map((day) => {
-              const total = day.present + day.late + day.absent + day.leave;
-              const attendanceRate = Math.round(((day.present + day.late) / total) * 100);
-              const segments = [
-                { key: "present", label: "Present", value: day.present, className: "bg-emerald-400" },
-                { key: "late", label: "Late", value: day.late, className: "bg-amber-400" },
-                { key: "absent", label: "Absent", value: day.absent, className: "bg-rose-400" },
-                { key: "leave", label: "On Leave", value: day.leave, className: "bg-sky-400" },
-              ];
+          {isEmployee ? (
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+              {personalWeeklyOverview.map((day) => {
+                const isFiltered =
+                  selectedStatus === "All" ||
+                  (day.status && statusToWeeklyKey(day.status) === statusToWeeklyKey(selectedStatus));
 
-              return (
-              <div key={day.day} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-foreground w-12">
-                    {day.day}
-                  </span>
-                  <div className="flex-1 flex h-7 overflow-hidden rounded-lg border border-border bg-background/40">
-                    {segments.map((segment) => (
-                      <div
-                        key={segment.label}
-                        className={`${segment.className} flex min-w-[28px] items-center justify-center text-[11px] font-medium text-white transition-opacity ${
-                          weeklyOverviewFilter !== "all" && weeklyOverviewFilter !== segment.key
-                            ? "opacity-25"
-                            : "opacity-100"
-                        }`}
-                        style={{ width: `${(segment.value / total) * 100}%` }}
-                        title={`${segment.label}: ${segment.value}`}
-                      >
-                        {segment.value}
+                return (
+                  <button
+                    key={`${day.day}-${day.dateLabel}`}
+                    type="button"
+                    onClick={() => day.status && handleToggleFilter(day.status)}
+                    disabled={!day.status}
+                    className={`min-h-[132px] rounded-lg border p-4 text-left transition-all ${
+                      day.status
+                        ? "cursor-pointer hover:border-primary/50 hover:bg-accent/30"
+                        : "cursor-default bg-accent/10"
+                    } ${isFiltered ? "opacity-100" : "opacity-40"}`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{day.day}</p>
+                        <p className="text-xs text-muted-foreground">{day.dateLabel}</p>
                       </div>
-                    ))}
+                      {day.status ? (
+                        <Badge variant={statusVariant(day.status)} size="sm">
+                          {day.status}
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" size="sm">
+                          No Record
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="mt-4 space-y-1 text-xs text-muted-foreground">
+                      <p>In: {day.checkIn || "-"}</p>
+                      <p>Out: {day.checkOut || "-"}</p>
+                      <p>Hours: {day.hours || "-"}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {(weeklyOverview.length ? weeklyOverview : weeklyAttendance).map((day) => (
+                <div key={day.day} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-foreground w-12">
+                      {day.day}
+                    </span>
+                    <div className="flex-1 flex gap-1 h-8">
+                      <div
+                        className="bg-[var(--success)] rounded flex items-center justify-center text-xs text-white transition-all duration-200"
+                        style={{ 
+                          width: `${(day.present / 11) * 100}%`,
+                          opacity: selectedStatus === "All" || selectedStatus === "Present" ? 1 : 0.15
+                        }}
+                        title={`Present: ${day.present}`}
+                      >
+                        {day.present > 0 && day.present}
+                      </div>
+                      <div
+                        className="bg-[var(--warning)] rounded flex items-center justify-center text-xs text-white transition-all duration-200"
+                        style={{ 
+                          width: `${(day.late / 11) * 100}%`,
+                          opacity: selectedStatus === "All" || selectedStatus === "Late" ? 1 : 0.15
+                        }}
+                        title={`Late: ${day.late}`}
+                      >
+                        {day.late > 0 && day.late}
+                      </div>
+                      <div
+                        className="bg-destructive rounded flex items-center justify-center text-xs text-white transition-all duration-200"
+                        style={{ 
+                          width: `${(day.absent / 11) * 100}%`,
+                          opacity: selectedStatus === "All" || selectedStatus === "Absent" ? 1 : 0.15
+                        }}
+                        title={`Absent: ${day.absent}`}
+                      >
+                        {day.absent > 0 && day.absent}
+                      </div>
+                      <div
+                        className="bg-[var(--info)] rounded flex items-center justify-center text-xs text-white transition-all duration-200"
+                        style={{ 
+                          width: `${(day.leave / 11) * 100}%`,
+                          opacity: selectedStatus === "All" || selectedStatus === "On Leave" ? 1 : 0.15
+                        }}
+                        title={`Leave: ${day.leave}`}
+                      >
+                        {day.leave > 0 && day.leave}
+                      </div>
+                    </div>
                   </div>
-                  <span className="w-12 text-right text-xs text-muted-foreground">
-                    {attendanceRate}%
-                  </span>
                 </div>
-              </div>
-              );
-            })}
-          </div>
-          <div className="flex flex-wrap items-center gap-2 mt-6 pt-4 border-t border-border">
-            {[
-              {
-                key: "all",
-                label: "All",
-                count: weeklyAttendance.reduce((sum, day) => sum + day.present + day.late + day.absent + day.leave, 0),
-                dot: "bg-slate-400",
-                idle: "border-slate-400/25 bg-slate-400/10 text-slate-300 hover:border-slate-300/60",
-                active: "border-slate-300 bg-slate-300/20 text-slate-100",
-              },
-              {
-                key: "present",
-                label: "Present",
-                count: weeklyAttendance.reduce((sum, day) => sum + day.present, 0),
-                dot: "bg-emerald-400",
-                idle: "border-emerald-400/25 bg-emerald-400/10 text-emerald-300 hover:border-emerald-300/60",
-                active: "border-emerald-300 bg-emerald-300/20 text-emerald-100",
-              },
-              {
-                key: "late",
-                label: "Late",
-                count: weeklyAttendance.reduce((sum, day) => sum + day.late, 0),
-                dot: "bg-amber-400",
-                idle: "border-amber-400/25 bg-amber-400/10 text-amber-300 hover:border-amber-300/60",
-                active: "border-amber-300 bg-amber-300/20 text-amber-100",
-              },
-              {
-                key: "absent",
-                label: "Absent",
-                count: weeklyAttendance.reduce((sum, day) => sum + day.absent, 0),
-                dot: "bg-rose-400",
-                idle: "border-rose-400/25 bg-rose-400/10 text-rose-300 hover:border-rose-300/60",
-                active: "border-rose-300 bg-rose-300/20 text-rose-100",
-              },
-              {
-                key: "leave",
-                label: "On Leave",
-                count: weeklyAttendance.reduce((sum, day) => sum + day.leave, 0),
-                dot: "bg-sky-400",
-                idle: "border-sky-400/25 bg-sky-400/10 text-sky-300 hover:border-sky-300/60",
-                active: "border-sky-300 bg-sky-300/20 text-sky-100",
-              },
-            ].map((filter) => (
-              <button
-                key={filter.key}
-                type="button"
-                onClick={() => setWeeklyOverviewFilter(filter.key as WeeklyOverviewFilter)}
-                className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-colors ${
-                  weeklyOverviewFilter === filter.key ? filter.active : filter.idle
-                }`}
-              >
-                <span className={`w-3 h-3 rounded-full ${filter.dot}`} />
-                <span>{filter.label}</span>
-                <span className="font-semibold">{filter.count}</span>
-              </button>
-            ))}
+              ))}
+            </div>
+          )}
+          <div className="flex flex-wrap gap-4 mt-6 pt-4 border-t border-border">
+            <div 
+              onClick={() => setSelectedStatus("All")}
+              className={`flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-lg border transition-all ${selectedStatus === "All" ? "bg-primary text-primary-foreground border-primary font-medium" : "border-border hover:bg-accent/40 text-muted-foreground bg-accent/10"}`}
+            >
+              <span className="text-xs">All Records</span>
+            </div>
+            <div 
+              onClick={() => handleToggleFilter("Present")}
+              className={`flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-lg border transition-all ${selectedStatus === "Present" ? "bg-[var(--success)]/10 text-[var(--success)] border-[var(--success)]/30 font-medium" : "border-border hover:bg-accent/40 text-muted-foreground bg-accent/10"}`}
+            >
+              <div className="w-3 h-3 rounded bg-[var(--success)]"></div>
+              <span className="text-xs">Present</span>
+            </div>
+            <div 
+              onClick={() => handleToggleFilter("Late")}
+              className={`flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-lg border transition-all ${selectedStatus === "Late" ? "bg-[var(--warning)]/10 text-[var(--warning)] border-[var(--warning)]/30 font-medium" : "border-border hover:bg-accent/40 text-muted-foreground bg-accent/10"}`}
+            >
+              <div className="w-3 h-3 rounded bg-[var(--warning)]"></div>
+              <span className="text-xs">Late</span>
+            </div>
+            <div 
+              onClick={() => handleToggleFilter("Absent")}
+              className={`flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-lg border transition-all ${selectedStatus === "Absent" ? "bg-destructive/10 text-destructive border-destructive/30 font-medium" : "border-border hover:bg-accent/40 text-muted-foreground bg-accent/10"}`}
+            >
+              <div className="w-3 h-3 rounded bg-destructive"></div>
+              <span className="text-xs">Absent</span>
+            </div>
+            <div 
+              onClick={() => handleToggleFilter("On Leave")}
+              className={`flex items-center gap-2 cursor-pointer px-3 py-1.5 rounded-lg border transition-all ${selectedStatus === "On Leave" ? "bg-[var(--info)]/10 text-[var(--info)] border-[var(--info)]/30 font-medium" : "border-border hover:bg-accent/40 text-muted-foreground bg-accent/10"}`}
+            >
+              <div className="w-3 h-3 rounded bg-[var(--info)]"></div>
+              <span className="text-xs">On Leave</span>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -808,7 +963,7 @@ export function Attendance() {
                   <TableCell className="text-sm">{record.hours}</TableCell>
                   <TableCell className="text-sm">{record.break}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className={statusVariant(record.status)}>
+                    <Badge variant={statusVariant(record.status)}>
                       {record.status}
                     </Badge>
                   </TableCell>
@@ -901,7 +1056,7 @@ export function Attendance() {
               Status
             </label>
             <select
-              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all shadow-sm"
               value={attendanceForm.status}
               onChange={(event) =>
                 setAttendanceForm((form) => ({

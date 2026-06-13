@@ -1,24 +1,18 @@
 const { query } = require("../../config/database");
 const asyncHandler = require("../../utils/asyncHandler");
 
-function toDateKey(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+function dateKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-function isWeekend(date) {
-  const day = date.getDay();
-  return day === 0 || day === 6;
-}
-
-function buildMonthAttendance(records, todayKey) {
-  const today = new Date(`${todayKey}T00:00:00`);
+function buildMonthAttendance(rows) {
+  const today = new Date();
   const year = today.getFullYear();
   const month = today.getMonth();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const recordByDate = new Map(records.map((record) => [record.work_date, record.status]));
+  const rowMap = new Map(
+    rows.map((row) => [dateKey(new Date(row.work_date)), row.status])
+  );
 
   let daysPresent = 0;
   let daysLate = 0;
@@ -29,44 +23,35 @@ function buildMonthAttendance(records, todayKey) {
 
   const days = Array.from({ length: daysInMonth }, (_, index) => {
     const date = new Date(year, month, index + 1);
-    const dateKey = toDateKey(date);
-    const weekend = isWeekend(date);
-    const future = dateKey > todayKey;
-    const recordedStatus = recordByDate.get(dateKey);
-    let status = recordedStatus || "none";
+    const key = dateKey(date);
+    const dayOfWeek = date.getDay();
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const isFuture = date > today;
+    const status = rowMap.get(key) || "none";
 
-    if (!weekend) {
+    if (!isWeekend) {
       workdaysInMonth += 1;
-      if (!future) {
-        workdaysToDate += 1;
-      }
+      if (!isFuture) workdaysToDate += 1;
     }
 
-    if (recordedStatus === "present") {
-      daysPresent += 1;
-    } else if (recordedStatus === "late") {
-      daysLate += 1;
-    } else if (recordedStatus === "leave") {
-      daysLeave += 1;
-    } else if (recordedStatus === "absent" || (!recordedStatus && !weekend && !future)) {
-      daysAbsent += 1;
-      status = "absent";
-    }
+    if (status === "present") daysPresent += 1;
+    if (status === "late") daysLate += 1;
+    if (status === "absent") daysAbsent += 1;
+    if (status === "leave") daysLeave += 1;
 
     return {
-      date: dateKey,
+      date: key,
       day: index + 1,
       status,
-      isToday: dateKey === todayKey,
-      isWeekend: weekend,
-      isFuture: future,
+      isToday: key === dateKey(today),
+      isWeekend,
+      isFuture,
     };
   });
 
   return {
     year,
     month: month + 1,
-    days,
     daysPresent,
     daysLate,
     daysAbsent,
@@ -74,28 +59,26 @@ function buildMonthAttendance(records, todayKey) {
     attendedDays: daysPresent + daysLate,
     workdaysInMonth,
     workdaysToDate,
+    days,
   };
 }
 
 const dashboard = asyncHandler(async (req, res) => {
-  const [[todayRows], [attendanceRecords], [leaveRequests], [payroll]] = await Promise.all([
-    query("SELECT DATE_FORMAT(CURDATE(), '%Y-%m-%d') AS today"),
-    query(
-      `SELECT DATE_FORMAT(work_date, '%Y-%m-%d') AS work_date, status
-       FROM attendance
-       WHERE user_id = ?
-         AND YEAR(work_date) = YEAR(CURDATE())
-         AND MONTH(work_date) = MONTH(CURDATE())`,
-      [req.user.id]
-    ),
+  const today = new Date();
+  const monthStart = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01`;
+  const monthEnd = dateKey(new Date(today.getFullYear(), today.getMonth() + 1, 0));
+
+  const [[attendance], [attendanceRows], [leaveRequests], [payroll]] = await Promise.all([
+    query("SELECT COUNT(*) AS daysPresent FROM attendance WHERE user_id = ? AND status = 'present' AND work_date BETWEEN ? AND ?", [req.user.id, monthStart, monthEnd]),
+    query("SELECT work_date, status FROM attendance WHERE user_id = ? AND work_date BETWEEN ? AND ? ORDER BY work_date ASC", [req.user.id, monthStart, monthEnd]),
     query("SELECT COUNT(*) AS pendingLeave FROM leave_requests WHERE user_id = ? AND status = 'pending'", [req.user.id]),
     query("SELECT net_pay, pay_period FROM payroll WHERE user_id = ? ORDER BY pay_period DESC LIMIT 1", [req.user.id]),
   ]);
-  const monthAttendance = buildMonthAttendance(attendanceRecords, todayRows[0].today);
+  const monthAttendance = buildMonthAttendance(attendanceRows);
 
   res.json({
     dashboard: {
-      daysPresent: monthAttendance.daysPresent,
+      daysPresent: attendance[0].daysPresent,
       daysLate: monthAttendance.daysLate,
       daysAbsent: monthAttendance.daysAbsent,
       daysLeave: monthAttendance.daysLeave,

@@ -16,6 +16,9 @@ export function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isResetOpen, setIsResetOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetMessage, setResetMessage] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,6 +33,11 @@ export function Login() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handlePasswordReset = (event: React.FormEvent) => {
+    event.preventDefault();
+    setResetMessage(`Password reset instructions are ready for ${resetEmail || email || "your work email"}. In production this connects to the mail service.`);
   };
 
   return (
@@ -199,9 +207,17 @@ export function Login() {
                 />
                 <span className="text-sm text-[#262254] dark:text-white">Remember me</span>
               </label>
-              <a href="#" className="text-sm text-[#9A77CF] hover:text-[#EC4176] transition-colors">
+              <button
+                type="button"
+                onClick={() => {
+                  setResetEmail(email);
+                  setResetMessage("");
+                  setIsResetOpen(true);
+                }}
+                className="text-sm text-[#9A77CF] hover:text-[#EC4176] transition-colors"
+              >
                 Forgot password?
-              </a>
+              </button>
             </motion.div>
 
             <motion.div variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }}>
@@ -237,6 +253,7 @@ export function Login() {
 
               <button
                 type="button"
+                onClick={() => setError("SSO is not configured for this company yet. Please sign in with email and password.")}
                 className="w-full py-3 rounded-xl border bg-white dark:bg-[#251942] text-[#262254] dark:text-white text-sm flex items-center justify-center gap-2 hover:bg-[#543884]/5 transition-all"
                 style={{ borderColor: 'rgba(84, 56, 132, 0.2)' }}
               >
@@ -257,6 +274,51 @@ export function Login() {
           </motion.div>
         </motion.div>
       </div>
+      {isResetOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-md rounded-2xl border border-[#543884]/15 bg-white p-6 shadow-2xl dark:bg-[#1a0f2e]">
+            <div className="mb-5">
+              <h3 className="text-lg font-semibold text-[#262254] dark:text-white">Reset password</h3>
+              <p className="mt-1 text-sm text-[#7c6b9e] dark:text-[#b5a3d1]">
+                Enter your work email and HRSpace will prepare reset instructions.
+              </p>
+            </div>
+            {resetMessage ? (
+              <div className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300">
+                {resetMessage}
+              </div>
+            ) : (
+              <form onSubmit={handlePasswordReset} className="space-y-4">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-[#262254] dark:text-white">Work email</label>
+                  <input
+                    type="email"
+                    value={resetEmail}
+                    onChange={(event) => setResetEmail(event.target.value)}
+                    required
+                    className="w-full rounded-xl border bg-white px-4 py-3 text-[#262254] outline-none transition-all focus:ring-2 focus:ring-[#9A77CF] dark:bg-[#251942] dark:text-white"
+                    style={{ borderColor: 'rgba(84, 56, 132, 0.2)' }}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="w-full rounded-xl py-3 font-semibold text-white shadow-lg transition-all hover:brightness-110"
+                  style={{ background: 'linear-gradient(135deg, #543884 0%, #A13670 50%, #EC4176 100%)' }}
+                >
+                  Send reset instructions
+                </button>
+              </form>
+            )}
+            <button
+              type="button"
+              onClick={() => setIsResetOpen(false)}
+              className="mt-4 w-full rounded-xl border border-[#543884]/20 px-4 py-2 text-sm font-medium text-[#543884] transition-colors hover:bg-[#543884]/5"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

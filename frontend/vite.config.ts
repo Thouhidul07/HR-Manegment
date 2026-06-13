@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { defineConfig } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -14,6 +15,8 @@ function figmaAssetResolver() {
         const filename = id.replace("figma:asset/", "");
         return path.resolve(__dirname, "src/assets", filename);
       }
+
+      return null;
     },
   };
 }
@@ -22,13 +25,13 @@ export default defineConfig({
   plugins: [
     figmaAssetResolver(),
     // The React and Tailwind plugins are both required for Make, even if
-    // Tailwind is not being actively used – do not remove them
+    // Tailwind is not being actively used - do not remove them.
     react(),
     tailwindcss(),
   ],
   resolve: {
     alias: {
-      // Alias @ to the src directory
+      // Alias @ to the src directory.
       "@": path.resolve(__dirname, "./src"),
     },
   },

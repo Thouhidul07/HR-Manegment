@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Download, Filter, Calendar, TrendingUp,
@@ -9,13 +9,21 @@ import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from "recharts";
+import api from "../services/api";
 
 export function ProjectReports() {
   const navigate = useNavigate();
   const [dateRange, setDateRange] = useState('last-30-days');
   const [selectedProject, setSelectedProject] = useState('all');
+  const [reportData, setReportData] = useState<any>({ byStatus: {}, projects: [] });
 
-  const projects = ['all', 'Website Redesign', 'User Portal', 'Mobile App'];
+  useEffect(() => {
+    api.get("/projects/stats")
+      .then((response) => setReportData(response.data || { byStatus: {}, projects: [] }))
+      .catch((error) => console.warn("Unable to load project reports", error));
+  }, []);
+
+  const projects = ['all', ...(reportData.projects || []).map((project: any) => project.name)];
 
   // Sample data for charts
   const taskCompletionData = [
@@ -26,11 +34,12 @@ export function ProjectReports() {
     { date: 'May 29', completed: 38, inProgress: 8, todo: 3 }
   ];
 
-  const projectDistribution = [
-    { name: 'Website Redesign', value: 45, color: '#543884' },
-    { name: 'User Portal', value: 35, color: '#9A77CF' },
-    { name: 'Mobile App', value: 20, color: '#EC4176' }
-  ];
+  const reportTotalTasks = (reportData.projects || []).reduce((sum: number, project: any) => sum + Number(project.total || 0), 0);
+  const projectDistribution: Array<{ name: string; value: number; color: string }> = (reportData.projects || []).map((project: any, index: number) => ({
+    name: project.name,
+    value: reportTotalTasks ? Math.round((Number(project.total || 0) / reportTotalTasks) * 100) : 0,
+    color: ['#543884', '#9A77CF', '#EC4176', '#FFA45E'][index % 4],
+  }));
 
   const teamPerformance = [
     { name: 'Sarah Johnson', completed: 18, pending: 3, efficiency: 94 },
@@ -57,32 +66,32 @@ export function ProjectReports() {
   const stats = [
     {
       label: 'Total Tasks',
-      value: '156',
-      change: '+12%',
+      value: String(reportTotalTasks),
+      change: 'Live',
       trend: 'up',
       icon: CheckCircle2,
       color: '#543884'
     },
     {
       label: 'Completed',
-      value: '89',
-      change: '+18%',
+      value: String(reportData.byStatus?.completed || 0),
+      change: 'Live',
       trend: 'up',
       icon: Target,
       color: '#00C853'
     },
     {
       label: 'In Progress',
-      value: '45',
-      change: '-5%',
+      value: String(reportData.byStatus?.['in-progress'] || 0),
+      change: 'Live',
       trend: 'down',
       icon: Clock,
       color: '#2196F3'
     },
     {
       label: 'Overdue',
-      value: '8',
-      change: '-25%',
+      value: String((reportData.projects || []).reduce((sum: number, project: any) => sum + Number(project.overdue || 0), 0)),
+      change: 'Live',
       trend: 'down',
       icon: AlertCircle,
       color: '#EC4176'
@@ -105,9 +114,95 @@ export function ProjectReports() {
     }
   ];
 
-  const handleExport = (format: string) => {
-    console.log(`Exporting report as ${format}`);
-    // Implement export logic here
+  const csvCell = (value: string | number) => `"${String(value).replace(/"/g, '""')}"`;
+
+  const downloadTextFile = (fileName: string, content: string, type: string) => {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = fileName;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const reportRows = (): Array<Array<string | number>> => [
+    ["Report", "Project Reports & Analytics"],
+    ["Date Range", dateRange],
+    ["Project", selectedProject === "all" ? "All Projects" : selectedProject],
+    ["Generated At", new Date().toLocaleString()],
+    [],
+    ["Metric", "Value", "Change"],
+    ...stats.map((stat) => [stat.label, stat.value, stat.change]),
+    [],
+    ["Task Completion Trend"],
+    ["Date", "Completed", "In Progress", "Todo"],
+    ...taskCompletionData.map((item: { date: string; completed: number; inProgress: number; todo: number }) => [item.date, item.completed, item.inProgress, item.todo]),
+    [],
+    ["Project Distribution"],
+    ["Project", "Percent"],
+    ...projectDistribution.map((item: { name: string; value: number }) => [item.name, item.value]),
+    [],
+    ["Team Performance"],
+    ["Name", "Completed", "Pending", "Efficiency"],
+    ...teamPerformance.map((member) => [member.name, member.completed, member.pending, `${member.efficiency}%`]),
+    [],
+    ["Priority Breakdown"],
+    ["Priority", "Count"],
+    ...priorityBreakdown.map((item) => [item.priority, item.count]),
+    [],
+    ["Sprint Velocity"],
+    ["Week", "Planned", "Completed"],
+    ...velocityData.map((item) => [item.week, item.planned, item.completed]),
+  ];
+
+  const exportCsv = () => {
+    const csv = reportRows().map((row) => row.map((cell: string | number) => csvCell(cell ?? "")).join(",")).join("\n");
+    downloadTextFile(`project-report-${new Date().toISOString().slice(0, 10)}.csv`, csv, "text/csv;charset=utf-8;");
+  };
+
+  const exportPdf = () => {
+    const printableRows = reportRows()
+      .map((row) => {
+        if (!row.length) return "<tr><td colspan=\"4\" class=\"spacer\"></td></tr>";
+        if (row.length === 1) return `<tr><th colspan="4" class="section">${row[0]}</th></tr>`;
+        return `<tr>${row.map((cell: string | number) => `<td>${String(cell)}</td>`).join("")}</tr>`;
+      })
+      .join("");
+    const html = `<!doctype html>
+      <html>
+        <head>
+          <title>Project Reports & Analytics</title>
+          <style>
+            body { font-family: Arial, sans-serif; color: #262254; margin: 32px; }
+            h1 { margin: 0 0 8px; }
+            p { color: #6f5b96; margin: 0 0 24px; }
+            table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            td, th { border: 1px solid #ded7ea; padding: 8px; text-align: left; }
+            .section { background: #f2edf8; color: #543884; font-size: 14px; }
+            .spacer { border: 0; height: 12px; }
+            @media print { button { display: none; } }
+          </style>
+        </head>
+        <body>
+          <h1>Project Reports & Analytics</h1>
+          <p>${dateRange} · ${selectedProject === "all" ? "All Projects" : selectedProject}</p>
+          <table>${printableRows}</table>
+          <script>window.onload = () => window.print();</script>
+        </body>
+      </html>`;
+    const printWindow = window.open("", "_blank", "noopener,noreferrer");
+    if (!printWindow) {
+      downloadTextFile(`project-report-${new Date().toISOString().slice(0, 10)}.html`, html, "text/html;charset=utf-8;");
+      return;
+    }
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
+
+  const handleExport = (format: "pdf" | "csv") => {
+    if (format === "csv") exportCsv();
+    else exportPdf();
   };
 
   return (
@@ -258,7 +353,7 @@ export function ProjectReports() {
                 paddingAngle={5}
                 dataKey="value"
               >
-                {projectDistribution.map((entry, index) => (
+                {projectDistribution.map((entry: { color: string }, index: number) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>

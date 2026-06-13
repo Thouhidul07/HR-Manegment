@@ -170,6 +170,7 @@ export function Forum() {
   const [discussionPage, setDiscussionPage] = useState(1);
   const [hasMoreDiscussions, setHasMoreDiscussions] = useState(false);
   const [loadingDiscussions, setLoadingDiscussions] = useState(false);
+  const [guidelinesOpen, setGuidelinesOpen] = useState(false);
   const activeFilterCount = [sentimentFilter !== "all", postTypeFilter !== "all"].filter(Boolean).length;
 
   useEffect(() => {
@@ -640,7 +641,7 @@ export function Forum() {
                 </div>
                 <p className="text-sm text-muted-foreground">Report inappropriate content</p>
               </div>
-              <Button variant="ghost" size="sm" className="w-full mt-2 text-[var(--primary)]">
+              <Button variant="ghost" size="sm" className="w-full mt-2 text-[var(--primary)]" onClick={() => setGuidelinesOpen(true)}>
                 Read Full Guidelines
               </Button>
             </CardContent>
@@ -679,6 +680,20 @@ export function Forum() {
         onClose={() => setIsCreateModalOpen(false)}
         onCreate={handleCreatePost}
       />
+
+      <Modal
+        isOpen={guidelinesOpen}
+        onClose={() => setGuidelinesOpen(false)}
+        title="Community Guidelines"
+        size="lg"
+        footer={<Button variant="primary" onClick={() => setGuidelinesOpen(false)}>Close</Button>}
+      >
+        <div className="space-y-3 text-sm text-muted-foreground">
+          <p>Keep posts respectful, constructive, and safe for a workplace audience.</p>
+          <p>Avoid naming colleagues in sensitive reports. Share enough context for discussion without exposing private details.</p>
+          <p>Use report tools for harassment, identifying information, threats, or content that needs moderator review.</p>
+        </div>
+      </Modal>
 
       <Modal
         isOpen={Boolean(editingPost?.isOwner)}
