@@ -1,3 +1,6 @@
+import api from "./api";
+import { formatCurrencyBDT } from "../utils/formatters";
+
 /**
  * dashboardData.ts — Mock data service for dashboard pages.
  *
@@ -52,6 +55,62 @@ export interface ChartPoint {
   [key: string]: string | number;
 }
 
+export type DashboardRole = "admin" | "hr_manager" | "employee";
+
+export interface RoleDashboardSummary {
+  totalEmployees?: number;
+  presentToday?: number;
+  pendingLeave?: number;
+  monthlyPayroll?: number | string;
+  activeEmployees?: number;
+  upcomingTraining?: number;
+  daysPresent?: number;
+  daysLate?: number;
+  daysAbsent?: number;
+  daysLeave?: number;
+  attendedDays?: number;
+  workdaysInMonth?: number;
+  workdaysToDate?: number;
+  monthAttendance?: {
+    year: number;
+    month: number;
+    daysPresent: number;
+    daysLate: number;
+    daysAbsent: number;
+    daysLeave: number;
+    attendedDays: number;
+    workdaysInMonth: number;
+    workdaysToDate: number;
+    days: {
+      date: string;
+      day: number;
+      status: "present" | "late" | "absent" | "leave" | "none";
+      isToday: boolean;
+      isWeekend: boolean;
+      isFuture: boolean;
+    }[];
+  };
+  latestPayroll?: {
+    net_pay: number | string;
+    pay_period: string;
+  } | null;
+}
+
+const roleDashboardEndpoints: Record<DashboardRole, string> = {
+  admin: "/admin/dashboard",
+  hr_manager: "/hr-manager/dashboard",
+  employee: "/employee/dashboard",
+};
+
+export async function getRoleDashboardSummary(role: DashboardRole): Promise<RoleDashboardSummary> {
+  const response = await api.get(roleDashboardEndpoints[role]);
+  return response.data.dashboard ?? {};
+}
+
+export function formatDashboardCurrency(value: number | string | undefined | null): string {
+  return formatCurrencyBDT(value);
+}
+
 // ─── Admin Data ──────────────────────────────────────────────────────────────
 // Future endpoint: GET /api/v1/dashboard/admin/stats
 
@@ -89,10 +148,10 @@ export function getAdminAttendanceTrend(): ChartPoint[] {
 export function getDepartmentBreakdown() {
   // TODO: return await fetch('/api/v1/dashboard/admin/departments').then(r => r.json());
   return [
-    { name: 'Engineering', value: 450, color: '#543884' },
+    { name: 'Information Technology', value: 450, color: '#543884' },
     { name: 'Sales',       value: 280, color: '#9A77CF' },
     { name: 'Marketing',   value: 180, color: '#EC4176' },
-    { name: 'HR',          value: 120, color: '#FFA45E' },
+    { name: 'Human Resources', value: 120, color: '#FFA45E' },
     { name: 'Finance',     value: 204, color: '#A13670' },
   ];
 }
@@ -101,9 +160,9 @@ export function getDepartmentBreakdown() {
 export function getPayrollSummary() {
   // TODO: return await fetch('/api/v1/dashboard/admin/payroll-summary').then(r => r.json());
   return {
-    totalDisbursed: '$2,847,000',
-    pending: '$124,500',
-    deductions: '$389,200',
+    totalDisbursed: formatCurrencyBDT(2847000),
+    pending: formatCurrencyBDT(124500),
+    deductions: formatCurrencyBDT(389200),
     trend: [2600, 2700, 2750, 2800, 2820, 2847],
   };
 }
@@ -124,10 +183,10 @@ export function getAdminActivity(): ActivityItem[] {
   // TODO: return await fetch('/api/v1/dashboard/admin/activity').then(r => r.json());
   return [
     { id: 1, user: 'Rafi Ahmed',    action: 'submitted a leave request',   time: '5 min ago',   type: 'leave' },
-    { id: 2, user: 'Sofia Rahman',  action: 'completed onboarding',        time: '22 min ago',  type: 'onboarding' },
-    { id: 3, user: 'James Okafor', action: 'filed an expense claim',       time: '1 hour ago',  type: 'expense' },
-    { id: 4, user: 'Mei Lin',       action: 'enrolled in training course', time: '2 hours ago', type: 'training' },
-    { id: 5, user: 'Arif Islam',    action: 'updated profile information', time: '3 hours ago', type: 'profile' },
+    { id: 2, user: 'Sadia Rahman',  action: 'completed onboarding',        time: '22 min ago',  type: 'onboarding' },
+    { id: 3, user: 'Mehedi Hasan', action: 'filed an expense claim',       time: '1 hour ago',  type: 'expense' },
+    { id: 4, user: 'Tasmia Noor',   action: 'enrolled in training course', time: '2 hours ago', type: 'training' },
+    { id: 5, user: 'Arif Hossain',  action: 'updated profile information', time: '3 hours ago', type: 'profile' },
   ];
 }
 
@@ -177,10 +236,10 @@ export function getPendingLeaveRequests() {
   // TODO: return await fetch('/api/v1/leave/pending').then(r => r.json());
   return [
     { id: 1, name: 'Rafi Ahmed',   days: 3, type: 'Annual Leave',  initials: 'RA', color: '#543884' },
-    { id: 2, name: 'Priya Sen',    days: 1, type: 'Sick Leave',    initials: 'PS', color: '#9A77CF' },
-    { id: 3, name: 'Karim Hassan', days: 5, type: 'Annual Leave',  initials: 'KH', color: '#EC4176' },
-    { id: 4, name: 'Nadia Malik',  days: 2, type: 'Casual Leave',  initials: 'NM', color: '#FFA45E' },
-    { id: 5, name: 'Arif Islam',   days: 4, type: 'Annual Leave',  initials: 'AI', color: '#A13670' },
+    { id: 2, name: 'Nusrat Jahan', days: 1, type: 'Sick Leave',    initials: 'NJ', color: '#9A77CF' },
+    { id: 3, name: 'Mahmudul Karim', days: 5, type: 'Annual Leave', initials: 'MK', color: '#EC4176' },
+    { id: 4, name: 'Jannatul Ferdous', days: 2, type: 'Casual Leave', initials: 'JF', color: '#FFA45E' },
+    { id: 5, name: 'Arif Hossain', days: 4, type: 'Annual Leave',  initials: 'AH', color: '#A13670' },
   ];
 }
 
@@ -188,10 +247,10 @@ export function getPendingLeaveRequests() {
 export function getOnboardingPipeline() {
   // TODO: return await fetch('/api/v1/onboarding/pipeline').then(r => r.json());
   return [
-    { name: 'Sofia Rahman', role: 'UX Designer',        progress: 92, initials: 'SR', startDate: 'May 1' },
-    { name: 'James Okafor', role: 'Backend Engineer',   progress: 68, initials: 'JO', startDate: 'May 8' },
-    { name: 'Mei Lin',      role: 'Product Manager',    progress: 45, initials: 'ML', startDate: 'May 15' },
-    { name: 'David Owusu',  role: 'Sales Representative',progress: 20, initials: 'DO', startDate: 'May 20' },
+    { name: 'Sadia Rahman', role: 'Junior Software Engineer', progress: 92, initials: 'SR', startDate: 'May 1' },
+    { name: 'Mehedi Hasan', role: 'Backend Engineer',   progress: 68, initials: 'MH', startDate: 'May 8' },
+    { name: 'Tasmia Noor',  role: 'Operations Executive', progress: 45, initials: 'TN', startDate: 'May 15' },
+    { name: 'Rakibul Islam', role: 'Sales Representative',progress: 20, initials: 'RI', startDate: 'May 20' },
   ];
 }
 
@@ -276,9 +335,9 @@ export function getMyTraining() {
 export function getMyRecentPayslips() {
   // TODO: return await fetch('/api/v1/payroll/slips/me?limit=3').then(r => r.json());
   return [
-    { id: 1, period: 'May 2026',      amount: '$3,450', status: 'Processed' },
-    { id: 2, period: 'April 2026',    amount: '$3,450', status: 'Processed' },
-    { id: 3, period: 'March 2026',    amount: '$3,380', status: 'Processed' },
+    { id: 1, period: 'May 2026',      amount: formatCurrencyBDT(75000), status: 'Processed' },
+    { id: 2, period: 'April 2026',    amount: formatCurrencyBDT(75000), status: 'Processed' },
+    { id: 3, period: 'March 2026',    amount: formatCurrencyBDT(73500), status: 'Processed' },
   ];
 }
 

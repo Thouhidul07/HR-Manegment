@@ -149,10 +149,10 @@ ROW 2 — 3 col grid (2fr + 1fr):
   RIGHT (col-span-1): SectionCard "Department Breakdown"
     PieChart (donut) height=200, innerRadius=55, outerRadius=85, paddingAngle=3
     data + legend list below:
-      Engineering: 450, #543884
+      Information Technology: 450, #543884
       Sales:       280, #9A77CF
       Marketing:   180, #EC4176
-      HR:          120, #FFA45E
+      Human Resources: 120, #FFA45E
       Finance:     204, #A13670
     Legend: flex-col gap-2, each row: colored dot + name + count right-aligned
 
@@ -160,9 +160,9 @@ ROW 3 — 3 col grid (1fr each):
   CARD 1: SectionCard "Payroll Summary"
     action: "View Details →" link text-[#9A77CF] text-sm
     3 stat rows (flex justify-between border-b py-3 last:border-0):
-      Total Disbursed: "$2,847,000" — font-semibold #262254
-      Pending:         "$124,500"   — text-[#FFA45E]
-      Deductions:      "$389,200"   — text-[#EC4176]
+      Total Disbursed: "BDT 2,847,000" — font-semibold #262254
+      Pending:         "BDT 124,500"   — text-[#FFA45E]
+      Deductions:      "BDT 389,200"   — text-[#EC4176]
     BarChart height=100 at bottom (mini sparkbar, 6 months payroll totals)
       bar fill: #543884, no axes, no grid, no tooltip, just the shape
 
@@ -270,11 +270,11 @@ ROW 3 — 3 col grid:
   CARD 2: SectionCard "Department Health"
     RadarChart OR simple score cards (use score cards if radar is complex):
     5 departments with health score (0-100) shown as colored progress arcs:
-      Engineering: 87% — #543884
+      Information Technology: 87% — #543884
       Sales:       79% — #9A77CF
       Marketing:   91% — #EC4176
       Finance:     83% — #FFA45E
-      HR:          95% — #A13670
+      Human Resources: 95% — #A13670
     Use simple bar-style rows: dept name + score badge + bar fill
 
   CARD 3: SectionCard "Today's Agenda"
@@ -376,7 +376,7 @@ ROW 4 — 2 col grid:
         col (month/year text-sm font-medium + "Processed" green badge)
       Right: amount text-sm font-semibold #262254 dark:white +
         Download ghost icon button #9A77CF
-      Entries: March 2026 $3,450 / February 2026 $3,450 / January 2026 $3,380
+      Entries: March 2026 BDT 75,000 / February 2026 BDT 75,000 / January 2026 BDT 73,500
 
   RIGHT: SectionCard "Quick Actions"
     2×3 grid of action cards (each: rounded-xl border border-[#543884]/10

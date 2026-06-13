@@ -2,10 +2,25 @@ import { useState } from "react";
 import { X, MessageSquare, Hash, BarChart2, HelpCircle } from "lucide-react";
 import { Button } from "../ui/Button";
 import { Badge } from "../ui/Badge";
+import { getAnonymousAvatarEmoji } from "./anonymousAvatars";
 
 interface CreatePostModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onCreate?: (post: {
+    title: string;
+    content: string;
+    category: string;
+    tags: string[];
+    isAnonymous: boolean;
+    avatarAlias: string;
+    avatarColor: string;
+    pollData?: {
+      question: string;
+      votes: number;
+      options: { text: string; votes: number; percentage: number }[];
+    };
+  }) => Promise<void> | void;
 }
 
 const categories = [
@@ -28,7 +43,7 @@ const anonymousAvatars = [
   { name: "Rabbit", color: "#7C5FB5" }
 ];
 
-export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
+export function CreatePostModal({ isOpen, onClose, onCreate }: CreatePostModalProps) {
   const [postType, setPostType] = useState<'discussion' | 'poll'>('discussion');
   const [selectedCategory, setSelectedCategory] = useState("");
   const [title, setTitle] = useState("");
@@ -61,15 +76,22 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
     setPollOptions(newOptions);
   };
 
-  const handleSubmit = () => {
-    console.log("Creating post:", {
-      type: postType,
+  const handleSubmit = async () => {
+    await onCreate?.({
       category: selectedCategory,
       title,
-      content,
+      content: postType === 'discussion' ? content : title,
       tags,
-      avatar: selectedAvatar,
-      pollOptions: postType === 'poll' ? pollOptions : undefined
+      isAnonymous: true,
+      avatarAlias: selectedAvatar.name,
+      avatarColor: selectedAvatar.color,
+      pollData: postType === 'poll' ? {
+        question: title,
+        votes: 0,
+        options: pollOptions
+          .filter(Boolean)
+          .map((option) => ({ text: option, votes: 0, percentage: 0 })),
+      } : undefined
     });
     onClose();
   };
@@ -137,26 +159,47 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
             {/* Anonymous Avatar Selection */}
             <div>
               <label className="block text-sm text-foreground mb-3">Your Anonymous Identity</label>
-              <div className="grid grid-cols-4 gap-3">
-                {anonymousAvatars.map((avatar) => (
-                  <button
-                    key={avatar.name}
-                    onClick={() => setSelectedAvatar(avatar)}
-                    className={`p-3 rounded-lg border-2 transition-all ${
-                      selectedAvatar.name === avatar.name
-                        ? 'border-[var(--primary)] bg-[var(--primary)]/5'
-                        : 'border-border hover:border-[var(--primary)]/50'
-                    }`}
-                  >
-                    <div
-                      className="w-10 h-10 rounded-full mx-auto mb-2 flex items-center justify-center text-white text-sm shadow-md"
-                      style={{ backgroundColor: avatar.color }}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {anonymousAvatars.map((avatar) => {
+                  const isSelected = selectedAvatar.name === avatar.name;
+
+                  return (
+                    <button
+                      key={avatar.name}
+                      type="button"
+                      onClick={() => setSelectedAvatar(avatar)}
+                      className={`group relative overflow-hidden rounded-xl border p-3 text-left transition-all ${
+                        isSelected
+                          ? 'border-[#9A77CF] bg-[#9A77CF]/12 shadow-sm shadow-[#9A77CF]/20'
+                          : 'border-[#543884]/25 bg-[#120926]/35 hover:border-[#9A77CF]/60 hover:bg-[#543884]/10'
+                      }`}
                     >
-                      {avatar.name.charAt(0)}
-                    </div>
-                    <p className="text-xs text-center text-foreground">{avatar.name}</p>
-                  </button>
-                ))}
+                      <div
+                        className="absolute inset-x-0 top-0 h-1 opacity-90"
+                        style={{ backgroundColor: avatar.color }}
+                      />
+                      <div className="flex flex-col items-center gap-2 pt-1">
+                        <div
+                          className={`relative flex h-12 w-12 items-center justify-center rounded-2xl text-2xl shadow-md transition-transform group-hover:scale-105 ${
+                            isSelected ? 'ring-2 ring-white/70 ring-offset-2 ring-offset-[#180B2E]' : ''
+                          }`}
+                          style={{
+                            background: `linear-gradient(135deg, ${avatar.color}, ${avatar.color}CC)`,
+                          }}
+                        >
+                          {getAnonymousAvatarEmoji(avatar.name)}
+                          {isSelected && (
+                            <span className="absolute -right-1 -top-1 h-4 w-4 rounded-full border-2 border-[#180B2E] bg-emerald-400" />
+                          )}
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs font-semibold text-foreground">{avatar.name}</p>
+                          <p className="text-[10px] text-muted-foreground">Anonymous {avatar.name}</p>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 

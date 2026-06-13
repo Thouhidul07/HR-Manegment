@@ -49,7 +49,7 @@ export function RoleHierarchy({ roles }: RoleHierarchyProps) {
                 {rolesByLevel[Number(level)].map((role) => (
                   <div
                     key={role.id}
-                    className="relative p-5 rounded-xl border-2 border-border bg-gradient-to-br from-white to-[var(--accent)]/40 hover:border-[var(--primary)]/50 transition-all hover:shadow-md"
+                    className="relative p-5 rounded-xl border-2 border-border bg-card hover:bg-accent/20 hover:border-[var(--primary)]/50 transition-all hover:shadow-md"
                   >
                     {/* Connector line to next level */}
                     {levelIndex < levels.length - 1 && (

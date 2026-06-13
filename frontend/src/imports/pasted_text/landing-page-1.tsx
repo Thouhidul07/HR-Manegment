@@ -76,7 +76,7 @@ RIGHT — floating dashboard card mockup (motion: opacity 0→1, x 50→0, delay
     Card A (top-right offset, translate x+24 y-16):
       bg white, shadow-xl, rounded-xl, p-3, border border-[#EC4176]/10
       ✓ circle (bg #EC4176, white checkmark) + "Payroll Processed" bold
-      "$94,210" in #262254 + small #FFA45E dot "This month"
+      "BDT 94,210" in #262254 + small #FFA45E dot "This month"
       Stagger: delay 0s
 
     Card B (bottom-left offset, translate x-20 y+20):

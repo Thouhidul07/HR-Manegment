@@ -4,14 +4,15 @@ import { motion, useInView } from "motion/react";
 import {
   Users, Clock, DollarSign, Target, GraduationCap, Shield,
   Building2, UserPlus, Zap, Menu, X, Sun, Moon,
-  Github, Twitter, Linkedin, CheckCircle2, Bell, TrendingUp, Calendar
+  Github, Twitter, Linkedin, CheckCircle2
 } from "lucide-react";
 import { useTheme } from "../contexts/ThemeContext";
+import { HRSpaceLogo } from "../components/brand/HRSpaceLogo";
 
 export function LandingPage() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { resolvedTheme, toggleTheme } = useTheme();
+  const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 60);
@@ -21,11 +22,12 @@ export function LandingPage() {
 
   return (
     <div className="bg-background text-foreground overflow-x-hidden">
-      <Navbar isScrolled={isScrolled} isMobileMenuOpen={isMobileMenuOpen} setIsMobileMenuOpen={setIsMobileMenuOpen} theme={resolvedTheme} toggleTheme={toggleTheme} />
+      <Navbar isScrolled={isScrolled} isMobileMenuOpen={isMobileMenuOpen} setIsMobileMenuOpen={setIsMobileMenuOpen} theme={theme} toggleTheme={toggleTheme} />
       <HeroSection />
       <StatsBar />
       <FeaturesSection />
       <HowItWorksSection />
+      <PricingSection />
       <CTABanner />
       <Footer />
     </div>
@@ -43,15 +45,18 @@ const Navbar = ({ isScrolled, isMobileMenuOpen, setIsMobileMenuOpen, theme, togg
   >
     <div className="max-w-7xl mx-auto px-6 py-4">
       <div className="flex items-center justify-between">
-        <Link to="/" className="flex items-center">
-          <span className="text-xl font-bold text-[#EC4176]">HR</span>
-          <span className="text-xl font-bold text-[#262254] dark:text-white">Space</span>
+        <Link to="/" className="flex items-center gap-2">
+          <HRSpaceLogo className="w-9 h-9 rounded-xl shadow-sm" />
+          <span className="text-xl font-bold">
+            <span className="text-[#EC4176]">HR</span>
+            <span className="text-[#262254] dark:text-white">Space</span>
+          </span>
         </Link>
 
         <div className="hidden md:flex items-center gap-8">
-          <a href="#features" className="text-sm text-foreground hover:text-[#9A77CF] transition-colors">Features</a>
-          <a href="#modules" className="text-sm text-foreground hover:text-[#9A77CF] transition-colors">Modules</a>
+          <a href="#features" className="text-sm text-foreground hover:text-[#9A77CF] transition-colors">Modules & Features</a>
           <a href="#how-it-works" className="text-sm text-foreground hover:text-[#9A77CF] transition-colors">How It Works</a>
+          <a href="#pricing" className="text-sm text-foreground hover:text-[#9A77CF] transition-colors">Pricing</a>
           <a href="#contact" className="text-sm text-foreground hover:text-[#9A77CF] transition-colors">Contact</a>
         </div>
 
@@ -82,9 +87,9 @@ const Navbar = ({ isScrolled, isMobileMenuOpen, setIsMobileMenuOpen, theme, togg
       {isMobileMenuOpen && (
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="md:hidden mt-4 py-4 border-t border-border">
           <div className="flex flex-col gap-4">
-            <a href="#features" className="text-sm hover:text-[#9A77CF]">Features</a>
-            <a href="#modules" className="text-sm hover:text-[#9A77CF]">Modules</a>
+            <a href="#features" className="text-sm hover:text-[#9A77CF]">Modules & Features</a>
             <a href="#how-it-works" className="text-sm hover:text-[#9A77CF]">How It Works</a>
+            <a href="#pricing" className="text-sm hover:text-[#9A77CF]">Pricing</a>
             <a href="#contact" className="text-sm hover:text-[#9A77CF]">Contact</a>
             <div className="flex gap-3 pt-4 border-t border-border">
               <Link to="/login" className="flex-1">
@@ -102,9 +107,9 @@ const Navbar = ({ isScrolled, isMobileMenuOpen, setIsMobileMenuOpen, theme, togg
 );
 
 const HeroSection = () => (
-  <section className="min-h-screen flex items-center pt-24 pb-16 px-6 relative overflow-hidden">
-    <div className="max-w-7xl mx-auto w-full relative z-10">
-      <div className="grid lg:grid-cols-[58%_42%] gap-12 items-center">
+  <section className="min-h-[760px] lg:min-h-screen flex items-center pt-24 pb-16 px-6 relative overflow-visible">
+    <div className="max-w-7xl mx-auto w-full relative z-10 overflow-visible">
+      <div className="grid lg:grid-cols-[58%_42%] gap-12 items-center overflow-visible">
         <div className="space-y-6">
           <motion.span
             initial={{ opacity: 0, y: 30 }}
@@ -136,27 +141,8 @@ const HeroSection = () => (
             transition={{ delay: 0.24 }}
             className="text-lg text-[#7c6b9e] dark:text-[#b5a3d1] max-w-xl"
           >
-            HR Space centralizes employee management, payroll, attendance, performance reviews, and analytics — empowering your team to focus on what matters most.
+            HRSpace centralizes employee management, payroll, attendance, performance reviews, and analytics — empowering your team to focus on what matters most.
           </motion.p>
-
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.36 }}
-            className="flex flex-wrap gap-4"
-          >
-            <Link to="/register">
-              <button
-                className="px-6 py-3 text-white rounded-xl shadow-lg hover:brightness-110 hover:scale-[1.02] transition-all"
-                style={{ background: 'linear-gradient(135deg, #543884 0%, #A13670 50%, #EC4176 100%)' }}
-              >
-                Get Started Free
-              </button>
-            </Link>
-            <button className="px-6 py-3 border-2 border-[#543884] text-[#543884] dark:text-[#9A77CF] rounded-xl hover:bg-[#543884]/5 transition-all">
-              Watch Demo
-            </button>
-          </motion.div>
 
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -176,7 +162,7 @@ const HeroSection = () => (
                 </div>
               ))}
             </div>
-            <p className="text-sm text-muted-foreground">500+ teams trust HR Space</p>
+            <p className="text-sm text-muted-foreground">500+ teams trust HRSpace</p>
             <div className="flex items-center gap-1">
               <span className="text-[#FFA45E]">★★★★★</span>
               <span className="text-sm text-foreground ml-1">4.9/5</span>
@@ -188,89 +174,133 @@ const HeroSection = () => (
           initial={{ opacity: 0, x: 50 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.35, duration: 0.7 }}
-          className="relative hidden lg:flex justify-center items-center"
+          className="relative hidden lg:block min-h-[520px] overflow-visible"
         >
           <div className="absolute w-48 h-48 rounded-full blur-3xl top-0 right-4 pointer-events-none" style={{ background: 'rgba(154, 119, 207, 0.2)' }}></div>
           <div className="absolute w-32 h-32 rounded-full blur-2xl bottom-4 right-20 pointer-events-none" style={{ background: 'rgba(236, 65, 118, 0.15)' }}></div>
           <div className="absolute w-20 h-20 rounded-full blur-xl top-16 right-0 pointer-events-none" style={{ background: 'rgba(255, 164, 94, 0.1)' }}></div>
 
-          <div className="relative z-10 bg-white dark:bg-[#251942] rounded-2xl shadow-2xl p-5 w-[320px]" style={{ border: '1px solid rgba(84, 56, 132, 0.1)' }}>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-2 h-2 rounded-full bg-[#9A77CF]"></div>
-              <span className="text-sm font-bold text-[#262254] dark:text-white">Workforce Overview</span>
-              <span className="ml-auto px-2 py-0.5 text-xs rounded-full" style={{ background: 'rgba(236, 65, 118, 0.1)', color: '#EC4176' }}>Live</span>
+          <div className="absolute right-[2%] top-1/2 h-[370px] w-[512px] max-w-[calc(100vw-4rem)] -translate-y-1/2 overflow-visible">
+          {/* Main Workforce Overview Card */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.5, duration: 0.6 }}
+            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-card border border-border rounded-2xl shadow-2xl p-6 w-[300px]"
+          >
+            <div className="flex items-center gap-2 mb-5">
+              <div className="w-2.5 h-2.5 rounded-full bg-[var(--info)] animate-pulse"></div>
+              <span className="text-sm font-bold text-foreground">Platform Progress</span>
+              <span className="ml-auto px-2.5 py-1 text-xs font-semibold rounded-full bg-[var(--action)]/10 text-[var(--action)]">Live</span>
             </div>
 
             {[
-              { icon: Users, label: 'Present Today', value: '1,156 / 1,234', percent: 93, color: '#543884' },
-              { icon: Calendar, label: 'On Leave', value: '48 employees', percent: 4, color: '#EC4176' },
-              { icon: TrendingUp, label: 'In Training', value: '87 enrolled', percent: 7, color: '#9A77CF' }
-            ].map((stat, i) => (
-              <div key={i} className="mb-3">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${stat.color}1A` }}>
-                    <stat.icon className="w-4 h-4" style={{ color: stat.color }} />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-xs text-muted-foreground">{stat.label}</p>
-                    <p className="text-xs font-semibold text-foreground">{stat.value}</p>
-                  </div>
+              { label: 'Core Features', percent: 85, trackClass: 'bg-[var(--info)]/15', fillClass: 'bg-[var(--info)]' },
+              { label: 'Mobile Responsiveness', percent: 72, trackClass: 'bg-[var(--action)]/15', fillClass: 'bg-[var(--action)]' },
+              { label: 'Integrations', percent: 60, trackClass: 'bg-[var(--warning)]/20', fillClass: 'bg-[var(--warning)]' },
+              { label: 'Security & Compliance', percent: 90, trackClass: 'bg-[var(--primary)]/15', fillClass: 'bg-[var(--primary)]' }
+            ].map((milestone, i) => (
+              <div key={i} className="mb-4 last:mb-3">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-medium text-muted-foreground">{milestone.label}</p>
+                  <p className="text-xs font-bold text-foreground">{milestone.percent}%</p>
                 </div>
-                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: `${stat.color}26` }}>
-                  <div className="h-full transition-all" style={{ width: `${stat.percent}%`, background: stat.color }}></div>
+                <div className={`h-2 rounded-full overflow-hidden ${milestone.trackClass}`}>
+                  <div className={`h-full transition-all rounded-full ${milestone.fillClass}`} style={{ width: `${milestone.percent}%` }}></div>
                 </div>
               </div>
             ))}
 
-            <div className="flex items-end gap-1 h-12 mt-4">
+            <div className="grid grid-cols-4 gap-2 mt-5 pt-4 border-t border-border">
               {[
-                { height: 40, color: '#543884' },
-                { height: 65, color: '#9A77CF' },
-                { height: 50, color: '#A13670' },
-                { height: 80, color: '#EC4176' },
-                { height: 60, color: '#9A77CF' }
-              ].map((bar, i) => (
-                <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                  <div className="w-full rounded-t transition-all" style={{ height: `${bar.height}%`, background: bar.color }}></div>
-                  <span className="text-[9px] text-muted-foreground">{['Mon', 'Tue', 'Wed', 'Thu', 'Fri'][i]}</span>
+                { label: 'Plan', active: true },
+                { label: 'Build', active: true },
+                { label: 'Test', active: true },
+                { label: 'Launch', active: false }
+              ].map((step, i) => (
+                <div key={step.label} className="flex flex-col items-center gap-1.5">
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold"
+                    style={step.active ? { background: 'linear-gradient(135deg, var(--primary), var(--action))' } : { background: 'var(--accent)' }}
+                  >
+                    <span className={step.active ? 'text-primary-foreground' : 'text-muted-foreground'}>{i + 1}</span>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground font-medium">{step.label}</span>
                 </div>
               ))}
             </div>
+          </motion.div>
+
+          {/* Leave Requests Notification - Slides in from right */}
+          <motion.div
+            initial={{ opacity: 0, x: 100 }}
+            animate={{ opacity: 1, x: 0 }}
+            whileHover={{ x: 20, transition: { duration: 0.4, ease: [0.34, 1.56, 0.64, 1] } }}
+            transition={{
+              delay: 0.8,
+              duration: 0.6,
+              type: "spring",
+              stiffness: 100,
+              damping: 15
+            }}
+            className="absolute left-[316px] top-[104px] z-20 bg-card border border-border shadow-2xl rounded-2xl px-4 py-3 w-[176px] min-h-[66px] transition-transform duration-[400ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] will-change-transform"
+          >
+            <motion.div
+              animate={{ y: [0, -6, 0] }}
+              transition={{
+                delay: 1.5,
+                duration: 3,
+                ease: "easeInOut",
+                repeat: Infinity
+              }}
+              className="flex items-center gap-3"
+            >
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#9A77CF]/20 to-[#543884]/20 flex items-center justify-center flex-shrink-0 shadow-sm">
+                <Users className="w-5 h-5 text-[#9A77CF]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-base font-bold text-[#262254] dark:text-white">12,400+</p>
+                <p className="text-xs text-muted-foreground dark:text-white/60">Subscribers</p>
+              </div>
+              <div className="w-2.5 h-2.5 rounded-full bg-[#FFA45E] animate-pulse flex-shrink-0"></div>
+            </motion.div>
+          </motion.div>
+
+          {/* Payroll Notification - Slides in from right after Leave Requests */}
+          <motion.div
+            initial={{ opacity: 0, x: 100 }}
+            animate={{ opacity: 1, x: 0 }}
+            whileHover={{ x: 20, transition: { duration: 0.4, ease: [0.34, 1.56, 0.64, 1] } }}
+            transition={{
+              delay: 1.2,
+              duration: 0.6,
+              type: "spring",
+              stiffness: 100,
+              damping: 15
+            }}
+            className="absolute left-[316px] top-[182px] z-20 bg-card border border-border shadow-2xl rounded-2xl px-4 py-3 w-[176px] min-h-[66px] transition-transform duration-[400ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] will-change-transform"
+          >
+            <motion.div
+              animate={{ y: [0, -6, 0] }}
+              transition={{
+                delay: 2.2,
+                duration: 3,
+                ease: "easeInOut",
+                repeat: Infinity
+              }}
+              className="flex items-center gap-3"
+            >
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#EC4176] to-[#A13670] flex items-center justify-center flex-shrink-0 shadow-lg">
+                <Building2 className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-base font-bold bg-gradient-to-r from-[#9A77CF] to-[#EC4176] bg-clip-text text-transparent">500+</p>
+                <p className="text-xs text-muted-foreground dark:text-white/60">Active Companies</p>
+              </div>
+              <div className="w-2.5 h-2.5 rounded-full bg-[#FFA45E] flex-shrink-0"></div>
+            </motion.div>
+          </motion.div>
           </div>
-
-          <motion.div
-            animate={{ y: [0, -10, 0] }}
-            transition={{ duration: 3, ease: "easeInOut", repeat: Infinity, delay: 0 }}
-            className="absolute top-0 right-0 bg-white dark:bg-[#251942] shadow-xl rounded-xl p-3 translate-x-6 -translate-y-4"
-            style={{ border: '1px solid rgba(236, 65, 118, 0.1)' }}
-          >
-            <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-full bg-[#EC4176] flex items-center justify-center">
-                <CheckCircle2 className="w-3 h-3 text-white" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-[#262254] dark:text-white">Payroll Processed</p>
-                <p className="text-sm font-semibold text-[#262254] dark:text-white">$94,210</p>
-              </div>
-              <div className="w-1.5 h-1.5 rounded-full bg-[#FFA45E] ml-1"></div>
-            </div>
-          </motion.div>
-
-          <motion.div
-            animate={{ y: [0, -10, 0] }}
-            transition={{ duration: 3, ease: "easeInOut", repeat: Infinity, delay: 1.5 }}
-            className="absolute bottom-0 left-0 bg-white dark:bg-[#251942] shadow-xl rounded-xl p-3 -translate-x-5 translate-y-5"
-            style={{ border: '1px solid rgba(154, 119, 207, 0.1)' }}
-          >
-            <div className="flex items-center gap-2">
-              <Bell className="w-4 h-4 text-[#9A77CF]" />
-              <div>
-                <p className="text-xs font-semibold text-[#262254] dark:text-white">3 Leave Requests</p>
-                <p className="text-xs text-muted-foreground">Pending approval</p>
-              </div>
-              <div className="w-1.5 h-1.5 rounded-full bg-[#FFA45E] animate-pulse"></div>
-            </div>
-          </motion.div>
         </motion.div>
       </div>
     </div>
@@ -359,16 +389,21 @@ const FeaturesSection = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-80px" }}
               transition={{ delay: i * 0.08 }}
-              className="bg-card border border-border rounded-2xl p-6 hover:shadow-md hover:-translate-y-0.5 transition-all"
+              className="bg-white dark:bg-[#251942] border border-border rounded-2xl p-6 hover:shadow-lg hover:-translate-y-1 transition-all flex flex-col"
             >
-              <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-4" style={{ background: `${feature.color}1A` }}>
-                <feature.icon className="w-6 h-6" style={{ color: feature.color }} />
+              <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-5 shadow-sm" style={{ background: `${feature.color}1A` }}>
+                <feature.icon className="w-7 h-7" style={{ color: feature.color }} />
               </div>
-              <h3 className="text-lg font-semibold text-[#262254] dark:text-white mb-2">{feature.title}</h3>
-              <p className="text-sm text-muted-foreground mb-4">{feature.desc}</p>
-              <a href="#" className="text-sm text-[#9A77CF] hover:text-[#EC4176] transition-colors">Learn more →</a>
+              <h3 className="text-lg font-semibold text-[#262254] dark:text-white mb-3">{feature.title}</h3>
+              <p className="text-sm text-muted-foreground leading-relaxed">{feature.desc}</p>
             </motion.div>
           ))}
+        </div>
+
+        <div className="text-center mt-12">
+          <Link to="/features" className="inline-flex items-center gap-2 text-[#9A77CF] hover:text-[#EC4176] transition-colors font-semibold">
+            See all features →
+          </Link>
         </div>
       </div>
     </section>
@@ -396,14 +431,14 @@ const HowItWorksSection = () => {
           {steps.map((step, i) => (
             <motion.div
               key={i}
-              initial={{ opacity: 0, x: -20 }}
-              whileInView={{ opacity: 1, x: 0 }}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ delay: i * 0.2 }}
-              className="relative text-center z-10"
+              transition={{ delay: i * 0.15 }}
+              className="relative text-center z-10 flex flex-col items-center"
             >
               <div
-                className="w-16 h-16 rounded-full mx-auto mb-6 flex items-center justify-center text-white font-bold text-xl relative"
+                className="w-16 h-16 rounded-full mb-6 flex items-center justify-center text-white font-bold text-xl relative shadow-lg"
                 style={step.gradient
                   ? { background: 'linear-gradient(135deg, #A13670, #EC4176)' }
                   : { background: step.color }
@@ -411,13 +446,147 @@ const HowItWorksSection = () => {
               >
                 {step.num}
               </div>
-              <div className="p-3 rounded-lg inline-block mb-4" style={{ background: `${step.iconColor || step.color}1A` }}>
+              <div className="p-4 rounded-xl inline-flex items-center justify-center mb-5 shadow-sm" style={{ background: `${step.iconColor || step.color}1A` }}>
                 <step.icon className="w-8 h-8" style={{ color: step.iconColor || step.color }} />
               </div>
-              <h3 className="text-xl font-semibold text-[#262254] dark:text-white mb-2">{step.title}</h3>
-              <p className="text-sm text-muted-foreground">{step.desc}</p>
+              <h3 className="text-xl font-semibold text-[#262254] dark:text-white mb-3">{step.title}</h3>
+              <p className="text-sm text-muted-foreground max-w-xs">{step.desc}</p>
             </motion.div>
           ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const PricingSection = () => {
+  const plans = [
+    {
+      name: 'Starter',
+      price: '4,900',
+      period: 'month',
+      description: 'Perfect for small teams getting started',
+      features: [
+        'Up to 50 employees',
+        'Core HR features',
+        'Attendance tracking',
+        'Leave management',
+        'Basic payroll',
+        'Email support',
+        'Mobile app access'
+      ],
+      color: '#9A77CF',
+      popular: false
+    },
+    {
+      name: 'Professional',
+      price: '9,900',
+      period: 'month',
+      description: 'For growing teams that need more',
+      features: [
+        'Up to 200 employees',
+        'All Starter features',
+        'Performance reviews',
+        'Training & development',
+        'Advanced analytics',
+        'Priority support',
+        'API access',
+        'Custom workflows'
+      ],
+      color: '#EC4176',
+      popular: true
+    },
+    {
+      name: 'Enterprise',
+      price: 'Custom',
+      period: '',
+      description: 'Tailored solutions for large organizations',
+      features: [
+        'Unlimited employees',
+        'All Professional features',
+        'AI-powered CV filtering',
+        'Anonymous forum',
+        'Custom integrations',
+        'Dedicated account manager',
+        'SLA guarantee',
+        'On-premise deployment'
+      ],
+      color: '#543884',
+      popular: false
+    }
+  ];
+
+  return (
+    <section id="pricing" className="py-24 px-6 bg-white dark:bg-[#251942]">
+      <div className="max-w-7xl mx-auto">
+        <div className="text-center mb-16">
+          <p className="text-xs uppercase tracking-[0.15em] text-[#9A77CF] mb-2">PRICING</p>
+          <h2 className="text-4xl font-bold text-[#262254] dark:text-white mb-4">Simple, transparent pricing</h2>
+          <p className="text-muted-foreground max-w-lg mx-auto">Choose the plan that fits your team. All plans include a 14-day free trial.</p>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+          {plans.map((plan, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1 }}
+              className={`relative bg-white dark:bg-[#1a0f2e] border rounded-2xl p-8 hover:shadow-xl transition-all ${
+                plan.popular ? 'border-[#EC4176] shadow-lg scale-105' : 'border-border hover:-translate-y-1'
+              }`}
+            >
+              {plan.popular && (
+                <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-xs font-bold text-white" style={{ background: 'linear-gradient(135deg, #A13670, #EC4176)' }}>
+                  Most Popular
+                </div>
+              )}
+
+              <div className="mb-6">
+                <h3 className="text-2xl font-bold text-[#262254] dark:text-white mb-2">{plan.name}</h3>
+                <p className="text-sm text-muted-foreground">{plan.description}</p>
+              </div>
+
+              <div className="mb-8">
+                <div className="flex items-baseline gap-1">
+                  {plan.price !== 'Custom' && <span className="text-lg text-muted-foreground">৳</span>}
+                  <span className="text-5xl font-bold bg-gradient-to-r from-[#543884] to-[#EC4176] bg-clip-text text-transparent">
+                    {plan.price}
+                  </span>
+                  {plan.period && <span className="text-muted-foreground">/{plan.period}</span>}
+                </div>
+              </div>
+
+              <ul className="space-y-3 mb-8">
+                {plan.features.map((feature, idx) => (
+                  <li key={idx} className="flex items-start gap-3">
+                    <CheckCircle2 className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: plan.color }} />
+                    <span className="text-sm text-foreground">{feature}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <Link to="/register" className="block">
+                <button
+                  className={`w-full py-3 rounded-xl font-semibold transition-all ${
+                    plan.popular
+                      ? 'text-white shadow-lg hover:brightness-110 hover:scale-[1.02]'
+                      : 'border-2 hover:bg-accent'
+                  }`}
+                  style={plan.popular ? { background: `linear-gradient(135deg, ${plan.color} 0%, #A13670 50%, #EC4176 100%)` } : { borderColor: plan.color, color: plan.color }}
+                >
+                  {plan.price === 'Custom' ? 'Contact Sales' : 'Start Free Trial'}
+                </button>
+              </Link>
+            </motion.div>
+          ))}
+        </div>
+
+        <div className="text-center mt-12">
+          <p className="text-sm text-muted-foreground">
+            All plans include a 14-day free trial. No credit card required.
+          </p>
         </div>
       </div>
     </section>
@@ -442,16 +611,13 @@ const CTABanner = () => (
 
     <div className="max-w-4xl mx-auto text-center relative z-10">
       <h2 className="text-4xl font-bold text-white mb-4">Ready to transform your HR?</h2>
-      <p className="text-white/90 text-lg mb-8">Join forward-thinking teams already on HR Space.</p>
+      <p className="text-white/90 text-lg mb-8">Join forward-thinking teams already on HRSpace.</p>
       <div className="flex flex-wrap gap-4 justify-center">
         <Link to="/register">
-          <button className="px-6 py-3 bg-white text-[#543884] rounded-xl font-semibold hover:scale-105 transition-transform shadow-md">
+          <button className="px-6 py-3 bg-white/20 backdrop-blur-md border border-white/30 text-white rounded-xl font-semibold hover:bg-white/30 hover:scale-105 transition-all shadow-lg">
             Start Free Trial
           </button>
         </Link>
-        <button className="px-6 py-3 border border-white/30 text-white rounded-xl font-semibold hover:bg-white/25 transition-all" style={{ background: 'rgba(255, 255, 255, 0.15)' }}>
-          Schedule a Demo
-        </button>
       </div>
     </div>
   </motion.section>
@@ -462,9 +628,12 @@ const Footer = () => (
     <div className="max-w-7xl mx-auto">
       <div className="grid md:grid-cols-4 gap-8 mb-12">
         <div>
-          <div className="flex items-center mb-3">
-            <span className="text-xl font-bold text-[#EC4176]">HR</span>
-            <span className="text-xl font-bold text-white">Space</span>
+          <div className="flex items-center gap-2 mb-3">
+            <HRSpaceLogo className="w-9 h-9 rounded-xl shadow-sm" />
+            <span className="text-xl font-bold">
+              <span className="text-[#EC4176]">HR</span>
+              <span className="text-white">Space</span>
+            </span>
           </div>
           <p className="text-white/60 text-sm mb-4">Streamlining HR for modern teams.</p>
           <div className="flex gap-3">
@@ -513,7 +682,7 @@ const Footer = () => (
       </div>
 
       <div className="border-t border-white/10 pt-6 flex flex-col md:flex-row justify-between items-center gap-4">
-        <p className="text-sm text-white/70">© 2026 HR Space. All rights reserved.</p>
+        <p className="text-sm text-white/70">© 2026 HRSpace. All rights reserved.</p>
         <p className="text-sm text-white/70">Built for modern HR teams</p>
         <div className="flex gap-1.5">
           {['#262254', '#543884', '#9A77CF', '#A13670', '#EC4176', '#FFA45E'].map((color, i) => (

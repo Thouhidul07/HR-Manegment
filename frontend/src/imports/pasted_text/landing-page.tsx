@@ -75,7 +75,7 @@ RIGHT SIDE — Animated graphic (pure CSS/SVG + motion, no images):
     gradient from #9A77CF to #543884)
 - Floating smaller cards orbiting/near the main card (motion animate):
   Card A (top-right, offset): bg white, shadow, rounded-xl, p-3
-    Shows: ✓ "Payroll Processed" + "$94,210" + green dot
+    Shows: ✓ "Payroll Processed" + "BDT 94,210" + green dot
   Card B (bottom-left, offset): bg white, shadow, rounded-xl, p-3
     Shows: Bell icon + "3 Leave Requests" + #FFA45E dot
 - All floating cards: motion animate y with infinite gentle float 

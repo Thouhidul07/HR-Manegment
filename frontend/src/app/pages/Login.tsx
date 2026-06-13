@@ -1,14 +1,15 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Mail, Lock, Eye, EyeOff, AlertCircle, Loader2, Sun, Moon, Globe } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, AlertCircle, Loader2, Sun, Moon, Globe, ArrowLeft } from "lucide-react";
 import { motion } from "motion/react";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
+import { HRSpaceLogo } from "../components/brand/HRSpaceLogo";
 
 export function Login() {
   const navigate = useNavigate();
   const { login } = useAuth();
-  const { resolvedTheme, toggleTheme } = useTheme();
+  const { theme, toggleTheme } = useTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -53,9 +54,12 @@ export function Login() {
 
         <div className="relative z-10 flex flex-col justify-center px-10 max-w-xs mx-auto">
           <div className="mb-8">
-            <h1 className="text-3xl font-bold mb-4">
-              <span className="text-[#EC4176]">HR</span>
-              <span className="text-white"> Space</span>
+            <h1 className="text-3xl font-bold mb-4 flex items-center gap-3">
+              <HRSpaceLogo className="w-12 h-12 rounded-xl shadow-lg" />
+              <span>
+                <span className="text-[#EC4176]">HR</span>
+                <span className="text-white">Space</span>
+              </span>
             </h1>
             <p className="text-white/80 text-lg">Streamline your workforce. Amplify your impact.</p>
           </div>
@@ -79,11 +83,20 @@ export function Login() {
 
       {/* Right Panel - Form */}
       <div className="flex-1 lg:w-[60%] flex items-center justify-center p-8 bg-white dark:bg-[#1a0f2e] relative">
+        <Link
+          to="/"
+          className="absolute top-6 left-6 z-20 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-[#9A77CF]/40"
+          style={{ background: 'linear-gradient(135deg, #543884 0%, #9A77CF 52%, #EC4176 100%)' }}
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back
+        </Link>
+
         <button
           onClick={toggleTheme}
           className="absolute top-6 right-6 p-2 rounded-lg hover:bg-[#9A77CF]/10 transition-colors"
         >
-          {resolvedTheme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
         </button>
 
         <motion.div
@@ -104,15 +117,18 @@ export function Login() {
             variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }}
             className="lg:hidden mb-8 text-center"
           >
-            <h1 className="text-2xl font-bold">
-              <span className="text-[#EC4176]">HR</span>
-              <span className="text-[#262254] dark:text-white"> Space</span>
+            <h1 className="text-2xl font-bold inline-flex items-center justify-center gap-3">
+              <HRSpaceLogo className="w-10 h-10 rounded-xl shadow-md" />
+              <span>
+                <span className="text-[#EC4176]">HR</span>
+                <span className="text-[#262254] dark:text-white">Space</span>
+              </span>
             </h1>
           </motion.div>
 
           <motion.div variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }}>
             <h2 className="text-2xl font-bold text-[#262254] dark:text-white mb-1">Welcome back</h2>
-            <p className="text-sm text-[#7c6b9e] dark:text-[#b5a3d1] mb-8">Sign in to HR Space</p>
+            <p className="text-sm text-[#7c6b9e] dark:text-[#b5a3d1] mb-8">Sign in to HRSpace</p>
           </motion.div>
 
           {error && (
@@ -178,8 +194,8 @@ export function Login() {
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 rounded border-[#543884]/30 text-[#543884] focus:ring-2 focus:ring-[#9A77CF]"
-                  style={{ accentColor: '#543884' }}
+                  className="w-4 h-4 rounded border-white text-white focus:ring-2 focus:ring-white"
+                  style={{ accentColor: '#ffffff' }}
                 />
                 <span className="text-sm text-[#262254] dark:text-white">Remember me</span>
               </label>
@@ -234,7 +250,7 @@ export function Login() {
             variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }}
             className="mt-8 text-center text-sm"
           >
-            <span className="text-[#7c6b9e] dark:text-[#b5a3d1]">New to HR Space? </span>
+            <span className="text-[#7c6b9e] dark:text-[#b5a3d1]">New to HRSpace? </span>
             <Link to="/register" className="text-[#9A77CF] hover:text-[#EC4176] transition-colors font-medium">
               Contact your administrator
             </Link>

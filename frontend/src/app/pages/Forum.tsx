@@ -1,17 +1,21 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   MessageSquare, TrendingUp, Plus, Filter, Search, Users,
   ThumbsUp, MessageCircle, Eye, BarChart3, AlertTriangle,
   Heart, Smile, Flag, Shield
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
+import { Modal } from "../components/ui/Modal";
+import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { TrendingTopics } from "../components/forum/TrendingTopics";
 import { CreatePostModal } from "../components/forum/CreatePostModal";
 import { DiscussionCard } from "../components/forum/DiscussionCard";
 import { SentimentWidget } from "../components/forum/SentimentWidget";
+import { useAuth } from "../contexts/AuthContext";
+import api from "../services/api";
 
 const categories = [
   { id: "all", name: "All Topics", icon: MessageSquare, count: 342, color: "text-[var(--primary)]" },
@@ -27,14 +31,14 @@ const discussions = [
   {
     id: 1,
     category: "Mental Wellness",
-    title: "How do you manage work-life balance with remote work?",
-    content: "I've been struggling to set boundaries between work and personal time since we went fully remote. My laptop is always nearby and I find myself checking emails late at night. Anyone else experiencing this?",
+    title: "How do you manage work-life balance with hybrid work?",
+    content: "I've been struggling to set boundaries between work and personal time while balancing office days in Dhaka and work-from-home days. My laptop is always nearby and I find myself checking emails late at night. Anyone else experiencing this?",
     author: { name: "Anonymous Panda", color: "#9A77CF" },
     timestamp: "2 hours ago",
     views: 234,
     replies: 18,
     reactions: { likes: 45, hearts: 12, helpful: 8 },
-    tags: ["remote-work", "wellness", "boundaries"],
+    tags: ["hybrid-work", "wellness", "boundaries"],
     sentiment: "concerned",
     isPoll: false,
     hasModeration: false
@@ -126,15 +130,212 @@ const discussions = [
   }
 ];
 
+const sentimentFilters = [
+  { id: "all", label: "All moods" },
+  { id: "positive", label: "Positive" },
+  { id: "neutral", label: "Neutral" },
+  { id: "concerned", label: "Concerned" },
+  { id: "negative", label: "Negative" },
+];
+
+const postTypeFilters = [
+  { id: "all", label: "All posts" },
+  { id: "discussions", label: "Discussions" },
+  { id: "polls", label: "Polls" },
+];
+
+const DISCUSSIONS_PAGE_SIZE = 4;
+
 export function Forum() {
+  const { user } = useAuth();
+  const location = useLocation();
+  const canModerateForum = user?.role === "hr_manager";
+  const canCreatePost = user?.role === "employee" || user?.role === "hr_manager";
+  const [discussionList, setDiscussionList] = useState(discussions);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [editingPost, setEditingPost] = useState<any | null>(null);
+  const [editPostForm, setEditPostForm] = useState({ title: "", content: "", category: "General" });
+  const [forumMessage, setForumMessage] = useState("");
+  const [forumError, setForumError] = useState("");
+  const [savingPost, setSavingPost] = useState(false);
+  const [postToDelete, setPostToDelete] = useState<any | null>(null);
+  const [deletingPost, setDeletingPost] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("recent");
+  const [showFilters, setShowFilters] = useState(false);
+  const [sentimentFilter, setSentimentFilter] = useState("all");
+  const [postTypeFilter, setPostTypeFilter] = useState("all");
+  const [discussionPage, setDiscussionPage] = useState(1);
+  const [hasMoreDiscussions, setHasMoreDiscussions] = useState(false);
+  const [loadingDiscussions, setLoadingDiscussions] = useState(false);
+  const activeFilterCount = [sentimentFilter !== "all", postTypeFilter !== "all"].filter(Boolean).length;
 
-  const filteredDiscussions = discussions.filter(d =>
-    selectedCategory === "all" || d.category === categories.find(c => c.id === selectedCategory)?.name
-  );
+  useEffect(() => {
+    let isMounted = true;
+    setLoadingDiscussions(true);
+
+    api.get("/forum/posts", {
+      params: {
+        category: selectedCategory === "all"
+          ? undefined
+          : categories.find((category) => category.id === selectedCategory)?.name,
+        search: searchQuery || undefined,
+        sort: sortBy,
+        sentiment: sentimentFilter !== "all" ? sentimentFilter : undefined,
+        type: postTypeFilter !== "all" ? postTypeFilter : undefined,
+        limit: DISCUSSIONS_PAGE_SIZE,
+        offset: (discussionPage - 1) * DISCUSSIONS_PAGE_SIZE,
+      },
+    })
+      .then((response) => {
+        if (isMounted && Array.isArray(response.data.posts)) {
+          setDiscussionList((currentDiscussions) => {
+            if (discussionPage === 1) return response.data.posts;
+
+            const existingIds = new Set(currentDiscussions.map((discussion) => discussion.id));
+            const newPosts = response.data.posts.filter((discussion: any) => !existingIds.has(discussion.id));
+            return [...currentDiscussions, ...newPosts];
+          });
+          setHasMoreDiscussions(Boolean(response.data.hasMore));
+        }
+      })
+      .catch(() => {
+        if (isMounted) setHasMoreDiscussions(false);
+      })
+      .finally(() => {
+        if (isMounted) setLoadingDiscussions(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedCategory, searchQuery, sortBy, sentimentFilter, postTypeFilter, discussionPage]);
+
+  const filteredDiscussions = discussionList.filter((discussion) => {
+    const selectedCategoryName = categories.find((category) => category.id === selectedCategory)?.name;
+    const searchableText = `${discussion.title} ${discussion.content} ${discussion.category} ${(discussion.tags || []).join(" ")}`.toLowerCase();
+    const matchesCategory = selectedCategory === "all" || discussion.category === selectedCategoryName;
+    const matchesSearch = !searchQuery || searchableText.includes(searchQuery.toLowerCase());
+    const matchesSentiment = sentimentFilter === "all" || discussion.sentiment === sentimentFilter;
+    const matchesType =
+      postTypeFilter === "all" ||
+      (postTypeFilter === "polls" && discussion.isPoll) ||
+      (postTypeFilter === "discussions" && !discussion.isPoll);
+
+    return matchesCategory && matchesSearch && matchesSentiment && matchesType;
+  });
+
+  const resetFilters = () => {
+    setSearchQuery("");
+    setSelectedCategory("all");
+    setSortBy("recent");
+    setSentimentFilter("all");
+    setPostTypeFilter("all");
+    setDiscussionPage(1);
+  };
+
+  const handleCreatePost = async (post: any) => {
+    if (!canCreatePost) return;
+    const response = await api.post("/forum/posts", post);
+    setDiscussionList((currentDiscussions) => [response.data.post, ...currentDiscussions]);
+  };
+
+  const showForumFeedback = (message: string, isError = false) => {
+    if (isError) {
+      setForumError(message);
+      setForumMessage("");
+    } else {
+      setForumMessage(message);
+      setForumError("");
+    }
+
+    window.setTimeout(() => {
+      setForumMessage("");
+      setForumError("");
+    }, 3000);
+  };
+
+  useEffect(() => {
+    const state = location.state as { forumMessage?: string } | null;
+    if (!state?.forumMessage) return;
+
+    showForumFeedback(state.forumMessage);
+    window.history.replaceState({}, document.title);
+  }, [location.state]);
+
+  const openEditPost = (post: any) => {
+    setEditingPost(post);
+    setEditPostForm({
+      title: post.title,
+      content: post.content,
+      category: post.category || "General",
+    });
+    setForumError("");
+  };
+
+  const handleUpdatePost = async () => {
+    if (!editingPost?.isOwner) return;
+    if (!editPostForm.title.trim() || !editPostForm.content.trim()) {
+      setForumError("Title and content are required.");
+      return;
+    }
+
+    setSavingPost(true);
+    setForumError("");
+    try {
+      const response = await api.patch(`/forum/posts/${editingPost.id}`, {
+        title: editPostForm.title,
+        content: editPostForm.content,
+        category: editPostForm.category,
+      });
+      setDiscussionList((currentDiscussions) =>
+        currentDiscussions.map((discussion) =>
+          discussion.id === editingPost.id ? response.data.post : discussion,
+        ),
+      );
+      setEditingPost(null);
+      showForumFeedback("Forum post updated.");
+    } catch (error: any) {
+      showForumFeedback(error?.response?.data?.message || "Unable to update forum post.", true);
+    } finally {
+      setSavingPost(false);
+    }
+  };
+
+  const openDeletePostDialog = (post: any) => {
+    if (!post.isOwner) return;
+    setPostToDelete(post);
+    setDeleteError("");
+    setForumError("");
+    setForumMessage("");
+  };
+
+  const closeDeletePostDialog = () => {
+    if (deletingPost) return;
+    setPostToDelete(null);
+    setDeleteError("");
+  };
+
+  const handleDeletePost = async () => {
+    if (!postToDelete?.isOwner) return;
+
+    setDeletingPost(true);
+    setDeleteError("");
+    try {
+      await api.delete(`/forum/posts/${postToDelete.id}`);
+      setDiscussionList((currentDiscussions) =>
+        currentDiscussions.filter((discussion) => discussion.id !== postToDelete.id),
+      );
+      setPostToDelete(null);
+      showForumFeedback("Forum post deleted.");
+    } catch (error: any) {
+      setDeleteError(error?.response?.data?.message || "Unable to delete forum post.");
+    } finally {
+      setDeletingPost(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -147,22 +348,38 @@ export function Forum() {
           </p>
         </div>
         <div className="flex gap-3">
-          <Link to="/dashboard/forum/moderation">
-            <Button variant="outline" className="gap-2">
-              <Shield className="w-4 h-4" />
-              Moderation
+          {canModerateForum && (
+            <Link to="/dashboard/forum/moderation">
+              <Button variant="outline" className="gap-2">
+                <Shield className="w-4 h-4" />
+                Moderation
+              </Button>
+            </Link>
+          )}
+          {canCreatePost && (
+            <Button
+              variant="primary"
+              className="gap-2 bg-[var(--action)] hover:bg-[var(--action)]/90"
+              onClick={() => setIsCreateModalOpen(true)}
+            >
+              <Plus className="w-4 h-4" />
+              New Post
             </Button>
-          </Link>
-          <Button
-            variant="primary"
-            className="gap-2 bg-[var(--action)] hover:bg-[var(--action)]/90"
-            onClick={() => setIsCreateModalOpen(true)}
-          >
-            <Plus className="w-4 h-4" />
-            New Post
-          </Button>
+          )}
         </div>
       </div>
+
+      {forumMessage && (
+        <div className="rounded-lg border border-[var(--success)]/30 bg-[var(--success)]/10 px-4 py-3 text-sm text-[var(--success)]">
+          {forumMessage}
+        </div>
+      )}
+
+      {forumError && !editingPost && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {forumError}
+        </div>
+      )}
 
       {/* Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -221,13 +438,19 @@ export function Forum() {
                   type="text"
                   placeholder="Search discussions..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setDiscussionPage(1);
+                    setSearchQuery(e.target.value);
+                  }}
                   className="w-full pl-9 pr-4 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                 />
               </div>
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
+                onChange={(e) => {
+                  setDiscussionPage(1);
+                  setSortBy(e.target.value);
+                }}
                 className="px-4 py-2 rounded-lg border border-border bg-background text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
               >
                 <option value="recent">Most Recent</option>
@@ -235,11 +458,75 @@ export function Forum() {
                 <option value="discussed">Most Discussed</option>
                 <option value="unanswered">Unanswered</option>
               </select>
-              <Button variant="outline" size="sm" className="gap-2">
+              <Button
+                variant={showFilters ? "primary" : "outline"}
+                size="sm"
+                className="gap-2"
+                onClick={() => setShowFilters((isVisible) => !isVisible)}
+              >
                 <Filter className="w-4 h-4" />
                 Filters
+                {activeFilterCount > 0 && (
+                  <span className="ml-1 rounded-full bg-white/20 px-2 py-0.5 text-xs">
+                    {activeFilterCount}
+                  </span>
+                )}
               </Button>
             </div>
+            {showFilters && (
+              <div className="mt-4 grid gap-4 rounded-lg border border-border bg-background/60 p-4 md:grid-cols-2">
+                <div>
+                  <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Sentiment</p>
+                  <div className="flex flex-wrap gap-2">
+                    {sentimentFilters.map((filter) => (
+                      <button
+                        key={filter.id}
+                        onClick={() => {
+                          setDiscussionPage(1);
+                          setSentimentFilter(filter.id);
+                        }}
+                        className={`rounded-lg border px-3 py-1.5 text-sm transition-all ${
+                          sentimentFilter === filter.id
+                            ? "border-[var(--primary)] bg-[var(--primary)] text-white"
+                            : "border-border bg-card text-muted-foreground hover:border-[var(--primary)]/50"
+                        }`}
+                      >
+                        {filter.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Post Type</p>
+                    <button
+                      onClick={resetFilters}
+                      className="text-xs text-[var(--primary)] hover:text-[var(--primary)]/80"
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {postTypeFilters.map((filter) => (
+                      <button
+                        key={filter.id}
+                        onClick={() => {
+                          setDiscussionPage(1);
+                          setPostTypeFilter(filter.id);
+                        }}
+                        className={`rounded-lg border px-3 py-1.5 text-sm transition-all ${
+                          postTypeFilter === filter.id
+                            ? "border-[var(--primary)] bg-[var(--primary)] text-white"
+                            : "border-border bg-card text-muted-foreground hover:border-[var(--primary)]/50"
+                        }`}
+                      >
+                        {filter.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </Card>
 
           {/* Category Filters */}
@@ -249,7 +536,10 @@ export function Forum() {
               return (
                 <button
                   key={cat.id}
-                  onClick={() => setSelectedCategory(cat.id)}
+                  onClick={() => {
+                    setDiscussionPage(1);
+                    setSelectedCategory(cat.id);
+                  }}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all whitespace-nowrap ${
                     selectedCategory === cat.id
                       ? 'bg-[var(--primary)] text-white border-[var(--primary)] shadow-md'
@@ -271,17 +561,42 @@ export function Forum() {
 
           {/* Discussion Feed */}
           <div className="space-y-4">
-            {filteredDiscussions.map((discussion) => (
-              <DiscussionCard key={discussion.id} discussion={discussion} />
-            ))}
+            {filteredDiscussions.length > 0 ? (
+              filteredDiscussions.map((discussion) => (
+                <DiscussionCard
+                  key={discussion.id}
+                  discussion={discussion}
+                  onEdit={openEditPost}
+                  onDelete={openDeletePostDialog}
+                />
+              ))
+            ) : (
+              <Card className="p-8 text-center">
+                <MessageSquare className="mx-auto mb-3 h-9 w-9 text-muted-foreground" />
+                <p className="text-foreground">No discussions found</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Try another search, category, or filter.
+                </p>
+                <Button variant="outline" size="sm" className="mt-4" onClick={resetFilters}>
+                  Clear Filters
+                </Button>
+              </Card>
+            )}
           </div>
 
           {/* Load More */}
-          <div className="text-center">
-            <Button variant="outline" className="gap-2">
-              Load More Discussions
-            </Button>
-          </div>
+          {hasMoreDiscussions && (
+            <div className="text-center">
+              <Button
+                variant="outline"
+                className="gap-2"
+                disabled={loadingDiscussions}
+                onClick={() => setDiscussionPage((page) => page + 1)}
+              >
+                {loadingDiscussions ? "Loading..." : "Load More Discussions"}
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Sidebar */}
@@ -360,8 +675,88 @@ export function Forum() {
 
       {/* Create Post Modal */}
       <CreatePostModal
-        isOpen={isCreateModalOpen}
+        isOpen={canCreatePost && isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
+        onCreate={handleCreatePost}
+      />
+
+      <Modal
+        isOpen={Boolean(editingPost?.isOwner)}
+        onClose={() => {
+          if (savingPost) return;
+          setEditingPost(null);
+          setForumError("");
+        }}
+        title="Edit Forum Post"
+        size="lg"
+        footer={
+          <>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (savingPost) return;
+                setEditingPost(null);
+                setForumError("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleUpdatePost}
+              disabled={savingPost}
+            >
+              {savingPost ? "Saving..." : "Save Changes"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          {forumError && (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {forumError}
+            </div>
+          )}
+          <div>
+            <label className="block text-sm mb-1.5 text-foreground">Title</label>
+            <input
+              value={editPostForm.title}
+              onChange={(event) => setEditPostForm((form) => ({ ...form, title: event.target.value }))}
+              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+            />
+          </div>
+          <div>
+            <label className="block text-sm mb-1.5 text-foreground">Category</label>
+            <select
+              value={editPostForm.category}
+              onChange={(event) => setEditPostForm((form) => ({ ...form, category: event.target.value }))}
+              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+            >
+              {categories.filter((category) => category.id !== "all").map((category) => (
+                <option key={category.id}>{category.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm mb-1.5 text-foreground">Content</label>
+            <textarea
+              value={editPostForm.content}
+              onChange={(event) => setEditPostForm((form) => ({ ...form, content: event.target.value }))}
+              rows={6}
+              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all resize-none"
+            />
+          </div>
+        </div>
+      </Modal>
+      <ConfirmDialog
+        isOpen={Boolean(postToDelete)}
+        title="Delete Forum Post"
+        message="Delete this forum post? It will be removed from the discussion feed."
+        confirmLabel="Delete Post"
+        loading={deletingPost}
+        error={deleteError}
+        onClose={closeDeletePostDialog}
+        onConfirm={handleDeletePost}
       />
     </div>
   );

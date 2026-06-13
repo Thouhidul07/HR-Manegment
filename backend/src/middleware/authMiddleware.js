@@ -12,12 +12,16 @@ async function protect(req, res, next) {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "development_secret");
     const [users] = await query(
-      "SELECT id, name, email, role, avatar FROM users WHERE id = ? LIMIT 1",
+      "SELECT id, name, email, role, avatar, status FROM users WHERE id = ? LIMIT 1",
       [decoded.id]
     );
 
     if (!users.length) {
       return res.status(401).json({ message: "User no longer exists" });
+    }
+
+    if (users[0].status !== "active") {
+      return res.status(403).json({ message: "Account is not active" });
     }
 
     req.user = users[0];
