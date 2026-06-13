@@ -1,0 +1,1211 @@
+import { useEffect, useState } from "react";
+import { motion } from "motion/react";
+import {
+  Users, UserCheck, UserX, Briefcase, TrendingUp, TrendingDown, FileText,
+  UserPlus, CheckCircle, Clock, Calendar, GraduationCap, Receipt, Target,
+  Shield, MessageSquare, BookOpen, CheckSquare, Palmtree, BarChart2, CalendarPlus,
+  Download, User, Check
+} from "lucide-react";
+import { useAuth } from "../contexts/AuthContext";
+import {
+  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis,
+  CartesianGrid, Tooltip, ResponsiveContainer, Legend
+} from "recharts";
+import { AdminDashboard } from "../components/dashboard/AdminDashboard";
+import { useNavigate } from "react-router-dom";
+import {
+  formatDashboardCurrency,
+  getRoleDashboardSummary,
+  RoleDashboardSummary,
+} from "../services/dashboardData";
+import { Button } from "../components/ui/Button";
+import { Input } from "../components/ui/Input";
+import { Modal } from "../components/ui/Modal";
+import api from "../services/api";
+
+export function Dashboard() {
+  const { user } = useAuth();
+  if (user?.role === 'admin')           return <AdminDashboard userName={user.name} />;
+  if (user?.role === 'hr_manager')      return <HRManagerDashboard user={user} />;
+  if ((user?.role as string) === 'project_manager') return <ProjectManagerDashboard user={user} />;
+  return <EmployeeDashboard user={user} />;
+}
+
+// Shared Components
+function DashboardHeader({ title, subtitle, actions }: { title: string; subtitle: string; actions?: React.ReactNode }) {
+  return (
+    <div className="flex items-start justify-between mb-8">
+      <div>
+        <h1 className="text-2xl font-bold bg-gradient-to-r from-[#543884] to-[#EC4176] bg-clip-text text-transparent">
+          {title}
+        </h1>
+        <p className="text-sm text-[#9A77CF] mt-1">{subtitle}</p>
+      </div>
+      {actions && <div className="flex items-center gap-3">{actions}</div>}
+    </div>
+  );
+}
+
+interface StatCardProps {
+  label: string;
+  value: string;
+  change: string;
+  trend: 'up' | 'down' | 'neutral';
+  icon: any;
+  iconColor: string;
+  iconBg: string;
+  subtitle?: string;
+  index?: number;
+  onClick?: () => void;
+}
+
+function StatCard({ label, value, change, trend, icon: Icon, iconColor, iconBg, subtitle, index = 0, onClick }: StatCardProps) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.06, duration: 0.25 }}
+      className={`bg-card rounded-2xl border border-[#543884]/10 p-5 shadow-sm ${onClick ? 'cursor-pointer hover:shadow-md hover:border-[#543884]/30 transition-all duration-200 hover:scale-102' : ''}`}
+      onClick={onClick}
+    >
+      <div className="flex items-start justify-between">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: iconBg }}>
+          <Icon className="w-5 h-5" style={{ color: iconColor }} />
+        </div>
+        {trend !== 'neutral' && (
+          <div className={`flex items-center gap-1 text-xs rounded-full px-2 py-0.5 ${
+            trend === 'up' ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-[#EC4176]/10 text-[#EC4176]'
+          }`}>
+            {trend === 'up' ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+            {change}
+          </div>
+        )}
+      </div>
+      <p className="text-3xl font-bold text-[#262254] dark:text-white mt-3">{value}</p>
+      <p className="text-sm text-[#9A77CF] mt-0.5">{label}</p>
+      {subtitle && <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>}
+      {trend === 'neutral' && <p className="text-xs text-muted-foreground mt-1">{change}</p>}
+    </motion.div>
+  );
+}
+
+function SectionCard({ title, subtitle, action, children }: { title: string; subtitle?: string; action?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      className="bg-card rounded-2xl border border-[#543884]/10 p-6 shadow-sm"
+    >
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          <h3 className="font-semibold text-[#262254] dark:text-white">{title}</h3>
+          {subtitle && <p className="text-xs text-[#9A77CF] mt-0.5">{subtitle}</p>}
+        </div>
+        {action}
+      </div>
+      {children}
+    </motion.div>
+  );
+}
+
+const chartTheme = {
+  grid: { stroke: "#543884", strokeOpacity: 0.08, strokeDasharray: "3 3" },
+  tooltip: { contentStyle: { backgroundColor: "var(--card)", borderColor: "#543884", borderRadius: "0.75rem", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)" } },
+  axis: { stroke: "#9A77CF", fontSize: 12 },
+  colors: ['#543884', '#9A77CF', '#EC4176', '#FFA45E', '#A13670']
+};
+
+// HR Manager Dashboard
+function HRManagerDashboard({ user }: any) {
+  const navigate = useNavigate();
+  const [summary, setSummary] = useState<RoleDashboardSummary | null>(null);
+  const [leaveRequests, setLeaveRequests] = useState<any[]>([]);
+  const [actioningLeave, setActioningLeave] = useState<number | null>(null);
+  const [leaveActionMsg, setLeaveActionMsg] = useState("");
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
+  const loadHRData = () => {
+    let isMounted = true;
+
+    getRoleDashboardSummary("hr_manager")
+      .then((data) => { if (isMounted) setSummary(data); })
+      .catch((error) => { console.warn("Unable to load HR manager dashboard summary", error); });
+
+    api.get("/leave", { params: { status: "pending", limit: 3 } })
+      .then((res) => {
+        if (isMounted) {
+          // backend returns { requests: [...] }; filter to only pending ones
+          const all = res.data.requests || res.data.leaves || res.data.leave || [];
+          const pending = all.filter((l: any) => {
+            const status = (l.status || "").toLowerCase();
+            return status === "pending";
+          });
+          setLeaveRequests(pending.slice(0, 3));
+        }
+      })
+      .catch(() => {/* leave widget stays empty */});
+
+    return () => { isMounted = false; };
+  };
+
+  useEffect(() => {
+    const cleanup = loadHRData();
+    return cleanup;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const activeEmployees = Number(summary?.activeEmployees ?? 11);
+  const pendingLeave = Number(summary?.pendingLeave ?? leaveRequests.length ?? 2);
+  const upcomingTraining = Number(summary?.upcomingTraining ?? 2);
+
+  const handleLeaveAction = async (leaveId: number, action: "approved" | "rejected") => {
+    setActioningLeave(leaveId);
+    try {
+      await api.patch(`/leave/${leaveId}/status`, { status: action });
+      setLeaveActionMsg(action === "approved" ? "Leave approved ✓" : "Leave rejected ✗");
+      setLeaveRequests((prev) => prev.filter((l) => l.id !== leaveId));
+      setSummary((prev) => prev ? { ...prev, pendingLeave: Math.max(0, Number(prev.pendingLeave ?? 0) - 1) } : prev);
+      window.setTimeout(() => setLeaveActionMsg(""), 2500);
+    } catch {
+      setLeaveActionMsg("Could not update leave status.");
+      window.setTimeout(() => setLeaveActionMsg(""), 2500);
+    } finally {
+      setActioningLeave(null);
+    }
+  };
+
+  const weekData = [
+    { day: 'Mon', present: 10, leave: 1 },
+    { day: 'Tue', present: 11, leave: 0 },
+    { day: 'Wed', present: 9,  leave: 2 },
+    { day: 'Thu', present: 10, leave: 1 },
+    { day: 'Fri', present: 10, leave: 1 }
+  ];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      key={user.role}
+      className="space-y-6"
+    >
+      <DashboardHeader
+        title={`${greeting}, ${user.name}`}
+        subtitle={`You have ${pendingLeave} pending leave requests and ${upcomingTraining} upcoming training sessions.`}
+        actions={
+          <>
+            <button onClick={() => navigate('/dashboard/leave')} className="rounded-xl px-4 py-2 text-sm text-white flex items-center gap-2 shadow-sm" style={{ background: 'linear-gradient(135deg, #543884, #A13670, #EC4176)' }}>
+              <CheckCircle className="w-4 h-4" />
+              Approve Leaves
+            </button>
+            <button onClick={() => navigate('/dashboard/employees')} className="border border-[#543884]/20 text-[#543884] rounded-xl px-4 py-2 text-sm flex items-center gap-2 hover:bg-[#543884]/5">
+              <UserPlus className="w-4 h-4" />
+              Add Employee
+            </button>
+          </>
+        }
+      />
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard label="Team Size" value={String(activeEmployees)} change={summary ? "Loaded from users table" : "8 new this month"} trend="up" icon={Users} iconBg="#5438841A" iconColor="#543884" index={0} onClick={() => navigate('/dashboard/employees')} />
+        <StatCard label="Attendance Rate" value="94.2%" change="+1.2% vs last week" trend="up" icon={Clock} iconBg="#9A77CF1A" iconColor="#9A77CF" index={1} onClick={() => navigate('/dashboard/attendance')} />
+        <StatCard label="Leave Requests" value={String(pendingLeave)} change={summary ? "Awaiting approval" : "5 urgent"} trend="down" icon={Calendar} iconBg="#FFA45E1A" iconColor="#FFA45E" index={2} onClick={() => navigate('/dashboard/leave')} />
+        <StatCard label="Upcoming Training" value={String(upcomingTraining)} change={summary ? "Scheduled sessions" : "18 completions"} trend="up" icon={GraduationCap} iconBg="#EC41761A" iconColor="#EC4176" index={3} onClick={() => navigate('/dashboard/training')} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <div className="lg:col-span-3">
+          <SectionCard title="Team Attendance This Week">
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={weekData}>
+                <CartesianGrid {...chartTheme.grid} />
+                <XAxis dataKey="day" {...chartTheme.axis} />
+                <YAxis {...chartTheme.axis} />
+                <Tooltip {...chartTheme.tooltip} />
+                <Bar key="present-bar" dataKey="present" fill="#543884" radius={[8, 8, 0, 0]} />
+                <Bar key="leave-bar" dataKey="leave" fill="#EC4176" radius={[8, 8, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+            <div className="flex items-center justify-center gap-6 mt-4">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-[#543884]" />
+                <span className="text-xs text-muted-foreground">Present</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-[#EC4176]" />
+                <span className="text-xs text-muted-foreground">On Leave</span>
+              </div>
+            </div>
+          </SectionCard>
+        </div>
+
+        <div className="lg:col-span-2">
+          <SectionCard title="Leave Requests" action={<button type="button" onClick={() => navigate('/dashboard/leave')} className="text-[#9A77CF] text-sm hover:text-[#EC4176]">View All →</button>}>
+            {leaveActionMsg && (
+              <p className="text-xs text-[#543884] bg-[#543884]/10 px-3 py-1.5 rounded-lg mb-3">{leaveActionMsg}</p>
+            )}
+            <div className="space-y-3">
+              {leaveRequests.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">No pending leave requests.</p>
+              ) : (
+                leaveRequests.slice(0, 3).map((req, i) => {
+                  const employeeName = req.employee || req.employee_name || req.name || "?";
+                  const initials = employeeName.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase();
+                  return (
+                    <div key={req.id ?? i} className="flex items-center gap-3 py-2 border-b border-[#543884]/8 last:border-0">
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-medium" style={{ background: `linear-gradient(135deg, ${chartTheme.colors[i % 5]}, ${chartTheme.colors[(i + 1) % 5]})` }}>
+                        {initials}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-[#262254] dark:text-white truncate">{employeeName}</p>
+                        <p className="text-xs text-muted-foreground">{req.days ?? req.days_requested ?? req.total_days ?? "?"} days · {req.type || req.leave_type || "Leave"}</p>
+                      </div>
+                      <div className="flex gap-1">
+                        <button
+                          disabled={actioningLeave === req.id}
+                          onClick={() => handleLeaveAction(req.id, "approved")}
+                          className="bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg px-2 py-1 text-xs hover:bg-green-100 dark:hover:bg-green-900/50 disabled:opacity-50 transition-colors"
+                          title="Approve leave"
+                        >✓</button>
+                        <button
+                          disabled={actioningLeave === req.id}
+                          onClick={() => handleLeaveAction(req.id, "rejected")}
+                          className="bg-[#EC4176]/10 text-[#EC4176] rounded-lg px-2 py-1 text-xs hover:bg-[#EC4176]/20 disabled:opacity-50 transition-colors"
+                          title="Reject leave"
+                        >✗</button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </SectionCard>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <SectionCard title="Onboarding Pipeline" action={<button type="button" onClick={() => navigate('/dashboard/onboarding')} className="text-[#9A77CF] text-sm hover:text-[#EC4176]">Manage →</button>}>
+          <div className="space-y-4">
+            {[
+              { name: 'Employee 07', progress: 92 },
+              { name: 'Employee 08', progress: 68 },
+              { name: 'Employee 06', progress: 45 }
+            ].map((hire, i) => (
+              <div key={i}>
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-[#262254] dark:text-white">{hire.name}</span>
+                  <span className="text-[#543884] font-medium">{hire.progress}%</span>
+                </div>
+                <div className="h-1.5 bg-[#543884]/10 rounded-full overflow-hidden">
+                  <div className="h-full bg-[#543884] rounded-full" style={{ width: `${hire.progress}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Department Health">
+          <div className="space-y-3">
+            {[
+              { dept: 'Information Technology', score: 95, color: '#543884' },
+              { dept: 'Sales', score: 85, color: '#9A77CF' },
+              { dept: 'Marketing', score: 90, color: '#EC4176' }
+            ].map((dept, i) => (
+              <div key={i}>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-muted-foreground">{dept.dept}</span>
+                  <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: `${dept.color}1A`, color: dept.color }}>
+                    {dept.score}%
+                  </span>
+                </div>
+                <div className="h-2 bg-[#543884]/10 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: `${dept.score}%`, backgroundColor: dept.color }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Today's Agenda">
+          <div className="space-y-3">
+            {[
+              { time: '09:00', title: 'Interview: Candidate screening', badge: 'Interview', color: '#9A77CF' },
+              { time: '11:00', title: 'Team Standup', badge: 'Meeting', color: '#543884' },
+              { time: '14:00', title: 'Performance Review: Employee 01', badge: 'Review', color: '#EC4176' }
+            ].map((item, i) => (
+              <div key={i} className="flex items-start gap-3">
+                <span className="text-xs text-[#9A77CF] font-mono mt-0.5">{item.time}</span>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-[#262254] dark:text-white">{item.title}</p>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: `${item.color}1A`, color: item.color }}>
+                  {item.badge}
+                </span>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      </div>
+    </motion.div>
+  );
+}
+
+// Project Manager Dashboard
+function ProjectManagerDashboard({ user }: any) {
+  const navigate = useNavigate();
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const [projectStats, setProjectStats] = useState<any>({ byStatus: {}, projects: [] });
+  const [projectTasks, setProjectTasks] = useState<any[]>([]);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    Promise.all([api.get("/projects/stats"), api.get("/projects/tasks"), api.get("/employees")])
+      .then(([statsRes, tasksRes, employeesRes]) => {
+        if (!isMounted) return;
+        setProjectStats(statsRes.data || { byStatus: {}, projects: [] });
+        setProjectTasks(tasksRes.data.tasks || []);
+        setTeamMembers(employeesRes.data.employees || []);
+      })
+      .catch((error) => console.warn("Unable to load project manager dashboard", error));
+    return () => { isMounted = false; };
+  }, []);
+
+  const projectData = (projectStats.projects || []).map((project: any) => ({
+    project: project.name,
+    completed: Number(project.completed || 0),
+    inProgress: Math.max(Number(project.total || 0) - Number(project.completed || 0), 0),
+    todo: 0,
+  }));
+  const totalTasks = projectTasks.length;
+  const completedTasks = Number(projectStats.byStatus?.completed || 0);
+  const activeProjects = projectData.filter((project: any) => project.inProgress + project.todo > 0).length;
+  const overdueTasks = projectTasks.filter((task) => task.status !== "completed" && task.deadline && new Date(task.deadline) < new Date()).length;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      key={user.role}
+      className="space-y-6"
+    >
+      <DashboardHeader
+        title={`${greeting}, ${user.name}`}
+        subtitle="Track project progress and manage team assignments."
+        actions={
+          <>
+            <button
+              onClick={() => navigate('/dashboard/new-task')}
+              className="rounded-xl px-4 py-2 text-sm text-white flex items-center gap-2 shadow-sm"
+              style={{ background: 'linear-gradient(135deg, #543884, #A13670, #EC4176)' }}
+            >
+              <CheckSquare className="w-4 h-4" />
+              New Task
+            </button>
+            <button
+              onClick={() => navigate('/dashboard/project-reports')}
+              className="border border-[#543884]/20 text-[#543884] rounded-xl px-4 py-2 text-sm flex items-center gap-2 hover:bg-[#543884]/5"
+            >
+              <BarChart2 className="w-4 h-4" />
+              View Reports
+            </button>
+          </>
+        }
+      />
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard label="Active Projects" value={String(activeProjects)} change="Loaded from projects" trend="neutral" icon={Briefcase} iconBg="#5438841A" iconColor="#543884" index={0} onClick={() => navigate('/dashboard/project-management')} />
+        <StatCard label="Total Tasks" value={String(totalTasks)} change={String(completedTasks) + " completed"} trend="up" icon={CheckSquare} iconBg="#9A77CF1A" iconColor="#9A77CF" index={1} onClick={() => navigate('/dashboard/project-management')} />
+        <StatCard label="Team Members" value={String(teamMembers.length)} change="Loaded from users" trend="neutral" icon={Users} iconBg="#FFA45E1A" iconColor="#FFA45E" index={2} onClick={() => navigate('/dashboard/employees')} />
+        <StatCard label="Overdue Tasks" value={String(overdueTasks)} change={overdueTasks ? "Needs attention" : "On track"} trend="down" icon={Clock} iconBg="#EC41761A" iconColor="#EC4176" index={3} onClick={() => navigate('/dashboard/project-management')} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <SectionCard title="Project Progress">
+            <div className="space-y-6">
+              {(projectData.length ? projectData : [{ project: "No active project data", completed: 0, inProgress: 0, todo: 0 }]).map((project: any, i: number) => (
+                <div key={i}>
+                  <div className="flex justify-between mb-3">
+                    <h4 className="text-sm font-semibold text-[#262254] dark:text-white">{project.project}</h4>
+                    <span className="text-xs text-muted-foreground">
+                      {project.completed + project.inProgress + project.todo} tasks total
+                    </span>
+                  </div>
+                  <div className="flex h-3 rounded-full overflow-hidden mb-2">
+                    <div
+                      className="bg-green-500"
+                      style={{ width: `${(project.completed / (project.completed + project.inProgress + project.todo)) * 100}%` }}
+                    />
+                    <div
+                      className="bg-blue-500"
+                      style={{ width: `${(project.inProgress / (project.completed + project.inProgress + project.todo)) * 100}%` }}
+                    />
+                    <div
+                      className="bg-gray-400"
+                      style={{ width: `${(project.todo / (project.completed + project.inProgress + project.todo)) * 100}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <div className="w-2 h-2 rounded-full bg-green-500" />
+                      {project.completed} Completed
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-2 h-2 rounded-full bg-blue-500" />
+                      {project.inProgress} In Progress
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-2 h-2 rounded-full bg-gray-400" />
+                      {project.todo} To Do
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+        </div>
+
+        <SectionCard title="Team Performance" action={<button type="button" onClick={() => navigate('/dashboard/performance')} className="text-[#9A77CF] text-sm hover:text-[#EC4176]">View All →</button>}>
+          <div className="space-y-3">
+            {teamMembers.slice(0, 4).map((member, i) => (
+              <div key={i} className="flex items-center gap-3 py-2 border-b border-[#543884]/8 last:border-0">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#543884] to-[#9A77CF] flex items-center justify-center text-white text-xs font-semibold">
+                  {member.avatar || member.initials || member.name?.slice(0, 2).toUpperCase()}
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-[#262254] dark:text-white">{member.name}</p>
+                  <p className="text-xs text-muted-foreground">{member.designation || member.role}</p>
+                </div>
+                <div className="text-right">
+                  <span className="text-sm font-semibold text-[#543884]">{member.status || "active"}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <SectionCard title="Upcoming Deadlines" action={<button type="button" onClick={() => navigate('/dashboard/project-management')} className="text-[#9A77CF] text-sm hover:text-[#EC4176]">View All →</button>}>
+          <div className="space-y-3">
+            {[...projectTasks].filter((task) => task.status !== "completed").sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime()).slice(0, 4).map((item, i) => (
+              <div key={i} className="flex items-start gap-3">
+                <div className={`w-2 h-2 rounded-full mt-1.5 ${new Date(item.deadline) < new Date() ? 'bg-red-500' : 'bg-[#9A77CF]'}`} />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-[#262254] dark:text-white">{item.title}</p>
+                  <p className={`text-xs ${new Date(item.deadline) < new Date() ? 'text-red-500' : 'text-muted-foreground'}`}>
+                    {new Date(item.deadline) < new Date() ? 'Overdue' : "Due " + new Date(item.deadline).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Task Distribution">
+          <div className="space-y-4">
+            {[
+              { status: 'To Do', count: Number(projectStats.byStatus?.todo || 0), color: '#9A77CF' },
+              { status: 'In Progress', count: Number(projectStats.byStatus?.['in-progress'] || 0), color: '#543884' },
+              { status: 'In Review', count: Number(projectStats.byStatus?.['in-review'] || 0), color: '#FFA45E' },
+              { status: 'Completed', count: completedTasks, color: '#00C853' }
+            ].map((stat, i) => (
+              <div key={i}>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-muted-foreground">{stat.status}</span>
+                  <span className="font-semibold text-[#262254] dark:text-white">{stat.count}</span>
+                </div>
+                <div className="h-2 bg-[#543884]/10 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full"
+                    style={{ width: `${totalTasks ? (stat.count / totalTasks) * 100 : 0}%`, backgroundColor: stat.color }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Recent Activity">
+          <div className="space-y-3">
+            {projectTasks.slice(0, 4).map((activity, i) => (
+              <div key={i} className="flex items-start gap-3">
+                <div className="w-2 h-2 rounded-full mt-1.5" style={{ backgroundColor: activity.status === "completed" ? "#00C853" : "#543884" }} />
+                <div className="flex-1">
+                  <p className="text-sm text-[#262254] dark:text-white">{activity.title}</p>
+                  <p className="text-xs text-muted-foreground">{activity.project} - {activity.status}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      </div>
+
+      <SectionCard title="Quick Actions">
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => navigate('/dashboard/new-task')}
+            className="rounded-xl border border-[#543884]/10 p-4 flex flex-col items-center gap-2 hover:bg-[#543884]/5 hover:border-[#543884]/30 cursor-pointer transition-all"
+          >
+            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #543884, #EC4176)' }}>
+              <CheckSquare className="w-5 h-5 text-white" />
+            </div>
+            <span className="text-xs text-center font-medium text-[#262254] dark:text-white">Create Task</span>
+          </button>
+          <button
+            onClick={() => navigate('/dashboard/project-reports')}
+            className="rounded-xl border border-[#543884]/10 p-4 flex flex-col items-center gap-2 hover:bg-[#543884]/5 hover:border-[#543884]/30 cursor-pointer transition-all"
+          >
+            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #EC4176, #A13670)' }}>
+              <BarChart2 className="w-5 h-5 text-white" />
+            </div>
+            <span className="text-xs text-center font-medium text-[#262254] dark:text-white">View Reports</span>
+          </button>
+          <button
+            onClick={() => navigate('/dashboard/project-management')}
+            className="rounded-xl border border-[#543884]/10 p-4 flex flex-col items-center gap-2 hover:bg-[#543884]/5 hover:border-[#543884]/30 cursor-pointer transition-all"
+          >
+            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #9A77CF, #EC4176)' }}>
+              <Target className="w-5 h-5 text-white" />
+            </div>
+            <span className="text-xs text-center font-medium text-[#262254] dark:text-white">Track Progress</span>
+          </button>
+          <button
+            onClick={() => navigate('/dashboard/forum')}
+            className="rounded-xl border border-[#543884]/10 p-4 flex flex-col items-center gap-2 hover:bg-[#543884]/5 hover:border-[#543884]/30 cursor-pointer transition-all"
+          >
+            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #543884, #9A77CF)' }}>
+              <MessageSquare className="w-5 h-5 text-white" />
+            </div>
+            <span className="text-xs text-center font-medium text-[#262254] dark:text-white">Team Chat</span>
+          </button>
+        </div>
+      </SectionCard>
+    </motion.div>
+  );
+}
+
+// Employee Dashboard helpers and types
+type AttendanceMonth = NonNullable<RoleDashboardSummary["monthAttendance"]>;
+type AttendanceDay = AttendanceMonth["days"][number];
+type AttendanceFilter = "all" | "present" | "late" | "absent" | "leave";
+type EmployeePayslip = {
+  id: number;
+  pay_period: string;
+  net_pay: string | number;
+  status: string;
+};
+
+function formatLocalDateKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function payslipMonthLabel(value: string) {
+  return new Date(value).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+}
+
+function downloadBlob(data: Blob, fileName: string) {
+  const url = URL.createObjectURL(data);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function buildEmptyCurrentMonth(): AttendanceMonth {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  let workdaysInMonth = 0;
+  let workdaysToDate = 0;
+
+  const days = Array.from({ length: daysInMonth }, (_, index) => {
+    const date = new Date(year, month, index + 1);
+    const dayOfWeek = date.getDay();
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const isFuture = date > today;
+
+    if (!isWeekend) {
+      workdaysInMonth += 1;
+      if (!isFuture) workdaysToDate += 1;
+    }
+
+    return {
+      date: formatLocalDateKey(date),
+      day: index + 1,
+      status: "none" as const,
+      isToday: index + 1 === today.getDate(),
+      isWeekend,
+      isFuture,
+    };
+  });
+
+  return {
+    year,
+    month: month + 1,
+    days,
+    daysPresent: 0,
+    daysLate: 0,
+    daysAbsent: 0,
+    daysLeave: 0,
+    attendedDays: 0,
+    workdaysInMonth,
+    workdaysToDate,
+  };
+}
+
+function attendanceDayClass(day: AttendanceDay, activeFilter: AttendanceFilter) {
+  const base = "w-9 h-9 rounded-lg text-xs flex items-center justify-center border transition-colors";
+  const todayRing = day.isToday ? " ring-2 ring-[#FFA45E]" : "";
+  const isFilteredOut = activeFilter !== "all" && day.status !== activeFilter;
+  const filteredOutStyle = isFilteredOut ? " opacity-25 grayscale" : "";
+
+  if (day.status === "present") {
+    return `${base}${todayRing}${filteredOutStyle} bg-[#543884] border-[#543884] text-white`;
+  }
+
+  if (day.status === "late") {
+    return `${base}${todayRing}${filteredOutStyle} bg-[#9A77CF] border-[#9A77CF] text-white`;
+  }
+
+  if (day.status === "absent") {
+    return `${base}${todayRing}${filteredOutStyle} bg-[#EC4176]/20 border-[#EC4176]/30 text-[#EC4176]`;
+  }
+
+  if (day.status === "leave") {
+    return `${base}${todayRing}${filteredOutStyle} bg-[#FFA45E]/20 border-[#FFA45E]/40 text-[#FFA45E]`;
+  }
+
+  return `${base}${todayRing}${filteredOutStyle} bg-[#543884]/5 border-[#543884]/10 text-muted-foreground`;
+}
+
+function attendanceDayTitle(day: AttendanceDay) {
+  if (day.status !== "none") return `${day.date}: ${day.status}`;
+  if (day.isWeekend) return `${day.date}: Weekend`;
+  if (day.isFuture) return `${day.date}: Upcoming`;
+  return `${day.date}: Not logged`;
+}
+
+// Employee Dashboard
+function EmployeeDashboard({ user }: any) {
+  const [summary, setSummary] = useState<RoleDashboardSummary | null>(null);
+  const [attendanceFilter, setAttendanceFilter] = useState<AttendanceFilter>("all");
+  const [payslips, setPayslips] = useState<EmployeePayslip[]>([]);
+  const [myTasks, setMyTasks] = useState<Array<{ id: number; title: string; status: string; due_date: string | null }>>([]);
+  const [downloadingPayslipId, setDownloadingPayslipId] = useState<number | null>(null);
+  const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false);
+  const [attendanceSaving, setAttendanceSaving] = useState(false);
+  const [attendanceMessage, setAttendanceMessage] = useState("");
+  const [attendanceError, setAttendanceError] = useState("");
+  const [attendanceForm, setAttendanceForm] = useState({
+    workDate: formatLocalDateKey(new Date()),
+    checkIn: "09:00",
+    checkOut: "18:00",
+    status: "present",
+  });
+  const navigate = useNavigate();
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Have a productive morning!' : hour < 17 ? 'Keep up the great work!' : 'Finish strong!';
+  const todayDate = new Date();
+  const todayKey = formatLocalDateKey(todayDate);
+  const today = todayDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+
+  useEffect(() => {
+    let isMounted = true;
+
+    getRoleDashboardSummary("employee")
+      .then((data) => {
+        if (isMounted) setSummary(data);
+      })
+      .catch((error) => {
+        console.warn("Unable to load employee dashboard summary", error);
+      });
+
+    api.get("/payroll")
+      .then((response) => {
+        if (isMounted) setPayslips(response.data.payroll || []);
+      })
+      .catch((error) => {
+        console.warn("Unable to load employee payslips", error);
+      });
+
+    api.get("/tasks", { params: { limit: 3 } })
+      .then((response) => {
+        if (isMounted) setMyTasks(response.data.tasks || []);
+      })
+      .catch(() => {/* tasks widget stays empty */});
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const monthAttendance = summary?.monthAttendance ?? buildEmptyCurrentMonth();
+  const daysPresent = Number(monthAttendance.daysPresent ?? summary?.daysPresent ?? 0);
+  const daysLate = Number(monthAttendance.daysLate ?? summary?.daysLate ?? 0);
+  const daysAbsent = Number(monthAttendance.daysAbsent ?? summary?.daysAbsent ?? 0);
+  const daysLeave = Number(monthAttendance.daysLeave ?? summary?.daysLeave ?? 0);
+  const attendedDays = Number(monthAttendance.attendedDays ?? summary?.attendedDays ?? daysPresent + daysLate);
+  const workdaysInMonth = Number(monthAttendance.workdaysInMonth ?? summary?.workdaysInMonth ?? 0);
+  const calendarDays = monthAttendance.days.map((day) => ({
+    ...day,
+    isToday: day.date === todayKey,
+  }));
+  const filterCount =
+    attendanceFilter === "present"
+      ? daysPresent
+      : attendanceFilter === "late"
+        ? daysLate
+        : attendanceFilter === "absent"
+          ? daysAbsent
+          : attendanceFilter === "leave"
+            ? daysLeave
+            : calendarDays.filter((day) => day.status !== "none").length;
+  const pendingLeave = Number(summary?.pendingLeave ?? 0);
+  const latestPayroll = summary?.latestPayroll?.net_pay;
+  const recentPayslips = payslips.slice(0, 3);
+  const attendanceStatusRequiresTime = attendanceForm.status === "present" || attendanceForm.status === "late";
+
+  async function refreshEmployeeSummary() {
+    const data = await getRoleDashboardSummary("employee");
+    setSummary(data);
+  }
+
+  async function handleSaveDashboardAttendance() {
+    setAttendanceSaving(true);
+    setAttendanceError("");
+    setAttendanceMessage("");
+
+    try {
+      const payload = attendanceStatusRequiresTime
+        ? {
+            workDate: attendanceForm.workDate,
+            clockIn: attendanceForm.checkIn,
+            clockOut: attendanceForm.checkOut,
+            status: attendanceForm.status,
+          }
+        : {
+            workDate: attendanceForm.workDate,
+            status: attendanceForm.status,
+          };
+
+      await api.post("/attendance/log", payload);
+      await refreshEmployeeSummary();
+      setAttendanceMessage("Attendance logged successfully.");
+      setIsAttendanceModalOpen(false);
+    } catch (error: any) {
+      setAttendanceError(error?.response?.data?.message || "Unable to log attendance right now.");
+    } finally {
+      setAttendanceSaving(false);
+    }
+  }
+
+  async function handleDownloadPayslip(payslip: EmployeePayslip) {
+    setDownloadingPayslipId(payslip.id);
+    try {
+      const response = await api.get(`/payroll/${payslip.id}/payslip`, { responseType: "blob" });
+      downloadBlob(response.data, `${payslipMonthLabel(payslip.pay_period).replace(/\s+/g, "-").toLowerCase()}-payslip.txt`);
+    } finally {
+      setDownloadingPayslipId(null);
+    }
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      key={user.role}
+      className="space-y-6"
+    >
+      <DashboardHeader
+        title={`Welcome back, ${user.name} 👋`}
+        subtitle={`${today} · ${greeting}`}
+        actions={
+          <>
+            <button
+              onClick={() => navigate("/dashboard/leave")}
+              className="rounded-xl px-4 py-2 text-sm text-white flex items-center gap-2 shadow-sm cursor-pointer"
+              style={{ background: 'linear-gradient(135deg, #543884, #A13670, #EC4176)' }}
+            >
+              <CalendarPlus className="w-4 h-4" />
+              Apply for Leave
+            </button>
+            <button
+              onClick={() => setIsAttendanceModalOpen(true)}
+              className="border border-[#543884]/20 text-[#543884] rounded-xl px-4 py-2 text-sm flex items-center gap-2 hover:bg-[#543884]/5 cursor-pointer"
+            >
+              <Clock className="w-4 h-4" />
+              Log Attendance
+            </button>
+          </>
+        }
+      />
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard label="My Attendance" value={`${attendedDays} / ${workdaysInMonth}`} change={`${daysPresent} present, ${daysLate} late, ${daysAbsent} absent`} trend={daysAbsent > 0 ? "down" : "up"} icon={Clock} iconBg="#5438841A" iconColor="#543884" index={0} subtitle="attended workdays" onClick={() => navigate('/dashboard/attendance')} />
+        <StatCard label="Pending Leave" value={String(pendingLeave)} change={summary ? "Requests awaiting decision" : "6 used this year"} trend="neutral" icon={Palmtree} iconBg="#9A77CF1A" iconColor="#9A77CF" index={1} onClick={() => navigate('/dashboard/leave')} />
+        <StatCard label="Latest Payroll" value={latestPayroll ? formatDashboardCurrency(latestPayroll) : "N/A"} change={summary ? "Most recent payroll record" : "1 overdue"} trend="neutral" icon={CheckSquare} iconBg="#EC41761A" iconColor="#EC4176" index={2} onClick={() => navigate('/dashboard/payslips')} />
+        <StatCard label="Training Progress" value="2 / 5" change="40% complete" trend="neutral" icon={BookOpen} iconBg="#FFA45E1A" iconColor="#FFA45E" index={3} onClick={() => navigate('/dashboard/training')} />
+      </div>
+
+      {attendanceMessage && (
+        <div className="rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-300">
+          {attendanceMessage}
+        </div>
+      )}
+
+      {attendanceError && (
+        <div className="rounded-lg border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-300">
+          {attendanceError}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <SectionCard title="My Attendance This Month">
+          <div className="grid grid-cols-7 gap-2">
+            {calendarDays.map((day) => (
+              <div
+                key={day.date}
+                className={attendanceDayClass(day, attendanceFilter)}
+                title={attendanceDayTitle(day)}
+              >
+                {day.day}
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 mt-4">
+            {[
+              {
+                key: "all",
+                label: "All",
+                count: calendarDays.filter((day) => day.status !== "none").length,
+                dot: "bg-slate-400",
+                idle: "border-slate-400/25 bg-slate-400/10 text-slate-300 hover:border-slate-300/60",
+                active: "border-slate-300 bg-slate-300/20 text-slate-100",
+              },
+              {
+                key: "present",
+                label: "Present",
+                count: daysPresent,
+                dot: "bg-emerald-400",
+                idle: "border-emerald-400/25 bg-emerald-400/10 text-emerald-300 hover:border-emerald-300/60",
+                active: "border-emerald-300 bg-emerald-300/20 text-emerald-100",
+              },
+              {
+                key: "late",
+                label: "Late",
+                count: daysLate,
+                dot: "bg-amber-400",
+                idle: "border-amber-400/25 bg-amber-400/10 text-amber-300 hover:border-amber-300/60",
+                active: "border-amber-300 bg-amber-300/20 text-amber-100",
+              },
+              {
+                key: "absent",
+                label: "Absent",
+                count: daysAbsent,
+                dot: "bg-rose-400",
+                idle: "border-rose-400/25 bg-rose-400/10 text-rose-300 hover:border-rose-300/60",
+                active: "border-rose-300 bg-rose-300/20 text-rose-100",
+              },
+              {
+                key: "leave",
+                label: "Leave",
+                count: daysLeave,
+                dot: "bg-sky-400",
+                idle: "border-sky-400/25 bg-sky-400/10 text-sky-300 hover:border-sky-300/60",
+                active: "border-sky-300 bg-sky-300/20 text-sky-100",
+              },
+            ].map((filter) => (
+              <button
+                key={filter.key}
+                type="button"
+                onClick={() => setAttendanceFilter(filter.key as AttendanceFilter)}
+                className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-colors cursor-pointer ${
+                  attendanceFilter === filter.key ? filter.active : filter.idle
+                }`}
+              >
+                <span className={`w-3 h-3 rounded-full ${filter.dot}`} />
+                <span>{filter.label}</span>
+                <span className="font-semibold">{filter.count}</span>
+              </button>
+            ))}
+            <span className="text-xs text-muted-foreground ml-1">
+              Showing {attendanceFilter === "all" ? "all recorded" : attendanceFilter} days: {filterCount}
+            </span>
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Leave Balance">
+          <div className="space-y-4">
+            {[
+              { type: 'Annual Leave', remaining: 12, total: 18, color: '#543884', icon: Calendar },
+              { type: 'Sick Leave', remaining: 8, total: 10, color: '#9A77CF', icon: Shield },
+              { type: 'Casual Leave', remaining: 3, total: 6, color: '#EC4176', icon: Clock }
+            ].map((leave, i) => (
+              <div key={i}>
+                <div className="flex items-center gap-3 mb-2">
+                  <leave.icon className="w-4 h-4" style={{ color: leave.color }} />
+                  <span className="text-sm text-[#262254] dark:text-white flex-1">{leave.type}</span>
+                  <span className="text-xs text-muted-foreground">{leave.remaining} days left</span>
+                </div>
+                <div className="h-2 bg-[#543884]/10 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: `${(leave.remaining / leave.total) * 100}%`, backgroundColor: leave.color }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <SectionCard
+          title="My Tasks"
+          action={
+            <button
+              type="button"
+              onClick={() => navigate("/dashboard/tasks")}
+              className="text-[#9A77CF] text-sm hover:text-[#EC4176] cursor-pointer"
+            >
+              View All →
+            </button>
+          }
+        >
+          <div className="space-y-0">
+            {myTasks.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">No tasks yet. <button type="button" onClick={() => navigate("/dashboard/tasks")} className="text-[#9A77CF] hover:underline">Create one →</button></p>
+            ) : (
+              myTasks.slice(0, 3).map((task) => {
+                const isDone = task.status === "completed";
+                const dueLabel = task.due_date
+                  ? `Due ${new Date(task.due_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`
+                  : "";
+                return (
+                  <div key={task.id} className="flex items-center gap-3 py-2.5 border-b border-[#543884]/8 last:border-0">
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                      isDone ? 'bg-[#543884] border-[#543884]' : 'border-[#9A77CF]/40'
+                    }`}>
+                      {isDone && <Check className="w-3 h-3 text-white" />}
+                    </div>
+                    <span className={`text-sm flex-1 truncate ${isDone ? 'line-through text-muted-foreground' : 'text-[#262254] dark:text-white'}`}>
+                      {task.title}
+                    </span>
+                    {dueLabel && <span className="text-xs text-muted-foreground flex-shrink-0">{dueLabel}</span>}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </SectionCard>
+
+        <SectionCard
+          title="My Training"
+          action={
+            <button
+              type="button"
+              onClick={() => navigate("/dashboard/training")}
+              className="text-[#9A77CF] text-sm hover:text-[#EC4176] cursor-pointer"
+            >
+              Browse Courses →
+            </button>
+          }
+        >
+          <div className="space-y-3">
+            {[
+              { name: 'Leadership Essentials', progress: 78, provider: 'LinkedIn Learning', color: '#543884' },
+              { name: 'Data Privacy & GDPR', progress: 45, provider: 'Coursera', color: '#9A77CF' }
+            ].map((course, i) => (
+              <div key={i} className="border-b border-[#543884]/8 last:border-0 pb-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-[#262254] dark:text-white">{course.name}</p>
+                    <p className="text-xs text-muted-foreground">{course.provider}</p>
+                  </div>
+                  <span className="text-xs font-medium" style={{ color: course.color }}>{course.progress}%</span>
+                </div>
+                <div className="h-1.5 bg-[#543884]/10 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: `${course.progress}%`, backgroundColor: course.color }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Today's Schedule">
+          <div className="space-y-3">
+            {[
+              { time: '09:00', title: 'Team Standup', duration: '30 min', badge: 'Meeting', color: '#9A77CF' },
+              { time: '10:30', title: 'Focus Work Block', duration: '', badge: 'Focus', color: '#543884' },
+              { time: '14:00', title: '1:1 with Manager', duration: '', badge: 'Meeting', color: '#9A77CF' }
+            ].map((item, i) => (
+              <div key={i} className="flex items-start gap-3">
+                <span className="text-xs text-[#9A77CF] font-mono mt-0.5">{item.time}</span>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-[#262254] dark:text-white">{item.title}</p>
+                  {item.duration && <p className="text-xs text-muted-foreground">{item.duration}</p>}
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: `${item.color}1A`, color: item.color }}>
+                  {item.badge}
+                </span>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <SectionCard title="Recent Payslips" action={<button type="button" onClick={() => navigate("/dashboard/payslips")} className="text-[#9A77CF] text-sm hover:text-[#EC4176] cursor-pointer">View All →</button>}>
+          <div className="space-y-0">
+            {recentPayslips.length ? recentPayslips.map((slip) => (
+              <div key={slip.id} className="flex items-center justify-between py-3 border-b border-[#543884]/8 last:border-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-[#543884]/10 flex items-center justify-center">
+                    <FileText className="w-5 h-5 text-[#543884]" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-[#262254] dark:text-white">{payslipMonthLabel(slip.pay_period)}</p>
+                    <span className="px-2 py-0.5 rounded-full bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs">Processed</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-semibold text-[#262254] dark:text-white">{formatDashboardCurrency(slip.net_pay)}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadPayslip(slip)}
+                    disabled={downloadingPayslipId === slip.id}
+                    className="text-[#9A77CF] hover:text-[#EC4176] disabled:opacity-50 cursor-pointer"
+                    aria-label={`Download ${payslipMonthLabel(slip.pay_period)} payslip`}
+                  >
+                    <Download className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )) : (
+              <p className="py-4 text-sm text-muted-foreground">No processed payslips are available yet.</p>
+            )}
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Quick Actions">
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { icon: CalendarPlus, label: 'Apply Leave', colors: ['#543884', '#EC4176'], onClick: () => navigate("/dashboard/leave") },
+              { icon: Clock, label: 'Log Attendance', colors: ['#9A77CF', '#543884'], onClick: () => setIsAttendanceModalOpen(true) },
+              { icon: Receipt, label: 'Submit Expense', colors: ['#EC4176', '#A13670'], onClick: () => navigate("/dashboard/expense") },
+              { icon: FileText, label: 'Download Payslip', colors: ['#FFA45E', '#A13670'], onClick: () => recentPayslips[0] ? handleDownloadPayslip(recentPayslips[0]) : navigate("/dashboard/payslips") },
+              { icon: MessageSquare, label: 'Go to Forum', colors: ['#9A77CF', '#EC4176'], onClick: () => navigate("/dashboard/forum") },
+              { icon: User, label: 'Update Profile', colors: ['#543884', '#9A77CF'], onClick: () => navigate("/dashboard/profile") }
+            ].map((action, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={action.onClick}
+                disabled={action.label === "Download Payslip" && Boolean(recentPayslips[0] && downloadingPayslipId === recentPayslips[0].id)}
+                className="rounded-xl border border-[#543884]/10 p-4 flex flex-col items-center gap-2 hover:bg-[#543884]/5 hover:border-[#543884]/30 cursor-pointer transition-all disabled:opacity-60 disabled:cursor-wait"
+              >
+                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${action.colors[0]}, ${action.colors[1]})` }}>
+                  <action.icon className="w-5 h-5 text-white" />
+                </div>
+                <span className="text-xs text-center font-medium text-[#262254] dark:text-white">{action.label}</span>
+              </button>
+            ))}
+          </div>
+        </SectionCard>
+      </div>
+
+      <Modal
+        isOpen={isAttendanceModalOpen}
+        onClose={() => setIsAttendanceModalOpen(false)}
+        title="Log Attendance"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setIsAttendanceModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleSaveDashboardAttendance}
+              disabled={attendanceSaving}
+            >
+              {attendanceSaving ? "Saving..." : "Save Attendance"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <Input
+            label="Work Date"
+            type="date"
+            value={attendanceForm.workDate}
+            onChange={(event) =>
+              setAttendanceForm((form) => ({
+                ...form,
+                workDate: event.target.value,
+              }))
+            }
+          />
+
+          <div>
+            <label className="block text-sm mb-1.5 text-foreground">Status</label>
+            <select
+              className="w-full px-3 py-2 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+              value={attendanceForm.status}
+              onChange={(event) =>
+                setAttendanceForm((form) => ({
+                  ...form,
+                  status: event.target.value,
+                }))
+              }
+            >
+              <option value="present">Present</option>
+              <option value="late">Late</option>
+              <option value="absent">Absent</option>
+              <option value="leave">On Leave</option>
+            </select>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="Check In"
+              type="time"
+              value={attendanceForm.checkIn}
+              disabled={!attendanceStatusRequiresTime}
+              onChange={(event) =>
+                setAttendanceForm((form) => ({
+                  ...form,
+                  checkIn: event.target.value,
+                }))
+              }
+            />
+            <Input
+              label="Check Out"
+              type="time"
+              value={attendanceForm.checkOut}
+              disabled={!attendanceStatusRequiresTime}
+              onChange={(event) =>
+                setAttendanceForm((form) => ({
+                  ...form,
+                  checkOut: event.target.value,
+                }))
+              }
+            />
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            {attendanceStatusRequiresTime
+              ? "This will save clock-in and clock-out time for your attendance record."
+              : "This status saves without clock-in or clock-out time."}
+          </p>
+        </div>
+      </Modal>
+    </motion.div>
+  );
+}
