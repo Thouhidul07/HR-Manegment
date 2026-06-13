@@ -16,23 +16,28 @@ export function ProjectReports() {
   const [dateRange, setDateRange] = useState('last-30-days');
   const [selectedProject, setSelectedProject] = useState('all');
   const [reportData, setReportData] = useState<any>({ byStatus: {}, projects: [] });
+  const [tasks, setTasks] = useState<any[]>([]);
 
   useEffect(() => {
-    api.get("/projects/stats")
-      .then((response) => setReportData(response.data || { byStatus: {}, projects: [] }))
+    Promise.all([api.get("/projects/stats"), api.get("/projects/tasks")])
+      .then(([statsResponse, tasksResponse]) => {
+        setReportData(statsResponse.data || { byStatus: {}, projects: [] });
+        setTasks(tasksResponse.data.tasks || []);
+      })
       .catch((error) => console.warn("Unable to load project reports", error));
   }, []);
 
   const projects = ['all', ...(reportData.projects || []).map((project: any) => project.name)];
 
-  // Sample data for charts
-  const taskCompletionData = [
-    { date: 'May 1', completed: 12, inProgress: 8, todo: 5 },
-    { date: 'May 8', completed: 18, inProgress: 10, todo: 7 },
-    { date: 'May 15', completed: 25, inProgress: 12, todo: 6 },
-    { date: 'May 22', completed: 32, inProgress: 9, todo: 4 },
-    { date: 'May 29', completed: 38, inProgress: 8, todo: 3 }
-  ];
+  const visibleTasks = selectedProject === "all" ? tasks : tasks.filter((task) => task.project === selectedProject);
+  const taskCompletionData = Object.values(visibleTasks.reduce((groups: Record<string, any>, task) => {
+    const date = task.createdDate ? new Date(task.createdDate).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "Unscheduled";
+    groups[date] ||= { date, completed: 0, inProgress: 0, todo: 0 };
+    if (task.status === "completed") groups[date].completed += 1;
+    else if (task.status === "in-progress" || task.status === "in-review") groups[date].inProgress += 1;
+    else groups[date].todo += 1;
+    return groups;
+  }, {}));
 
   const reportTotalTasks = (reportData.projects || []).reduce((sum: number, project: any) => sum + Number(project.total || 0), 0);
   const projectDistribution: Array<{ name: string; value: number; color: string }> = (reportData.projects || []).map((project: any, index: number) => ({
@@ -41,27 +46,29 @@ export function ProjectReports() {
     color: ['#543884', '#9A77CF', '#EC4176', '#FFA45E'][index % 4],
   }));
 
-  const teamPerformance = [
-    { name: 'Sarah Johnson', completed: 18, pending: 3, efficiency: 94 },
-    { name: 'Michael Chen', completed: 15, pending: 5, efficiency: 88 },
-    { name: 'Emily Rodriguez', completed: 12, pending: 2, efficiency: 92 },
-    { name: 'David Kim', completed: 10, pending: 4, efficiency: 85 },
-    { name: 'Jessica Martinez', completed: 8, pending: 3, efficiency: 90 }
-  ];
+  const teamPerformance = Object.values(visibleTasks.reduce((members: Record<string, any>, task) => {
+    const name = task.assignee || "Unassigned";
+    members[name] ||= { name, completed: 0, pending: 0, efficiency: 0 };
+    if (task.status === "completed") members[name].completed += 1;
+    else members[name].pending += 1;
+    const total = members[name].completed + members[name].pending;
+    members[name].efficiency = total ? Math.round((members[name].completed / total) * 100) : 0;
+    return members;
+  }, {}));
 
-  const priorityBreakdown = [
-    { priority: 'Urgent', count: 5, color: '#EC4176' },
-    { priority: 'High', count: 12, color: '#FFA45E' },
-    { priority: 'Medium', count: 18, color: '#9A77CF' },
-    { priority: 'Low', count: 8, color: '#543884' }
-  ];
+  const priorityColors: Record<string, string> = { urgent: '#EC4176', high: '#FFA45E', medium: '#9A77CF', low: '#543884' };
+  const priorityBreakdown = ["urgent", "high", "medium", "low"].map((priority) => ({
+    priority: priority.charAt(0).toUpperCase() + priority.slice(1),
+    count: visibleTasks.filter((task) => task.priority === priority).length,
+    color: priorityColors[priority],
+  }));
 
-  const velocityData = [
-    { week: 'Week 1', planned: 20, completed: 18 },
-    { week: 'Week 2', planned: 22, completed: 20 },
-    { week: 'Week 3', planned: 25, completed: 23 },
-    { week: 'Week 4', planned: 20, completed: 22 }
-  ];
+  const velocityData = (reportData.projects || []).map((project: any) => ({
+    week: project.name,
+    planned: Number(project.total || 0),
+    completed: Number(project.completed || 0),
+  }));
+  const topPerformer = [...teamPerformance].sort((a: any, b: any) => b.completed - a.completed || b.efficiency - a.efficiency)[0] as any;
 
   const stats = [
     {
@@ -98,16 +105,16 @@ export function ProjectReports() {
     },
     {
       label: 'Team Velocity',
-      value: '22.5',
-      change: '+8%',
+      value: String(visibleTasks.length),
+      change: 'Live',
       trend: 'up',
       icon: Zap,
       color: '#FFA45E'
     },
     {
       label: 'Avg Completion',
-      value: '4.2 days',
-      change: '-12%',
+      value: visibleTasks.length ? `${Math.round((Number(reportData.byStatus?.completed || 0) / visibleTasks.length) * 100)}%` : '0%',
+      change: 'Live',
       trend: 'up',
       icon: Award,
       color: '#9A77CF'
@@ -375,7 +382,7 @@ export function ProjectReports() {
             </div>
           </div>
           <div className="space-y-4">
-            {teamPerformance.map((member, idx) => (
+            {teamPerformance.map((member: any, idx) => (
               <div key={idx} className="space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -440,7 +447,7 @@ export function ProjectReports() {
                   <div
                     className="h-full rounded-full transition-all"
                     style={{
-                      width: `${(item.count / 43) * 100}%`,
+                      width: `${visibleTasks.length ? (item.count / visibleTasks.length) * 100 : 0}%`,
                       backgroundColor: item.color
                     }}
                   />
@@ -457,9 +464,9 @@ export function ProjectReports() {
             <div className="flex items-start gap-3 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
               <TrendingUp className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-semibold text-foreground">Team Productivity Up 18%</p>
+                <p className="text-sm font-semibold text-foreground">Team Productivity</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Your team completed 18% more tasks this month compared to last month. Great work!
+                  {reportData.byStatus?.completed || 0} completed tasks are currently recorded.
                 </p>
               </div>
             </div>
@@ -467,9 +474,9 @@ export function ProjectReports() {
             <div className="flex items-start gap-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
               <Target className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-semibold text-foreground">On Track for Sprint Goal</p>
+                <p className="text-sm font-semibold text-foreground">Current Workload</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Current velocity indicates you'll complete 95% of planned tasks by sprint end.
+                  {reportData.byStatus?.['in-progress'] || 0} tasks are in progress across the selected project scope.
                 </p>
               </div>
             </div>
@@ -477,7 +484,7 @@ export function ProjectReports() {
             <div className="flex items-start gap-3 p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg">
               <AlertCircle className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-semibold text-foreground">8 Tasks Overdue</p>
+                <p className="text-sm font-semibold text-foreground">{stats[3].value} Tasks Overdue</p>
                 <p className="text-xs text-muted-foreground mt-1">
                   Consider reviewing task assignments and deadlines to prevent delays.
                 </p>
@@ -487,9 +494,9 @@ export function ProjectReports() {
             <div className="flex items-start gap-3 p-3 bg-purple-500/10 border border-purple-500/20 rounded-lg">
               <Users className="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-semibold text-foreground">Sarah Johnson - Top Performer</p>
+                <p className="text-sm font-semibold text-foreground">{topPerformer ? `${topPerformer.name} - Top Performer` : "No Top Performer Yet"}</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Completed 18 tasks with 94% efficiency rating this month.
+                  {topPerformer ? `Completed ${topPerformer.completed} tasks with ${topPerformer.efficiency}% completion efficiency.` : "Complete project tasks to generate performer insights."}
                 </p>
               </div>
             </div>

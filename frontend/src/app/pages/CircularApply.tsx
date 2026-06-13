@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Briefcase, MapPin, Clock, DollarSign, Users,
   Calendar, CheckCircle2, Send, FileText, AlertCircle,
   Building2, TrendingUp, Star, Filter, Search
 } from "lucide-react";
-
+import api from "../services/api";
 interface JobCircular {
   id: number;
   title: string;
@@ -56,188 +56,34 @@ export function CircularApply() {
   const [showApplicationModal, setShowApplicationModal] = useState(false);
   const [applicationStep, setApplicationStep] = useState(1);
 
-  const circulars: JobCircular[] = [
-    {
-      id: 1,
-      title: "Operations Executive",
-      department: "Operations",
-      location: "Gulshan, Dhaka",
-      type: 'Full-time',
-      experience: "5-7 years",
-      salary: "৳120,000 - ৳150,000",
-      deadline: "2026-06-15",
-      posted: "2026-05-20",
-      openings: 2,
-      description: "We're looking for an experienced Operations Executive to improve day-to-day HR service delivery and office operations.",
-      requirements: [
-        "Bachelor's degree in Computer Science, Business, or related field",
-        "5+ years of operations or HR operations experience",
-        "Strong analytical and problem-solving skills",
-        "Experience coordinating cross-functional business workflows",
-        "Excellent communication and leadership skills"
-      ],
-      responsibilities: [
-        "Coordinate office operations and HR service workflows",
-        "Work closely with HR, finance, and administration teams",
-        "Monitor process quality and operational performance",
-        "Maintain vendor, asset, and employee service records",
-        "Prepare weekly operations reports"
-      ],
-      benefits: [
-        "Competitive salary and festival bonus",
-        "Health insurance",
-        "Provident fund",
-        "Flexible work arrangements",
-        "Professional development budget"
-      ],
-      status: 'open',
-      applied: false
-    },
-    {
-      id: 2,
-      title: "Software Engineer",
-      department: "Information Technology",
-      location: "Banani, Dhaka",
-      type: 'Full-time',
-      experience: "3-5 years",
-      salary: "৳90,000 - ৳120,000",
-      deadline: "2026-06-10",
-      posted: "2026-05-18",
-      openings: 1,
-      description: "Join our technology team to build reliable HR and employee self-service features.",
-      requirements: [
-        "3+ years of software engineering experience",
-        "Strong React and Node.js fundamentals",
-        "Experience with REST APIs and relational databases",
-        "Understanding of secure application development",
-        "Strong debugging and communication skills"
-      ],
-      responsibilities: [
-        "Build and maintain web application features",
-        "Integrate frontend components with backend APIs",
-        "Write clean, maintainable application code",
-        "Collaborate with HR and operations stakeholders",
-        "Support production issue investigation"
-      ],
-      benefits: [
-        "Competitive compensation package",
-        "Health and wellness benefits",
-        "Hybrid work flexibility",
-        "Learning and development opportunities",
-        "Modern design tools and equipment"
-      ],
-      status: 'closing-soon',
-      applied: true
-    },
-    {
-      id: 3,
-      title: "Accounts Officer",
-      department: "Finance",
-      location: "Dhanmondi, Dhaka",
-      type: 'Full-time',
-      experience: "4-6 years",
-      salary: "৳110,000 - ৳140,000",
-      deadline: "2026-06-20",
-      posted: "2026-05-22",
-      openings: 3,
-      description: "We're seeking an Accounts Officer to support payroll, reimbursements, and monthly finance reporting.",
-      requirements: [
-        "Bachelor's or Master's degree in Accounting, Finance, or related field",
-        "4+ years of finance or accounts experience",
-        "Strong skills in Excel and accounting workflows",
-        "Experience with payroll or reimbursement processing",
-        "Excellent documentation and communication skills"
-      ],
-      responsibilities: [
-        "Prepare monthly payroll and expense summaries",
-        "Verify reimbursement and vendor payment records",
-        "Collaborate with HR and administration teams",
-        "Prepare financial reports for management",
-        "Maintain accurate finance documentation"
-      ],
-      benefits: [
-        "Competitive salary and festival bonuses",
-        "Hybrid work option",
-        "Comprehensive health benefits",
-        "Provident fund",
-        "Conference and training budget"
-      ],
-      status: 'open',
-      applied: false
-    },
-    {
-      id: 4,
-      title: "Junior Software Engineer",
-      department: "Information Technology",
-      location: "Bashundhara, Dhaka",
-      type: 'Full-time',
-      experience: "3-5 years",
-      salary: "৳100,000 - ৳130,000",
-      deadline: "2026-06-08",
-      posted: "2026-05-15",
-      openings: 2,
-      description: "Join our infrastructure team to build and maintain reliable, scalable cloud infrastructure.",
-      requirements: [
-        "Bachelor's degree in Computer Science or related field",
-        "3+ years of DevOps/SRE experience",
-        "Experience with AWS, Azure, or GCP",
-        "Strong knowledge of CI/CD practices",
-        "Proficiency in scripting languages"
-      ],
-      responsibilities: [
-        "Design and maintain cloud infrastructure",
-        "Implement CI/CD pipelines",
-        "Monitor system performance and reliability",
-        "Automate deployment and operations",
-        "Ensure security and compliance"
-      ],
-      benefits: [
-        "Competitive compensation",
-        "Health insurance and provident fund",
-        "Work-from-home flexibility",
-        "Professional certifications support",
-        "Latest DevOps tools and technologies"
-      ],
-      status: 'closing-soon',
-      applied: false
-    },
-    {
-      id: 5,
-      title: "Marketing Manager",
-      department: "Marketing",
-      location: "Chattogram Regional Office",
-      type: 'Full-time',
-      experience: "5-8 years",
-      salary: "৳95,000 - ৳125,000",
-      deadline: "2026-06-05",
-      posted: "2026-05-10",
-      openings: 1,
-      description: "Lead our marketing initiatives and drive brand awareness and customer acquisition.",
-      requirements: [
-        "Bachelor's degree in Marketing or related field",
-        "5+ years of marketing experience",
-        "Proven track record in digital marketing",
-        "Strong analytical and creative skills",
-        "Experience managing marketing teams"
-      ],
-      responsibilities: [
-        "Develop and execute marketing strategies",
-        "Manage marketing campaigns across channels",
-        "Analyze campaign performance and ROI",
-        "Lead and mentor marketing team",
-        "Collaborate with sales and product teams"
-      ],
-      benefits: [
-        "Competitive salary and performance bonuses",
-        "Comprehensive benefits package",
-        "Flexible schedule",
-        "Marketing tools and resources",
-        "Career growth opportunities"
-      ],
-      status: 'closing-soon',
-      applied: false
-    }
-  ];
+  const [circulars, setCirculars] = useState<JobCircular[]>([]);
+  const [applicationMessage, setApplicationMessage] = useState("");
+  const [applicationForm, setApplicationForm] = useState({ firstName: "", lastName: "", email: "", phone: "", experienceYears: "0", coverLetter: "", cv: null as File | null });
+
+  useEffect(() => {
+    api.get("/jobs/public")
+      .then((response) => {
+        setCirculars((response.data.circulars || []).map((job: any) => ({
+          id: job.id,
+          title: job.title,
+          department: job.department,
+          location: job.location,
+          type: job.employmentType || job.jobType || "Full-time",
+          experience: job.experience || "Not specified",
+          salary: job.salaryRange || "Not specified",
+          deadline: job.deadline || "",
+          posted: job.createdAt || "",
+          openings: Number(job.openings || 1),
+          description: job.description || "",
+          requirements: job.requirements || [],
+          responsibilities: job.responsibilities || [],
+          benefits: job.benefits || [],
+          status: job.status === "published" ? "open" : "closed",
+          applied: false,
+        })));
+      })
+      .catch(() => setCirculars([]));
+  }, []);
 
   const filteredCirculars = circulars
     .filter(c => {
@@ -271,10 +117,31 @@ export function CircularApply() {
     setApplicationStep(1);
   };
 
-  const submitApplication = () => {
-    setShowApplicationModal(false);
-    setApplicationStep(1);
-    // Handle application submission
+  const submitApplication = async () => {
+    if (!selectedCircular) return;
+
+    const formData = new FormData();
+    formData.append("name", `${applicationForm.firstName} ${applicationForm.lastName}`.trim());
+    formData.append("email", applicationForm.email);
+    formData.append("phone", applicationForm.phone);
+    formData.append("experienceYears", applicationForm.experienceYears);
+    formData.append("coverLetter", applicationForm.coverLetter);
+    if (applicationForm.cv) {
+      formData.append("cv", applicationForm.cv);
+    }
+
+    try {
+      await api.post(`/jobs/public/${selectedCircular.id}/apply`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setCirculars((current) => current.map((job) => job.id === selectedCircular.id ? { ...job, applied: true } : job));
+      setSelectedCircular({ ...selectedCircular, applied: true });
+      setApplicationMessage("Application submitted successfully.");
+      setShowApplicationModal(false);
+      setApplicationStep(1);
+    } catch (error: any) {
+      setApplicationMessage(error.response?.data?.message || "Unable to submit application.");
+    }
   };
 
   return (
@@ -286,6 +153,12 @@ export function CircularApply() {
           Explore internal job opportunities and apply for positions
         </p>
       </div>
+
+      {applicationMessage && (
+        <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-foreground">
+          {applicationMessage}
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -599,6 +472,8 @@ export function CircularApply() {
                     </label>
                     <input
                       type="text"
+                      value={applicationForm.firstName}
+                      onChange={(event) => setApplicationForm({ ...applicationForm, firstName: event.target.value })}
                       placeholder="Tanvir"
                       className="w-full px-3 py-2 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                       required
@@ -610,6 +485,8 @@ export function CircularApply() {
                     </label>
                     <input
                       type="text"
+                      value={applicationForm.lastName}
+                      onChange={(event) => setApplicationForm({ ...applicationForm, lastName: event.target.value })}
                       placeholder="Hasan"
                       className="w-full px-3 py-2 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                       required
@@ -623,6 +500,8 @@ export function CircularApply() {
                   </label>
                   <input
                     type="email"
+                    value={applicationForm.email}
+                    onChange={(event) => setApplicationForm({ ...applicationForm, email: event.target.value })}
                     placeholder="tanvir.hasan@example.com"
                     className="w-full px-3 py-2 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     required
@@ -635,6 +514,8 @@ export function CircularApply() {
                   </label>
                   <input
                     type="tel"
+                    value={applicationForm.phone}
+                    onChange={(event) => setApplicationForm({ ...applicationForm, phone: event.target.value })}
                     placeholder="+8801712345678"
                     className="w-full px-3 py-2 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     required
@@ -659,6 +540,8 @@ export function CircularApply() {
                       Years of Experience <span className="text-red-500">*</span>
                     </label>
                     <select
+                      value={applicationForm.experienceYears}
+                      onChange={(event) => setApplicationForm({ ...applicationForm, experienceYears: event.target.value })}
                       className="w-full px-3 py-2 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                       required
                     >
@@ -735,6 +618,8 @@ export function CircularApply() {
                     Cover Letter <span className="text-red-500">*</span>
                   </label>
                   <textarea
+                    value={applicationForm.coverLetter}
+                    onChange={(event) => setApplicationForm({ ...applicationForm, coverLetter: event.target.value })}
                     placeholder="Why are you interested in this position?"
                     rows={6}
                     className="w-full px-3 py-2 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
@@ -747,6 +632,12 @@ export function CircularApply() {
                     Resume/CV <span className="text-red-500">*</span>
                   </label>
                   <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:bg-accent transition-colors cursor-pointer">
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx"
+                      onChange={(event) => setApplicationForm({ ...applicationForm, cv: event.target.files?.[0] || null })}
+                      className="mb-3 text-sm"
+                    />
                     <FileText className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
                     <p className="text-sm text-muted-foreground mb-1">Click to upload or drag and drop</p>
                     <p className="text-xs text-muted-foreground">PDF, DOC, DOCX (Max 5MB)</p>

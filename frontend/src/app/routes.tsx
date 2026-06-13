@@ -3,6 +3,7 @@ import type { ReactElement } from "react";
 import { Layout } from "./components/layout/Layout";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { useAuth } from "./contexts/AuthContext";
+import { LandingPage } from "./pages/LandingPage";
 import { Features } from "./pages/Features";
 import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
@@ -34,6 +35,7 @@ import { NewTask } from "./pages/NewTask";
 import { ProjectReports } from "./pages/ProjectReports";
 import { ProjectHistory } from "./pages/ProjectHistory";
 import { DesignWBS } from "./pages/DesignWBS";
+import { JobCirculars } from "./pages/JobCirculars";
 
 type UserRole = "admin" | "hr_manager" | "project_manager" | "employee";
 
@@ -84,7 +86,7 @@ function ForumRoute({ children }: { children: ReactElement }) {
 export const router = createBrowserRouter([
   {
     path: "/",
-    element: <Navigate to="/login" replace />,
+    Component: LandingPage,
   },
   {
     path: "/features",
@@ -126,6 +128,7 @@ export const router = createBrowserRouter([
           { path: "peer-review", element: <RoleRoute allowed={adminHr}><PeerReview /></RoleRoute> },
           { path: "my-peer-review", element: <RoleRoute allowed={["employee"]}><EmployeePeerReview /></RoleRoute> },
           { path: "cv-filter", element: <RoleRoute allowed={adminHr}><CVFilter /></RoleRoute> },
+          { path: "job-circulars", element: <RoleRoute allowed={["admin"]}><JobCirculars /></RoleRoute> },
           { path: "circular-apply", element: <RoleRoute allowed={["employee"]}><CircularApply /></RoleRoute> },
           { path: "project-management", element: <RoleRoute allowed={projectManagers}><ProjectManagement /></RoleRoute> },
           { path: "new-task", element: <RoleRoute allowed={projectManagers}><NewTask /></RoleRoute> },

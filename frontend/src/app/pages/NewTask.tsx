@@ -21,36 +21,30 @@ export function NewTask() {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    assignee: '',
+    assignedTo: '',
     assigneeRole: '',
     deadline: '',
     priority: 'medium' as TaskPriority,
     status: 'todo' as TaskStatus,
-    project: 'Website Redesign',
+    project: '',
     tags: [] as string[],
     estimatedHours: ''
   });
 
   const [tagInput, setTagInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const fallbackEmployees: Employee[] = [
-    { id: 1, name: "Sarah Johnson", role: "Frontend Developer", avatar: "SJ" },
-    { id: 2, name: "Michael Chen", role: "Backend Developer", avatar: "MC" },
-    { id: 3, name: "Emily Rodriguez", role: "UI/UX Designer", avatar: "ER" },
-    { id: 4, name: "David Kim", role: "Full Stack Developer", avatar: "DK" },
-    { id: 5, name: "Jessica Martinez", role: "QA Engineer", avatar: "JM" }
-  ];
-  const [employees, setEmployees] = useState<Employee[]>(fallbackEmployees);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [projects, setProjects] = useState<string[]>([]);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     let isMounted = true;
 
     api.get("/employees")
       .then((response) => {
-        if (!isMounted || !response.data.employees?.length) return;
+        if (!isMounted) return;
 
-        setEmployees(response.data.employees.map((employee: any) => ({
+        setEmployees((response.data.employees || []).map((employee: any) => ({
           id: employee.id,
           name: employee.name,
           role: employee.position || employee.department || "Team Member",
@@ -62,14 +56,23 @@ export function NewTask() {
             .toUpperCase(),
         })));
       })
-      .catch(() => {});
+      .catch(() => {
+        if (isMounted) setLoadError("Unable to load employees.");
+      });
+
+    api.get("/projects")
+      .then((response) => {
+        if (!isMounted) return;
+        setProjects((response.data.projects || []).map((project: any) => project.name).filter(Boolean));
+      })
+      .catch(() => {
+        if (isMounted) setLoadError("Unable to load projects.");
+      });
 
     return () => {
       isMounted = false;
     };
   }, []);
-
-  const projects = ['Website Redesign', 'User Portal', 'Mobile App', 'API Integration'];
 
   const handleAddTag = () => {
     if (tagInput.trim() && !formData.tags.includes(tagInput.trim())) {
@@ -92,23 +95,24 @@ export function NewTask() {
     e.preventDefault();
     setIsSubmitting(true);
 
-    const assignee = employees.find((employee) => employee.name === formData.assignee);
-
-    await api.post("/projects/tasks", {
-      title: formData.title,
-      description: formData.description,
-      status: formData.status,
-      priority: formData.priority,
-      assignee: formData.assignee,
-      assigneeAvatar: assignee?.avatar || formData.assignee.slice(0, 2).toUpperCase(),
-      deadline: formData.deadline,
-      project: formData.project,
-      tags: formData.tags,
-      estimatedHours: formData.estimatedHours,
-    });
-    setIsSubmitting(false);
-
-    navigate('/dashboard/project-management');
+    try {
+      await api.post("/projects/tasks", {
+        title: formData.title,
+        description: formData.description,
+        status: formData.status,
+        priority: formData.priority,
+        assignedTo: Number(formData.assignedTo),
+        deadline: formData.deadline,
+        project: formData.project,
+        tags: formData.tags,
+        estimatedHours: formData.estimatedHours,
+      });
+      navigate('/dashboard/project-management');
+    } catch (error: any) {
+      setLoadError(error.response?.data?.message || "Unable to create task.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const getPriorityColor = (priority: TaskPriority) => {
@@ -137,6 +141,12 @@ export function NewTask() {
           </p>
         </div>
       </div>
+
+      {loadError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">
+          {loadError}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Form */}
@@ -187,7 +197,9 @@ export function NewTask() {
                   value={formData.project}
                   onChange={(e) => setFormData({ ...formData, project: e.target.value })}
                   className="w-full px-4 py-3 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  required
                 >
+                  <option value="">Select project...</option>
                   {projects.map(project => (
                     <option key={project} value={project}>{project}</option>
                   ))}
@@ -221,12 +233,12 @@ export function NewTask() {
                   <span className="text-red-500">*</span>
                 </label>
                 <select
-                  value={formData.assignee}
+                  value={formData.assignedTo}
                   onChange={(e) => {
-                    const employee = employees.find(emp => emp.name === e.target.value);
+                    const employee = employees.find(emp => String(emp.id) === e.target.value);
                     setFormData({
                       ...formData,
-                      assignee: e.target.value,
+                      assignedTo: e.target.value,
                       assigneeRole: employee?.role || ''
                     });
                   }}
@@ -235,7 +247,7 @@ export function NewTask() {
                 >
                   <option value="">Select team member...</option>
                   {employees.map(emp => (
-                    <option key={emp.id} value={emp.name}>
+                    <option key={emp.id} value={emp.id}>
                       {emp.name} - {emp.role}
                     </option>
                   ))}

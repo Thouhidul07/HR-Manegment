@@ -59,107 +59,12 @@ const emptyExpenseForm = (): ExpenseFormState => ({
   receipt: null,
 });
 
-const fallbackExpenseClaims = [
-  {
-    id: 1,
-    employee: "Tanvir Hasan",
-    avatar: "TH",
-    type: "Travel",
-    amount: 4500,
-    date: "Apr 2, 2026",
-    status: "Pending",
-    description: "Client meeting in Gulshan, Dhaka",
-  },
-  {
-    id: 2,
-    employee: "Nusrat Jahan",
-    avatar: "NJ",
-    type: "Meals",
-    amount: 850,
-    date: "Apr 1, 2026",
-    status: "Approved",
-    description: "Team lunch",
-  },
-  {
-    id: 3,
-    employee: "Rakibul Islam",
-    avatar: "RI",
-    type: "Accommodation",
-    amount: 3200,
-    date: "Mar 30, 2026",
-    status: "Pending",
-    description: "Hotel stay - Chattogram visit",
-  },
-  {
-    id: 4,
-    employee: "Farhana Akter",
-    avatar: "FA",
-    type: "Office Supplies",
-    amount: 1250,
-    date: "Mar 29, 2026",
-    status: "Approved",
-    description: "Office equipment",
-  },
-  {
-    id: 5,
-    employee: "Mehedi Hasan",
-    avatar: "MH",
-    type: "Travel",
-    amount: 6800,
-    date: "Mar 28, 2026",
-    status: "Rejected",
-    description: "Training visit to Sylhet",
-  },
-  {
-    id: 6,
-    employee: "Sadia Rahman",
-    avatar: "SR",
-    type: "Training",
-    amount: 12000,
-    date: "Mar 27, 2026",
-    status: "Approved",
-    description: "Professional certification",
-  },
-];
-
-const expenseByCategory = [
-  { name: "Travel", value: 24500, color: "var(--chart-1)" },
-  { name: "Meals", value: 8500, color: "var(--chart-2)" },
-  { name: "Accommodation", value: 12000, color: "var(--chart-3)" },
-  { name: "Training", value: 32000, color: "var(--chart-4)" },
-  { name: "Office Supplies", value: 6800, color: "var(--chart-5)" },
-];
-
-const recentActivity = [
-  {
-    id: 1,
-    action: "Expense approved",
-    employee: "Nusrat Jahan",
-    amount: 850,
-    time: "2 hours ago",
-  },
-  {
-    id: 2,
-    action: "New expense submitted",
-    employee: "Tanvir Hasan",
-    amount: 4500,
-    time: "4 hours ago",
-  },
-  {
-    id: 3,
-    action: "Expense rejected",
-    employee: "Mehedi Hasan",
-    amount: 6800,
-    time: "1 day ago",
-  },
-];
-
 export function Expense() {
   const { user } = useAuth();
   const [expenseClaims, setExpenseClaims] =
-    useState<ExpenseClaim[]>(fallbackExpenseClaims);
+    useState<ExpenseClaim[]>([]);
   const [activityList, setActivityList] =
-    useState<ExpenseActivity[]>(recentActivity);
+    useState<ExpenseActivity[]>([]);
   const [activeFilter, setActiveFilter] = useState("All");
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [expenseForm, setExpenseForm] =
@@ -182,8 +87,16 @@ export function Expense() {
 
     if (response.data.expenses?.length) {
       setExpenseClaims(response.data.expenses);
+      setActivityList(response.data.expenses.slice(0, 5).map((claim: ExpenseClaim) => ({
+        id: claim.id,
+        action: `Expense ${claim.status.toLowerCase()}`,
+        employee: claim.employee,
+        amount: claim.amount,
+        time: claim.date,
+      })));
     } else {
       setExpenseClaims([]);
+      setActivityList([]);
     }
   }, []);
 
@@ -221,8 +134,7 @@ export function Expense() {
         employee: user?.name || "Employee User",
       }))
     : activityList;
-  const displayExpenseByCategory = isEmployee
-    ? visibleClaims.reduce(
+  const displayExpenseByCategory = visibleClaims.reduce(
         (categories, claim, index) => {
           const existing = categories.find(
             (category) => category.name === claim.type,
@@ -239,9 +151,8 @@ export function Expense() {
           });
           return categories;
         },
-        [] as typeof expenseByCategory,
-      )
-    : expenseByCategory;
+        [] as Array<{ name: string; value: number; color: string }>,
+      );
   const totalClaims = visibleClaims.reduce(
     (sum, claim) => sum + claim.amount,
     0,

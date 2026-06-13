@@ -61,20 +61,21 @@ Demo logins from `backend/database/hrspace_xampp.sql`:
 
 - Project Manager
   Email: `pm01@nexoratech.com`
-  Password: `Pm@1234`
+  Password: `ProjectMgr@123`
 
 Demo company scope:
 
 - Company: `NexoraTech Ltd`
 - Domain: `nexoratech.com`
-- Seeded users: 1 Admin / CEO, 2 HR Managers, 8 Employees.
+- Seeded users: 1 Admin / CEO, 2 HR Managers, 1 Project Manager, and 14 Employees.
 - Admin user title: Chief Executive Officer.
+- Project Manager seed user: Project Manager 01.
 
 ## Role Access Model
 
 The XAMPP database seed includes role-based access control tables:
 
-- `roles` - Admin / CEO, HR Manager, Employee.
+- `roles` - Admin / CEO, HR Manager, Project Manager, Employee.
 - `permissions` - Module actions such as `employees.view_all`, `leave.approve`, and `payroll.view_self`.
 - `role_permissions` - Maps each role to allowed permissions.
 - `access_requests` - Lets limited users request extra permissions for admin/HR review.
@@ -83,8 +84,16 @@ Default access:
 
 - Admin / CEO has every permission across every module and is the company authority role.
 - Admin / CEO approves or rejects public account registrations from `Account Approvals`.
-- HR Manager can manage HR operations, employees, attendance, leave approvals, training, performance, expenses, forum moderation, and reports.
-- Employee can only access self-service actions like own profile, own attendance, own leave requests, own payroll, own expenses, own training, own performance, and forum posting.
+- HR Manager can manage HR operations, employees, onboarding/offboarding, attendance, leave approvals, payroll, training, performance, expenses, forum moderation, peer review analytics, CV filtration, and reports.
+- Project Manager can manage project-focused workflows including Project Management, Project Tasks, Project Reports, Project History, Design WBS, team member visibility, attendance overview, performance reports, and forum access.
+- Employee can access self-service actions like own profile, own attendance, own leave requests, own tasks, own payslips, own expenses, own training, own performance, peer reviews, job circular applications, and forum posting.
+
+## Role-Based Navigation Summary
+
+- Admin sidebar includes dashboard, account approvals, users and teams, onboarding/offboarding, attendance and time, leave management, task management, performance overview, roles/permissions/audit, forum moderation, payroll, expenses, training, peer review analytics, CV filtration, and job circulars.
+- HR Manager sidebar includes HR operations such as employee management, onboarding/offboarding, attendance, leave, tasks, payroll, expenses, training, performance, forum moderation, peer review analytics, and CV filtration.
+- Project Manager sidebar includes project management, project tasks, project reports, project history, Design WBS, team members, attendance and time, performance reports, and forum.
+- Employee sidebar includes self-service modules such as attendance, leave, tasks, training, expenses, payslips, performance, peer reviews, circular apply, and forum.
 
 ## Seeded Demo Coverage
 
@@ -94,5 +103,7 @@ Default access:
 - Payroll records and employee payslips.
 - Training sessions, enrollments, progress, certificates, course materials UI support.
 - Leave requests, expenses, tasks, notifications, forum posts/replies/reactions, peer reviews, performance reviews, CV candidates, and project/task demo data.
+
+The seeded project/task data should be linked to real users from the MySQL `users` table and should not rely on frontend hardcoded mock people.
 
 After editing backend code or re-importing SQL, restart the backend server before checking the frontend.

@@ -17,6 +17,22 @@ function auditFromRequest(req, action, entityType, entityId, description, metada
   });
 }
 
+async function columnExists(table, column) {
+  const [rows] = await query(
+    `SELECT COLUMN_NAME
+     FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+    [table, column]
+  );
+  return rows.length > 0;
+}
+
+async function addColumnIfMissing(table, column, definition) {
+  if (!(await columnExists(table, column))) {
+    await query(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+
 async function ensureProjectTasksTable() {
   await query(`
     CREATE TABLE IF NOT EXISTS project_tasks (
@@ -25,6 +41,7 @@ async function ensureProjectTasksTable() {
       description TEXT NOT NULL,
       status ENUM('todo', 'in-progress', 'in-review', 'completed') NOT NULL DEFAULT 'todo',
       priority ENUM('low', 'medium', 'high', 'urgent') NOT NULL DEFAULT 'medium',
+      assigned_to INT,
       assignee VARCHAR(120) NOT NULL,
       assignee_avatar VARCHAR(8),
       deadline DATE NOT NULL,
@@ -34,8 +51,16 @@ async function ensureProjectTasksTable() {
       comments INT NOT NULL DEFAULT 0,
       attachments INT NOT NULL DEFAULT 0,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL
     )
+  `);
+  await addColumnIfMissing("project_tasks", "assigned_to", "INT NULL");
+  await query(`
+    UPDATE project_tasks pt
+    JOIN users u ON u.name = pt.assignee
+    SET pt.assigned_to = u.id
+    WHERE pt.assigned_to IS NULL
   `);
 }
 
@@ -119,31 +144,7 @@ async function seedProjectsFromTasks() {
 }
 
 async function seedProjectTasksIfEmpty() {
-  const [[countRow]] = await query("SELECT COUNT(*) AS total FROM project_tasks");
-
-  if (Number(countRow.total) > 0) {
-    return;
-  }
-
-  const seedTasks = [
-    ["Design Homepage Mockup", "Create high-fidelity mockups for the new homepage design", "in-progress", "high", "Emily Rodriguez", "ER", "2026-06-05", "Website Redesign", ["Design", "UI/UX"], null, 3, 2],
-    ["Implement Authentication API", "Build JWT-based authentication endpoints with refresh token support", "in-progress", "urgent", "Michael Chen", "MC", "2026-06-03", "User Portal", ["Backend", "Security"], null, 5, 1],
-    ["Create Component Library", "Build reusable React components following design system", "todo", "medium", "Sarah Johnson", "SJ", "2026-06-10", "Website Redesign", ["Frontend", "React"], null, 1, 0],
-    ["Database Schema Migration", "Update database schema for new user role permissions", "in-review", "high", "David Kim", "DK", "2026-06-02", "User Portal", ["Database", "Backend"], null, 2, 1],
-    ["E2E Testing Suite", "Set up end-to-end testing with Cypress for critical user flows", "todo", "medium", "Jessica Martinez", "JM", "2026-06-12", "User Portal", ["Testing", "QA"], null, 0, 0],
-    ["Landing Page Optimization", "Improve performance and SEO for landing page", "completed", "low", "Sarah Johnson", "SJ", "2026-05-30", "Website Redesign", ["Frontend", "Performance"], null, 4, 3],
-    ["Mobile Responsive Design", "Ensure all pages are mobile-friendly and responsive", "in-progress", "high", "Emily Rodriguez", "ER", "2026-06-07", "Website Redesign", ["Design", "Mobile"], null, 2, 1],
-    ["API Documentation", "Write comprehensive API documentation with examples", "todo", "low", "Michael Chen", "MC", "2026-06-15", "User Portal", ["Documentation", "Backend"], null, 0, 0],
-  ];
-
-  for (const task of seedTasks) {
-    await query(
-      `INSERT INTO project_tasks
-        (title, description, status, priority, assignee, assignee_avatar, deadline, project, tags, estimated_hours, comments, attachments)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [task[0], task[1], task[2], task[3], task[4], task[5], task[6], task[7], JSON.stringify(task[8]), task[9], task[10], task[11]]
-    );
-  }
+  return;
 }
 
 function initials(name) {
@@ -156,14 +157,16 @@ function initials(name) {
 }
 
 function mapTask(row) {
+  const assignee = row.assignee_name || row.assignee || "Unassigned";
   return {
     id: row.id,
     title: row.title,
     description: row.description,
     status: row.status,
     priority: row.priority,
-    assignee: row.assignee,
-    assigneeAvatar: row.assignee_avatar || initials(row.assignee),
+    assignedTo: row.assigned_to || null,
+    assignee,
+    assigneeAvatar: row.assignee_avatar || (assignee === "Unassigned" ? "" : initials(assignee)),
     deadline: row.deadline,
     createdDate: row.created_at,
     tags: row.tags ? JSON.parse(row.tags) : [],
@@ -192,7 +195,6 @@ function mapProject(row) {
 
 const listProjects = asyncHandler(async (req, res) => {
   await ensureProjectTasksTable();
-  await seedProjectTasksIfEmpty();
   await seedProjectsFromTasks();
 
   const [projects] = await query(
@@ -291,8 +293,12 @@ const deleteProject = asyncHandler(async (req, res) => {
 
 const listTasks = asyncHandler(async (req, res) => {
   await ensureProjectTasksTable();
-  await seedProjectTasksIfEmpty();
-  const [tasks] = await query("SELECT * FROM project_tasks ORDER BY created_at DESC");
+  const [tasks] = await query(`
+    SELECT pt.*, u.name AS assignee_name
+    FROM project_tasks pt
+    LEFT JOIN users u ON u.id = pt.assigned_to
+    ORDER BY pt.created_at DESC
+  `);
   res.json({ tasks: tasks.map(mapTask) });
 });
 
@@ -329,7 +335,6 @@ const getProjectStats = asyncHandler(async (req, res) => {
 
 const getAdminOverview = asyncHandler(async (req, res) => {
   await ensureProjectTasksTable();
-  await seedProjectTasksIfEmpty();
   await seedProjectsFromTasks();
 
   const [[projectCounts], [overdueRows], [activityRows], [managerRows]] = await Promise.all([
@@ -460,17 +465,29 @@ const deleteWBS = asyncHandler(async (req, res) => {
 
 const createTask = asyncHandler(async (req, res) => {
   await ensureProjectTasksTable();
-  const assigneeAvatar = req.body.assigneeAvatar || initials(req.body.assignee);
+  const assignedTo = req.body.assignedTo || req.body.assigned_to;
+  if (!assignedTo) {
+    return res.status(400).json({ message: "A real assignee user is required" });
+  }
+
+  const [users] = await query("SELECT id, name FROM users WHERE id = ? AND status IN ('active', 'inactive')", [assignedTo]);
+  if (!users.length) {
+    return res.status(400).json({ message: "Assigned user not found" });
+  }
+
+  const assignee = users[0].name;
+  const assigneeAvatar = initials(assignee);
   const [result] = await query(
     `INSERT INTO project_tasks
-      (title, description, status, priority, assignee, assignee_avatar, deadline, project, tags, estimated_hours)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (title, description, status, priority, assigned_to, assignee, assignee_avatar, deadline, project, tags, estimated_hours)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       req.body.title,
       req.body.description,
       req.body.status,
       req.body.priority,
-      req.body.assignee,
+      assignedTo,
+      assignee,
       assigneeAvatar,
       req.body.deadline,
       req.body.project,
@@ -479,7 +496,12 @@ const createTask = asyncHandler(async (req, res) => {
     ]
   );
 
-  const [rows] = await query("SELECT * FROM project_tasks WHERE id = ?", [result.insertId]);
+  const [rows] = await query(`
+    SELECT pt.*, u.name AS assignee_name
+    FROM project_tasks pt
+    LEFT JOIN users u ON u.id = pt.assigned_to
+    WHERE pt.id = ?
+  `, [result.insertId]);
   await auditFromRequest(req, "project_task_created", "project_task", result.insertId, "Created project task " + req.body.title, { project: req.body.project });
   res.status(201).json({ task: mapTask(rows[0]) });
 });
@@ -493,8 +515,6 @@ const updateTask = asyncHandler(async (req, res) => {
     description: "description",
     status: "status",
     priority: "priority",
-    assignee: "assignee",
-    assigneeAvatar: "assignee_avatar",
     deadline: "deadline",
     project: "project",
     estimatedHours: "estimated_hours",
@@ -505,6 +525,16 @@ const updateTask = asyncHandler(async (req, res) => {
       fields.push(`${column} = ?`);
       params.push(req.body[bodyKey] || null);
     }
+  }
+
+  const assignedTo = req.body.assignedTo || req.body.assigned_to;
+  if (assignedTo !== undefined) {
+    const [users] = await query("SELECT id, name FROM users WHERE id = ? AND status IN ('active', 'inactive')", [assignedTo]);
+    if (!users.length) {
+      return res.status(400).json({ message: "Assigned user not found" });
+    }
+    fields.push("assigned_to = ?", "assignee = ?", "assignee_avatar = ?");
+    params.push(users[0].id, users[0].name, initials(users[0].name));
   }
 
   if (req.body.tags !== undefined) {
@@ -523,7 +553,12 @@ const updateTask = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: "Task not found" });
   }
 
-  const [rows] = await query("SELECT * FROM project_tasks WHERE id = ?", [req.params.id]);
+  const [rows] = await query(`
+    SELECT pt.*, u.name AS assignee_name
+    FROM project_tasks pt
+    LEFT JOIN users u ON u.id = pt.assigned_to
+    WHERE pt.id = ?
+  `, [req.params.id]);
   await auditFromRequest(req, "project_task_updated", "project_task", req.params.id, "Updated project task " + rows[0].title, { fields: Object.keys(req.body) });
   res.json({ task: mapTask(rows[0]) });
 });

@@ -8,17 +8,17 @@ import * as Tabs from "@radix-ui/react-tabs";
 import api from "../services/api";
 import { formatCurrencyBDT } from "../utils/formatters";
 
-const fallbackEmployee = {
-  id: 1,
-  name: "Tanvir Hasan",
-  email: "tanvir.hasan@nexoratech.com",
-  phone: "+8801712345678",
-  department: "Information Technology",
-  designation: "Senior Software Engineer",
-  hire_date: "2024-03-01",
-  salary: 95000,
-  status: "active",
-  avatar: "TH",
+type EmployeeProfileRecord = {
+  id: number;
+  name: string;
+  email: string;
+  phone?: string;
+  department?: string;
+  designation?: string;
+  hire_date?: string | null;
+  salary?: number | string;
+  status?: string;
+  avatar?: string;
 };
 
 function initials(name: string, fallback?: string) {
@@ -38,7 +38,7 @@ function yearsSince(value?: string | null) {
 
 export function EmployeeProfile() {
   const { id } = useParams();
-  const [employee, setEmployee] = useState(fallbackEmployee);
+  const [employee, setEmployee] = useState<EmployeeProfileRecord | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -53,7 +53,7 @@ export function EmployeeProfile() {
       })
       .catch(() => {
         if (isMounted) {
-          setError("Unable to load employee profile. Showing demo profile.");
+          setError("Unable to load employee profile.");
         }
       });
 
@@ -71,8 +71,12 @@ export function EmployeeProfile() {
 
       {error && <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
 
+      {!employee && !error && <div className="text-sm text-muted-foreground">Loading employee profile...</div>}
+
+      {!employee && error && <div className="text-sm text-muted-foreground">No employee profile data is available.</div>}
+
       {/* Profile Header */}
-      <Card>
+      {employee && <Card>
         <CardContent className="p-8">
           <div className="flex flex-col md:flex-row gap-6">
             <div className="w-24 h-24 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-3xl flex-shrink-0">
@@ -103,10 +107,10 @@ export function EmployeeProfile() {
             </div>
           </div>
         </CardContent>
-      </Card>
+      </Card>}
 
       {/* Tabs */}
-      <Tabs.Root defaultValue="overview" className="w-full">
+      {employee && <Tabs.Root defaultValue="overview" className="w-full">
         <Tabs.List className="flex gap-1 border-b border-border mb-6">
           {["Overview", "Documents", "Performance", "Leave History", "Payroll"].map((tab) => (
             <Tabs.Trigger
@@ -288,7 +292,7 @@ export function EmployeeProfile() {
             </CardContent>
           </Card>
         </Tabs.Content>
-      </Tabs.Root>
+      </Tabs.Root>}
     </div>
   );
 }

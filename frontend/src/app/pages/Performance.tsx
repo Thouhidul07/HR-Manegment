@@ -70,6 +70,11 @@ type EmployeeOption = {
 };
 
 type SkillAssessmentView = "current" | "target" | "both";
+type ReviewCyclePhase = {
+  phase: string;
+  dueDate: string;
+  status: string;
+};
 
 const getDefaultReviewPeriod = () =>
   `Q${Math.ceil((new Date().getMonth() + 1) / 3)} ${new Date().getFullYear()}`;
@@ -91,111 +96,11 @@ const emptyFinalizeForm = () => ({
   feedback: "",
 });
 
-const fallbackPerformanceData = [
-  {
-    id: 1,
-    employee: "Tanvir Hasan",
-    avatar: "TH",
-    department: "Information Technology",
-    role: "Senior Software Engineer",
-    overall: 4.5,
-    technical: 4.8,
-    communication: 4.2,
-    leadership: 4.6,
-    status: "Excellent",
-  },
-  {
-    id: 2,
-    employee: "Nusrat Jahan",
-    avatar: "NJ",
-    department: "Marketing",
-    role: "Marketing Manager",
-    overall: 4.8,
-    technical: 4.5,
-    communication: 5.0,
-    leadership: 4.9,
-    status: "Outstanding",
-  },
-  {
-    id: 3,
-    employee: "Rakibul Islam",
-    avatar: "RI",
-    department: "Sales",
-    role: "Sales Executive",
-    overall: 3.8,
-    technical: 3.5,
-    communication: 4.2,
-    leadership: 3.7,
-    status: "Good",
-  },
-  {
-    id: 4,
-    employee: "Farhana Akter",
-    avatar: "FA",
-    department: "Human Resources",
-    role: "HR Specialist",
-    overall: 4.2,
-    technical: 4.0,
-    communication: 4.5,
-    leadership: 4.1,
-    status: "Excellent",
-  },
-];
-
-const skillsData = [
-  { skill: "Technical", current: 85, target: 90 },
-  { skill: "Communication", current: 75, target: 85 },
-  { skill: "Leadership", current: 70, target: 80 },
-  { skill: "Problem Solving", current: 80, target: 85 },
-  { skill: "Teamwork", current: 90, target: 95 },
-  { skill: "Time Management", current: 78, target: 85 },
-];
-
-const fallbackGoals = [
-  {
-    id: 1,
-    title: "Complete React Advanced Course",
-    progress: 75,
-    dueDate: "Apr 15, 2026",
-    status: "On Track",
-  },
-  {
-    id: 2,
-    title: "Lead 2 major projects",
-    progress: 50,
-    dueDate: "Jun 30, 2026",
-    status: "On Track",
-  },
-  {
-    id: 3,
-    title: "Mentor 3 junior developers",
-    progress: 33,
-    dueDate: "Dec 31, 2026",
-    status: "Behind",
-  },
-  {
-    id: 4,
-    title: "Improve code review quality",
-    progress: 90,
-    dueDate: "Mar 31, 2026",
-    status: "Ahead",
-  },
-];
-
-const reviewCycle = [
-  { phase: "Self Assessment", status: "Completed", dueDate: "Mar 15, 2026" },
-  { phase: "Manager Review", status: "In Progress", dueDate: "Mar 30, 2026" },
-  { phase: "Calibration", status: "Pending", dueDate: "Apr 10, 2026" },
-  { phase: "Final Review", status: "Pending", dueDate: "Apr 20, 2026" },
-];
-
 export function Performance() {
   const { user } = useAuth();
   const [reviewFilter, setReviewFilter] = useState<"All" | "Pending" | "Top Performers">("All");
-  const [performanceData, setPerformanceData] = useState<PerformanceRecord[]>(
-    fallbackPerformanceData,
-  );
-  const [goals, setGoals] = useState<GoalRecord[]>(fallbackGoals);
+  const [performanceData, setPerformanceData] = useState<PerformanceRecord[]>([]);
+  const [goals, setGoals] = useState<GoalRecord[]>([]);
   const [reviews, setReviews] = useState<PerformanceReview[]>([]);
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
   const [isStartModalOpen, setIsStartModalOpen] = useState(false);
@@ -344,12 +249,53 @@ export function Performance() {
   const reviewsPending = performanceData.filter((record) =>
     ["draft", "Pending", "Submitted"].includes(record.status),
   ).length;
-  const currentSkillAverage = Math.round(
-    skillsData.reduce((sum, skill) => sum + skill.current, 0) / skillsData.length,
-  );
-  const targetSkillAverage = Math.round(
-    skillsData.reduce((sum, skill) => sum + skill.target, 0) / skillsData.length,
-  );
+  const skillsData = reviews
+    .flatMap((review) => {
+      const reviewWithSkills = review as PerformanceReview & {
+        skills?: unknown[];
+        skillRatings?: unknown[];
+      };
+
+      return Array.isArray(reviewWithSkills.skills)
+        ? reviewWithSkills.skills
+        : Array.isArray(reviewWithSkills.skillRatings)
+          ? reviewWithSkills.skillRatings
+          : [];
+    })
+    .map((skill) => {
+      const skillRecord = skill as {
+        skill?: string;
+        name?: string;
+        rating?: number | string;
+        score?: number | string;
+        current?: number | string;
+        target?: number | string;
+      };
+      const current = Number(
+        skillRecord.current ?? skillRecord.rating ?? skillRecord.score ?? 0,
+      );
+      const target = Number(skillRecord.target ?? current);
+
+      return {
+        skill: skillRecord.skill || skillRecord.name || "Skill",
+        current,
+        target,
+      };
+    })
+    .filter((item) => item.current > 0 || item.target > 0);
+  const currentSkillAverage = skillsData.length
+    ? Math.round(
+        skillsData.reduce((sum, skill) => sum + skill.current, 0) /
+          skillsData.length,
+      )
+    : 0;
+  const targetSkillAverage = skillsData.length
+    ? Math.round(
+        skillsData.reduce((sum, skill) => sum + skill.target, 0) /
+          skillsData.length,
+      )
+    : 0;
+  const reviewCycle: ReviewCyclePhase[] | null = null;
 
   const filteredPerformanceData = useMemo(() => {
     if (reviewFilter === "Pending") {
@@ -651,52 +597,68 @@ export function Performance() {
             </div>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <RadarChart data={skillsData}>
-                <PolarGrid stroke="var(--border)" />
-                <PolarAngleAxis
-                  dataKey="skill"
-                  stroke="var(--muted-foreground)"
-                />
-                <PolarRadiusAxis
-                  angle={90}
-                  domain={[0, 100]}
-                  stroke="var(--muted-foreground)"
-                />
-                {(skillAssessmentView === "current" || skillAssessmentView === "both") && (
-                  <Radar
-                    name="Current"
-                    dataKey="current"
-                    stroke="var(--chart-1)"
-                    fill="var(--chart-1)"
-                    fillOpacity={0.3}
-                  />
-                )}
-                {(skillAssessmentView === "target" || skillAssessmentView === "both") && (
-                  <Radar
-                    name="Target"
-                    dataKey="target"
-                    stroke="var(--chart-2)"
-                    fill="var(--chart-2)"
-                    fillOpacity={0.2}
-                  />
-                )}
-              </RadarChart>
-            </ResponsiveContainer>
-            <div className="flex gap-4 justify-center mt-4">
-              {(skillAssessmentView === "current" || skillAssessmentView === "both") && (
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-[var(--chart-1)]"></div>
-                  <span className="text-xs text-muted-foreground">Current avg: {currentSkillAverage}%</span>
+            {skillsData.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No skills performance data found.
+              </p>
+            ) : (
+              <>
+                <ResponsiveContainer width="100%" height={300}>
+                  <RadarChart data={skillsData}>
+                    <PolarGrid stroke="var(--border)" />
+                    <PolarAngleAxis
+                      dataKey="skill"
+                      stroke="var(--muted-foreground)"
+                    />
+                    <PolarRadiusAxis
+                      angle={90}
+                      domain={[0, 100]}
+                      stroke="var(--muted-foreground)"
+                    />
+                    {(skillAssessmentView === "current" ||
+                      skillAssessmentView === "both") && (
+                      <Radar
+                        name="Current"
+                        dataKey="current"
+                        stroke="var(--chart-1)"
+                        fill="var(--chart-1)"
+                        fillOpacity={0.3}
+                      />
+                    )}
+                    {(skillAssessmentView === "target" ||
+                      skillAssessmentView === "both") && (
+                      <Radar
+                        name="Target"
+                        dataKey="target"
+                        stroke="var(--chart-2)"
+                        fill="var(--chart-2)"
+                        fillOpacity={0.2}
+                      />
+                    )}
+                  </RadarChart>
+                </ResponsiveContainer>
+                <div className="flex gap-4 justify-center mt-4">
+                  {(skillAssessmentView === "current" ||
+                    skillAssessmentView === "both") && (
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-[var(--chart-1)]"></div>
+                      <span className="text-xs text-muted-foreground">
+                        Current avg: {currentSkillAverage}%
+                      </span>
+                    </div>
+                  )}
+                  {(skillAssessmentView === "target" ||
+                    skillAssessmentView === "both") && (
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-[var(--chart-2)]"></div>
+                      <span className="text-xs text-muted-foreground">
+                        Target avg: {targetSkillAverage}%
+                      </span>
+                    </div>
+                  )}
                 </div>
-              )}
-              {(skillAssessmentView === "target" || skillAssessmentView === "both") && (
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-[var(--chart-2)]"></div>
-                  <span className="text-xs text-muted-foreground">Target avg: {targetSkillAverage}%</span>
-                </div>
-              )}
-            </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -759,8 +721,9 @@ export function Performance() {
           <CardTitle>Current Review Cycle</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-4 items-center">
-            {reviewCycle.map((phase, index) => (
+          {reviewCycle ? (
+            <div className="flex gap-4 items-center">
+              {reviewCycle.map((phase, index) => (
               <div key={phase.phase} className="flex-1">
                 <div className="relative">
                   <div
@@ -816,8 +779,13 @@ export function Performance() {
                   )}
                 </div>
               </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No active review cycle found.
+            </p>
+          )}
         </CardContent>
       </Card>
 
