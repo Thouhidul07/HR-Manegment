@@ -412,7 +412,6 @@ CREATE TABLE IF NOT EXISTS project_tasks (
   description TEXT NOT NULL,
   status ENUM('todo', 'in-progress', 'in-review', 'completed') NOT NULL DEFAULT 'todo',
   priority ENUM('low', 'medium', 'high', 'urgent') NOT NULL DEFAULT 'medium',
-  assigned_to INT,
   assignee VARCHAR(120) NOT NULL,
   assignee_avatar VARCHAR(8),
   deadline DATE NOT NULL,
@@ -422,8 +421,7 @@ CREATE TABLE IF NOT EXISTS project_tasks (
   comments INT NOT NULL DEFAULT 0,
   attachments INT NOT NULL DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS work_breakdown_structures (

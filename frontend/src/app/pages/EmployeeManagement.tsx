@@ -38,6 +38,20 @@ type EmployeeFormState = {
   status: EmployeeStatus;
 };
 
+const fallbackEmployees: Employee[] = [
+  { id: 1, name: "System Admin", email: "admin@nexoratech.com", phone: "+8801712345601", department: "System Administration", designation: "Administrator", status: "active", avatar: "SA", salary: 120000, hire_date: "2024-01-01" },
+  { id: 2, name: "HR Manager 01", email: "hr.manager01@nexoratech.com", phone: "+8801712345602", department: "Human Resources", designation: "Lead HR Manager", status: "active", avatar: "HM", salary: 96000, hire_date: "2024-02-01" },
+  { id: 3, name: "Employee 01", email: "employee01@nexoratech.com", phone: "+8801712345603", department: "Information Technology", designation: "Software Engineer", status: "active", avatar: "E0", salary: 75000, hire_date: "2024-03-01" },
+  { id: 4, name: "Employee 02", email: "employee02@nexoratech.com", phone: "+8801712345604", department: "Finance", designation: "Accounts Officer", status: "active", avatar: "E0", salary: 68000, hire_date: "2024-04-15" },
+  { id: 5, name: "Employee 03", email: "employee03@nexoratech.com", phone: "+8801712345605", department: "Marketing", designation: "Marketing Executive", status: "active", avatar: "E0", salary: 62000, hire_date: "2024-05-10" },
+  { id: 6, name: "HR Manager 02", email: "hr.manager02@nexoratech.com", phone: "+8801712345606", department: "Human Resources", designation: "HR Manager", status: "active", avatar: "HM", salary: 92000, hire_date: "2024-02-02" },
+  { id: 7, name: "Employee 04", email: "employee04@nexoratech.com", phone: "+8801812345004", department: "Sales", designation: "Sales Executive", status: "active", avatar: "E0", salary: 53000, hire_date: "2024-04-04" },
+  { id: 8, name: "Employee 05", email: "employee05@nexoratech.com", phone: "+8801812345005", department: "Operations", designation: "Operations Executive", status: "active", avatar: "E0", salary: 53750, hire_date: "2024-05-05" },
+  { id: 9, name: "Employee 06", email: "employee06@nexoratech.com", phone: "+8801812345006", department: "Customer Support", designation: "Customer Support Executive", status: "active", avatar: "E0", salary: 54500, hire_date: "2024-06-06" },
+  { id: 10, name: "Employee 07", email: "employee07@nexoratech.com", phone: "+8801812345007", department: "Training & Development", designation: "Training & Development Executive", status: "active", avatar: "E0", salary: 55250, hire_date: "2024-07-07" },
+  { id: 11, name: "Employee 08", email: "employee08@nexoratech.com", phone: "+8801812345008", department: "Administration", designation: "Administration Executive", status: "active", avatar: "E0", salary: 56000, hire_date: "2024-08-08" },
+];
+
 const departments = [
   "Information Technology",
   "Human Resources",
@@ -111,7 +125,7 @@ function statusLabel(status: EmployeeStatus) {
 export function EmployeeManagement() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>(fallbackEmployees);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -138,8 +152,8 @@ export function EmployeeManagement() {
       const response = await api.get("/employees");
       setEmployees((response.data.employees || []).map(normalizeEmployee));
     } catch {
-      setError("Unable to load employee records.");
-      setEmployees([]);
+      setError("Unable to load employee records. Showing demo data.");
+      setEmployees(fallbackEmployees);
     } finally {
       setLoading(false);
     }

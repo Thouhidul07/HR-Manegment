@@ -26,11 +26,17 @@ interface Candidate {
 }
 
 export function CVFilter() {
-  const [selectedJob, setSelectedJob] = useState("");
+  const [selectedJob, setSelectedJob] = useState("Software Engineer");
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'shortlisted' | 'rejected'>('all');
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
-  const [jobPositions, setJobPositions] = useState<string[]>([]);
+  const [jobPositions, setJobPositions] = useState([
+    "Software Engineer",
+    "Software Engineer",
+    "Accounts Officer",
+    "Operations Executive",
+    "Support Executive"
+  ]);
   const [apiCandidates, setApiCandidates] = useState<Candidate[]>([]);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [cvPreviewCandidate, setCvPreviewCandidate] = useState<Candidate | null>(null);
@@ -39,19 +45,117 @@ export function CVFilter() {
     name: "",
     email: "",
     phone: "",
-    position: "",
+    position: "Software Engineer",
     skills: "",
     experience: "0",
     education: "",
   });
   const [cvFile, setCvFile] = useState<File | null>(null);
 
+  const fallbackCandidates: Candidate[] = [
+    {
+      id: 1,
+      name: "Mahmudul Karim",
+      email: "mahmudul.karim@nexoratech.com",
+      phone: "+8801711122233",
+      position: "Software Engineer",
+      score: 94,
+      skills: ["React", "Node.js", "TypeScript", "AWS", "Docker", "PostgreSQL"],
+      experience: 7,
+      education: "M.S. Computer Science - BUET",
+      matchPercentage: 94,
+      status: 'shortlisted',
+      uploadDate: "2026-05-28",
+      keyStrengths: ["Strong full-stack experience", "Cloud architecture expertise", "Team leadership"],
+      concerns: []
+    },
+    {
+      id: 2,
+      name: "Jannatul Ferdous",
+      email: "jannatul.ferdous@nexoratech.com",
+      phone: "+8801811122233",
+      position: "Software Engineer",
+      score: 89,
+      skills: ["React", "Python", "Django", "MySQL", "Redis", "Git"],
+      experience: 6,
+      education: "B.S. Software Engineering - University of Dhaka",
+      matchPercentage: 89,
+      status: 'shortlisted',
+      uploadDate: "2026-05-27",
+      keyStrengths: ["Solid backend skills", "Database optimization", "Agile methodology"],
+      concerns: ["Limited AWS experience"]
+    },
+    {
+      id: 3,
+      name: "Rafi Ahmed",
+      email: "rafi.ahmed@nexoratech.com",
+      phone: "+8801911122233",
+      position: "Software Engineer",
+      score: 86,
+      skills: ["Vue.js", "Node.js", "MongoDB", "Express", "GraphQL"],
+      experience: 5,
+      education: "B.S. Computer Science - North South University",
+      matchPercentage: 86,
+      status: 'pending',
+      uploadDate: "2026-05-26",
+      keyStrengths: ["Modern tech stack", "API development", "Quick learner"],
+      concerns: ["Less experience than preferred"]
+    },
+    {
+      id: 4,
+      name: "Tasmia Noor",
+      email: "tasmia.noor@nexoratech.com",
+      phone: "+8801611122233",
+      position: "Software Engineer",
+      score: 82,
+      skills: ["Angular", "Java", "Spring Boot", "Oracle", "Jenkins"],
+      experience: 8,
+      education: "M.S. Information Systems - BRAC University",
+      matchPercentage: 82,
+      status: 'pending',
+      uploadDate: "2026-05-25",
+      keyStrengths: ["Extensive experience", "Enterprise architecture", "Mentoring"],
+      concerns: ["Technology stack mismatch", "No React experience"]
+    },
+    {
+      id: 5,
+      name: "Sharmin Sultana",
+      email: "sharmin.sultana@nexoratech.com",
+      phone: "+8801511122233",
+      position: "Software Engineer",
+      score: 78,
+      skills: ["React", "PHP", "Laravel", "MySQL", "jQuery"],
+      experience: 4,
+      education: "B.S. Computer Science - Daffodil International University",
+      matchPercentage: 78,
+      status: 'pending',
+      uploadDate: "2026-05-24",
+      keyStrengths: ["React proficiency", "Web development"],
+      concerns: ["Limited modern tooling", "Below experience threshold"]
+    },
+    {
+      id: 6,
+      name: "Arif Hossain",
+      email: "arif.hossain@nexoratech.com",
+      phone: "+8801311122233",
+      position: "Software Engineer",
+      score: 65,
+      skills: ["HTML", "CSS", "JavaScript", "WordPress", "Bootstrap"],
+      experience: 3,
+      education: "B.Sc. Information Technology - East West University",
+      matchPercentage: 65,
+      status: 'rejected',
+      uploadDate: "2026-05-23",
+      keyStrengths: ["Web fundamentals"],
+      concerns: ["Insufficient experience", "Skill gap too large", "No modern framework knowledge"]
+    }
+  ];
+
   useEffect(() => {
     api.get("/cv-filter/positions")
       .then((response) => {
         if (response.data.positions?.length) {
           setJobPositions(response.data.positions);
-          setSelectedJob((current) => current || response.data.positions[0]);
         }
       })
       .catch(() => undefined);
@@ -59,13 +163,6 @@ export function CVFilter() {
 
   useEffect(() => {
     let isMounted = true;
-
-    if (!selectedJob) {
-      setApiCandidates([]);
-      return () => {
-        isMounted = false;
-      };
-    }
 
     api.get("/cv-filter/candidates", { params: { position: selectedJob } })
       .then((response) => {
@@ -84,7 +181,7 @@ export function CVFilter() {
     };
   }, [selectedJob]);
 
-  const candidates = apiCandidates;
+  const candidates = apiCandidates.length ? apiCandidates : fallbackCandidates;
 
   const filteredCandidates = candidates
     .filter(c => c.position === selectedJob)

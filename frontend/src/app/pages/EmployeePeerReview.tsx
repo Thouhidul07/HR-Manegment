@@ -32,14 +32,73 @@ interface Teammate {
   department: string;
 }
 
+const mockReceivedReviews: ReceivedReview[] = [
+  {
+    id: "1",
+    project: "Mobile App Redesign",
+    duration: "6 months",
+    rating: 5,
+    review: "Excellent collaboration throughout the project. Your technical expertise and willingness to help others really stood out. The code reviews were thorough and constructive. Keep up the great work!",
+    reviewDate: "2026-05-15",
+    strengths: ["Strong technical skills", "Great team player", "Always willing to help"],
+    improvements: ["Could share knowledge more in team meetings"],
+    categories: {
+      communication: 4,
+      technical: 5,
+      teamwork: 5,
+      leadership: 4
+    }
+  },
+  {
+    id: "2",
+    project: "Customer Portal V2",
+    duration: "4 months",
+    rating: 4,
+    review: "Good work on the frontend components. Your attention to detail in the UI implementation was impressive. Sometimes communication could be more proactive, but overall a solid contribution to the team.",
+    reviewDate: "2026-05-10",
+    strengths: ["Detail-oriented", "Clean code", "Good problem solver"],
+    improvements: ["More proactive communication", "Take more initiative"],
+    categories: {
+      communication: 3,
+      technical: 4,
+      teamwork: 4,
+      leadership: 3
+    }
+  },
+  {
+    id: "3",
+    project: "Data Pipeline Migration",
+    duration: "3 months",
+    rating: 5,
+    review: "Outstanding work! You identified critical issues early and proposed excellent solutions. Your documentation was comprehensive and made onboarding new team members much easier. Truly appreciate your contribution.",
+    reviewDate: "2026-04-28",
+    strengths: ["Proactive problem-solving", "Excellent documentation", "Mentorship"],
+    improvements: [],
+    categories: {
+      communication: 5,
+      technical: 5,
+      teamwork: 5,
+      leadership: 5
+    }
+  }
+];
+
+const mockTeammates: Teammate[] = [
+  { id: "1", name: "Sadia Rahman", avatar: "SR", role: "Software Engineer", department: "Information Technology" },
+  { id: "2", name: "Mahmudul Karim", avatar: "MK", role: "Operations Executive", department: "Operations" },
+  { id: "3", name: "Jannatul Ferdous", avatar: "JF", role: "Software Engineer", department: "Information Technology" },
+  { id: "4", name: "Rafi Ahmed", avatar: "RA", role: "Marketing Executive", department: "Marketing" },
+  { id: "5", name: "Tasmia Noor", avatar: "TN", role: "Support Executive", department: "Customer Support" },
+];
+
 export function EmployeePeerReview() {
   const [activeTab, setActiveTab] = useState<'received' | 'submit'>('received');
   const [showSubmitForm, setShowSubmitForm] = useState(false);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [selectedTeammate, setSelectedTeammate] = useState<Teammate | null>(null);
-  const [receivedReviews, setReceivedReviews] = useState<ReceivedReview[]>([]);
-  const [teammates, setTeammates] = useState<Teammate[]>([]);
-  const [givenCount, setGivenCount] = useState(0);
+  const [receivedReviews, setReceivedReviews] = useState<ReceivedReview[]>(mockReceivedReviews);
+  const [teammates, setTeammates] = useState<Teammate[]>(mockTeammates);
+  const [givenCount, setGivenCount] = useState(5);
   const [savingReview, setSavingReview] = useState(false);
   const [peerReviewMessage, setPeerReviewMessage] = useState("");
   const [peerReviewError, setPeerReviewError] = useState("");

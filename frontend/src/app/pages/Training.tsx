@@ -76,6 +76,101 @@ const getDefaultTrainingForm = (): TrainingForm => {
   };
 };
 
+const fallbackCourses = [
+  {
+    id: 1,
+    title: "Leadership & Management Fundamentals",
+    category: "Leadership",
+    duration: "8 hours",
+    enrolled: 4,
+    completed: 2,
+    progress: 50,
+    instructor: "Farhana Akter",
+    level: "Intermediate",
+  },
+  {
+    id: 2,
+    title: "Advanced JavaScript & React",
+    category: "Technical",
+    duration: "12 hours",
+    enrolled: 3,
+    completed: 1,
+    progress: 33,
+    instructor: "Tanvir Hasan",
+    level: "Advanced",
+  },
+  {
+    id: 3,
+    title: "Effective Communication Skills",
+    category: "Soft Skills",
+    duration: "6 hours",
+    enrolled: 5,
+    completed: 4,
+    progress: 80,
+    instructor: "Nusrat Jahan",
+    level: "Beginner",
+  },
+  {
+    id: 4,
+    title: "Data Analysis with Python",
+    category: "Technical",
+    duration: "10 hours",
+    enrolled: 2,
+    completed: 1,
+    progress: 50,
+    instructor: "Mehedi Hasan",
+    level: "Intermediate",
+  },
+];
+
+const fallbackMyTrainings = [
+  {
+    id: 1,
+    course: "Leadership Fundamentals",
+    progress: 75,
+    dueDate: "Apr 15, 2026",
+    status: "In Progress",
+  },
+  {
+    id: 2,
+    course: "Time Management",
+    progress: 100,
+    dueDate: "Mar 28, 2026",
+    status: "Completed",
+  },
+  {
+    id: 3,
+    course: "Conflict Resolution",
+    progress: 40,
+    dueDate: "Apr 20, 2026",
+    status: "In Progress",
+  },
+];
+
+const upcomingSchedule = [
+  {
+    id: 1,
+    title: "Employee Service Workflow Workshop",
+    date: "Apr 8, 2026",
+    time: "10:00 AM",
+    type: "Workshop",
+  },
+  {
+    id: 2,
+    title: "Safety & Compliance",
+    date: "Apr 12, 2026",
+    time: "2:00 PM",
+    type: "Mandatory",
+  },
+  {
+    id: 3,
+    title: "Team Building Session",
+    date: "Apr 18, 2026",
+    time: "3:00 PM",
+    type: "Workshop",
+  },
+];
+
 const formatTrainingDateTime = (value?: string | null) => {
   if (!value) return "To be scheduled";
   return new Date(value).toLocaleString("en-US", {
@@ -132,9 +227,9 @@ const downloadCourseMaterials = (title: string) => {
 
 export function Training() {
   const { user } = useAuth();
-  const [courses, setCourses] = useState<Course[]>([]);
+  const [courses, setCourses] = useState<Course[]>(fallbackCourses);
   const [myTrainings, setMyTrainings] =
-    useState<MyTraining[]>([]);
+    useState<MyTraining[]>(fallbackMyTrainings);
   const [activeCategory, setActiveCategory] = useState("All Categories");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [trainingForm, setTrainingForm] = useState<TrainingForm>(
@@ -148,7 +243,20 @@ export function Training() {
   const [isLiveClassOpen, setIsLiveClassOpen] = useState(false);
   const [isDiscussionOpen, setIsDiscussionOpen] = useState(false);
   const [discussionReply, setDiscussionReply] = useState("");
-  const [discussionMessages, setDiscussionMessages] = useState<Array<{ id: number; author: string; body: string; time: string }>>([]);
+  const [discussionMessages, setDiscussionMessages] = useState([
+    {
+      id: 1,
+      author: "Instructor",
+      body: "Please review the materials before class and bring one question to discuss.",
+      time: "Pinned",
+    },
+    {
+      id: 2,
+      author: "Employee 03",
+      body: "The checklist was helpful. Can we cover a real example during the session?",
+      time: "10 min ago",
+    },
+  ]);
   const isAdmin = user?.role === "admin";
   const isEmployee = user?.role === "employee";
   const isHRManager = user?.role === "hr_manager";
@@ -218,41 +326,6 @@ export function Training() {
     currentCourseForTraining?.description ||
     activeCourse?.description ||
     "Review course materials, attend the class session, and complete all required activities.";
-  const upcomingSchedule = courses
-    .map((course) => {
-      const scheduledCourse = course as Course & {
-        startDate?: string;
-        date?: string;
-        name?: string;
-        endDate?: string;
-        type?: string;
-      };
-      const startsAt =
-        scheduledCourse.startsAt ||
-        scheduledCourse.startDate ||
-        scheduledCourse.date ||
-        "";
-
-      if (!startsAt) return null;
-
-      return {
-        id: scheduledCourse.id,
-        title:
-          scheduledCourse.title ||
-          scheduledCourse.name ||
-          "Untitled Training",
-        date: formatTrainingDateTime(startsAt),
-        time: scheduledCourse.endsAt || scheduledCourse.endDate
-          ? formatTrainingDateTime(scheduledCourse.endsAt || scheduledCourse.endDate)
-          : "End time not set",
-        type:
-          scheduledCourse.level ||
-          scheduledCourse.category ||
-          scheduledCourse.type ||
-          "Training",
-      };
-    })
-    .filter((session): session is NonNullable<typeof session> => Boolean(session));
   const activeLearningTrainer =
     activeTraining?.trainer ||
     currentCourseForTraining?.instructor ||
@@ -548,31 +621,25 @@ export function Training() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {upcomingSchedule.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No upcoming training schedule found.
-                </p>
-              ) : (
-                upcomingSchedule.map((session) => (
-                  <div
-                    key={session.id}
-                    className="p-3 rounded-lg bg-accent/30 hover:bg-accent/50 transition-colors"
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <h4 className="text-sm text-foreground">{session.title}</h4>
-                      <Badge variant="secondary" size="sm">
-                        {session.type}
-                      </Badge>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {session.date} at {session.time}
-                      </p>
-                    </div>
+              {upcomingSchedule.map((session) => (
+                <div
+                  key={session.id}
+                  className="p-3 rounded-lg bg-accent/30 hover:bg-accent/50 transition-colors"
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <h4 className="text-sm text-foreground">{session.title}</h4>
+                    <Badge variant="secondary" size="sm">
+                      {session.type}
+                    </Badge>
                   </div>
-                ))
-              )}
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      {session.date} at {session.time}
+                    </p>
+                  </div>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -812,7 +879,7 @@ export function Training() {
               variant="primary"
               onClick={() => {
                 setIsLiveClassOpen(false);
-                showTrainingFeedback("Live class link opened.");
+                showTrainingFeedback("Live class link opened in sample mode.");
               }}
             >
               Join Now

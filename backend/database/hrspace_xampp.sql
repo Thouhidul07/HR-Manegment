@@ -410,7 +410,6 @@ CREATE TABLE project_tasks (
   description TEXT NOT NULL,
   status ENUM('todo', 'in-progress', 'in-review', 'completed') NOT NULL DEFAULT 'todo',
   priority ENUM('low', 'medium', 'high', 'urgent') NOT NULL DEFAULT 'medium',
-  assigned_to INT,
   assignee VARCHAR(120) NOT NULL,
   assignee_avatar VARCHAR(8),
   deadline DATE NOT NULL,
@@ -420,8 +419,7 @@ CREATE TABLE project_tasks (
   comments INT NOT NULL DEFAULT 0,
   attachments INT NOT NULL DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
 CREATE TABLE projects (
@@ -879,7 +877,7 @@ VALUES
   INSERT INTO users
     (id, company_id, employee_code, name, email, password, role, phone, department, designation, hire_date, salary, avatar, status)
   VALUES
-    (18, 1, 'NX-PM-001', 'Project Manager 01', 'pm01@nexoratech.com', '$2a$10$54BhZ7nwTM/WLbehFgF4YeyXqWXfGfiIk0WABBG97o701vHXS5xhi', 'project_manager', '+8801712345699', 'Project Management', 'Project Manager', '2025-09-01', 98000.00, 'PM', 'active');
+    (18, 1, 'NX-PM-001', 'Project Manager 01', 'pm01@nexoratech.com', '$2a$10$Mda0zoEZZ0k1Ai68Q3r2CeIiSOrQRBvtToTiXbuT3R3zdBTuiT0NS', 'project_manager', '+8801712345699', 'Project Management', 'Project Manager', '2025-09-01', 98000.00, 'PM', 'active');
 
   -- Assign Project Manager to existing project and set as owner
   UPDATE projects SET owner_id = 18 WHERE name = 'Website Redesign';
@@ -923,11 +921,16 @@ VALUES
   (3, 1200.00, CURDATE(), 'Bank Transfer', 'PAY-EXP-0003', 2);
 
 INSERT INTO project_tasks
-  (title, description, status, priority, assigned_to, assignee, assignee_avatar, deadline, project, tags, estimated_hours, comments, attachments)
+  (title, description, status, priority, assignee, assignee_avatar, deadline, project, tags, estimated_hours, comments, attachments)
 VALUES
-  ('Role Audit Report', 'Prepare permission audit report for Admin and HR access.', 'todo', 'high', 18, 'Project Manager 01', 'PM', DATE_ADD(CURDATE(), INTERVAL 4 DAY), 'User Portal', '["Security","Roles"]', 12.00, 1, 0),
-  ('Training Course UI Polish', 'Improve training material and class time display.', 'in-review', 'medium', 3, 'Employee 01', 'E0', DATE_ADD(CURDATE(), INTERVAL 3 DAY), 'Website Redesign', '["Frontend","Training"]', 8.00, 2, 1),
-  ('Payroll Exception Dashboard', 'Create payroll exception summary cards.', 'todo', 'high', 4, 'Employee 02', 'E0', DATE_ADD(CURDATE(), INTERVAL 7 DAY), 'User Portal', '["Payroll","Analytics"]', 10.00, 0, 0);
+  ('Design Homepage Mockup', 'Create high-fidelity mockups for the new homepage design', 'in-progress', 'high', 'Emily Rodriguez', 'ER', '2026-06-05', 'Website Redesign', '["Design","UI/UX"]', NULL, 3, 2),
+  ('Implement Authentication API', 'Build JWT-based authentication endpoints with refresh token support', 'in-progress', 'urgent', 'Michael Chen', 'MC', '2026-06-03', 'User Portal', '["Backend","Security"]', NULL, 5, 1),
+  ('Create Component Library', 'Build reusable React components following design system', 'todo', 'medium', 'Sarah Johnson', 'SJ', '2026-06-10', 'Website Redesign', '["Frontend","React"]', NULL, 1, 0),
+  ('Database Schema Migration', 'Update database schema for new user role permissions', 'in-review', 'high', 'David Kim', 'DK', '2026-06-02', 'User Portal', '["Database","Backend"]', NULL, 2, 1),
+  ('E2E Testing Suite', 'Set up end-to-end testing with Cypress for critical user flows', 'todo', 'medium', 'Jessica Martinez', 'JM', '2026-06-12', 'User Portal', '["Testing","QA"]', NULL, 0, 0),
+  ('Landing Page Optimization', 'Improve performance and SEO for landing page', 'completed', 'low', 'Sarah Johnson', 'SJ', '2026-05-30', 'Website Redesign', '["Frontend","Performance"]', NULL, 4, 3),
+  ('Mobile Responsive Design', 'Ensure all pages are mobile-friendly and responsive', 'in-progress', 'high', 'Emily Rodriguez', 'ER', '2026-06-07', 'Website Redesign', '["Design","Mobile"]', NULL, 2, 1),
+  ('API Documentation', 'Write comprehensive API documentation with examples', 'todo', 'low', 'Michael Chen', 'MC', '2026-06-15', 'User Portal', '["Documentation","Backend"]', NULL, 0, 0);
 
 INSERT INTO projects
   (name, description, owner_id, status)
@@ -1135,11 +1138,11 @@ WHERE status = 'paid'
   AND id NOT IN (SELECT expense_id FROM expense_payments);
 
 INSERT INTO project_tasks
-  (title, description, status, priority, assigned_to, assignee, assignee_avatar, deadline, project, tags, estimated_hours, comments, attachments)
+  (title, description, status, priority, assignee, assignee_avatar, deadline, project, tags, estimated_hours, comments, attachments)
 VALUES
-  ('Role Audit Report', 'Prepare permission audit report for Admin and HR access.', 'todo', 'high', 18, 'Project Manager 01', 'PM', DATE_ADD(CURDATE(), INTERVAL 4 DAY), 'User Portal', '["Security","Roles"]', 12.00, 1, 0),
-  ('Training Course UI Polish', 'Improve training material and class time display.', 'in-review', 'medium', 3, 'Employee 01', 'E0', DATE_ADD(CURDATE(), INTERVAL 3 DAY), 'Website Redesign', '["Frontend","Training"]', 8.00, 2, 1),
-  ('Payroll Exception Dashboard', 'Create payroll exception summary cards.', 'todo', 'high', 4, 'Employee 02', 'E0', DATE_ADD(CURDATE(), INTERVAL 7 DAY), 'User Portal', '["Payroll","Analytics"]', 10.00, 0, 0);
+  ('Role Audit Report', 'Prepare permission audit report for Admin and HR access.', 'todo', 'high', 'Tanvir Hasan', 'TH', DATE_ADD(CURDATE(), INTERVAL 4 DAY), 'User Portal', '["Security","Roles"]', 12.00, 1, 0),
+  ('Training Course UI Polish', 'Improve training material and class time display.', 'in-review', 'medium', 'Ayesha Rahman', 'AR', DATE_ADD(CURDATE(), INTERVAL 3 DAY), 'Website Redesign', '["Frontend","Training"]', 8.00, 2, 1),
+  ('Payroll Exception Dashboard', 'Create payroll exception summary cards.', 'todo', 'high', 'Sakib Chowdhury', 'SC', DATE_ADD(CURDATE(), INTERVAL 7 DAY), 'User Portal', '["Payroll","Analytics"]', 10.00, 0, 0);
 
 INSERT INTO projects
   (id, name, description, owner_id, status, start_date, end_date)

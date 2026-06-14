@@ -15,7 +15,6 @@ interface Task {
   description: string;
   status: TaskStatus;
   priority: TaskPriority;
-  assignedTo: number | null;
   assignee: string;
   assigneeAvatar: string;
   deadline: string;
@@ -38,29 +37,155 @@ export function ProjectManagement() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [filterProject, setFilterProject] = useState<string>('all');
   const [isSavingTask, setIsSavingTask] = useState(false);
-  const [loadError, setLoadError] = useState("");
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [projectOptions, setProjectOptions] = useState<string[]>([]);
+
+  const fallbackEmployees: Employee[] = [
+    { id: 1, name: "Sarah Johnson", role: "Frontend Developer", avatar: "SJ" },
+    { id: 2, name: "Michael Chen", role: "Backend Developer", avatar: "MC" },
+    { id: 3, name: "Emily Rodriguez", role: "UI/UX Designer", avatar: "ER" },
+    { id: 4, name: "David Kim", role: "Full Stack Developer", avatar: "DK" },
+    { id: 5, name: "Jessica Martinez", role: "QA Engineer", avatar: "JM" }
+  ];
+
+  const [employees, setEmployees] = useState<Employee[]>(fallbackEmployees);
+  const [tasks, setTasks] = useState<Task[]>([
+    {
+      id: 1,
+      title: "Design Homepage Mockup",
+      description: "Create high-fidelity mockups for the new homepage design",
+      status: 'in-progress',
+      priority: 'high',
+      assignee: "Emily Rodriguez",
+      assigneeAvatar: "ER",
+      deadline: "2026-06-05",
+      createdDate: "2026-05-25",
+      tags: ["Design", "UI/UX"],
+      comments: 3,
+      attachments: 2,
+      project: "Website Redesign"
+    },
+    {
+      id: 2,
+      title: "Implement Authentication API",
+      description: "Build JWT-based authentication endpoints with refresh token support",
+      status: 'in-progress',
+      priority: 'urgent',
+      assignee: "Michael Chen",
+      assigneeAvatar: "MC",
+      deadline: "2026-06-03",
+      createdDate: "2026-05-20",
+      tags: ["Backend", "Security"],
+      comments: 5,
+      attachments: 1,
+      project: "User Portal"
+    },
+    {
+      id: 3,
+      title: "Create Component Library",
+      description: "Build reusable React components following design system",
+      status: 'todo',
+      priority: 'medium',
+      assignee: "Sarah Johnson",
+      assigneeAvatar: "SJ",
+      deadline: "2026-06-10",
+      createdDate: "2026-05-28",
+      tags: ["Frontend", "React"],
+      comments: 1,
+      attachments: 0,
+      project: "Website Redesign"
+    },
+    {
+      id: 4,
+      title: "Database Schema Migration",
+      description: "Update database schema for new user role permissions",
+      status: 'in-review',
+      priority: 'high',
+      assignee: "David Kim",
+      assigneeAvatar: "DK",
+      deadline: "2026-06-02",
+      createdDate: "2026-05-22",
+      tags: ["Database", "Backend"],
+      comments: 2,
+      attachments: 1,
+      project: "User Portal"
+    },
+    {
+      id: 5,
+      title: "E2E Testing Suite",
+      description: "Set up end-to-end testing with Cypress for critical user flows",
+      status: 'todo',
+      priority: 'medium',
+      assignee: "Jessica Martinez",
+      assigneeAvatar: "JM",
+      deadline: "2026-06-12",
+      createdDate: "2026-05-29",
+      tags: ["Testing", "QA"],
+      comments: 0,
+      attachments: 0,
+      project: "User Portal"
+    },
+    {
+      id: 6,
+      title: "Landing Page Optimization",
+      description: "Improve performance and SEO for landing page",
+      status: 'completed',
+      priority: 'low',
+      assignee: "Sarah Johnson",
+      assigneeAvatar: "SJ",
+      deadline: "2026-05-30",
+      createdDate: "2026-05-15",
+      tags: ["Frontend", "Performance"],
+      comments: 4,
+      attachments: 3,
+      project: "Website Redesign"
+    },
+    {
+      id: 7,
+      title: "Mobile Responsive Design",
+      description: "Ensure all pages are mobile-friendly and responsive",
+      status: 'in-progress',
+      priority: 'high',
+      assignee: "Emily Rodriguez",
+      assigneeAvatar: "ER",
+      deadline: "2026-06-07",
+      createdDate: "2026-05-26",
+      tags: ["Design", "Mobile"],
+      comments: 2,
+      attachments: 1,
+      project: "Website Redesign"
+    },
+    {
+      id: 8,
+      title: "API Documentation",
+      description: "Write comprehensive API documentation with examples",
+      status: 'todo',
+      priority: 'low',
+      assignee: "Michael Chen",
+      assigneeAvatar: "MC",
+      deadline: "2026-06-15",
+      createdDate: "2026-05-30",
+      tags: ["Documentation", "Backend"],
+      comments: 0,
+      attachments: 0,
+      project: "User Portal"
+    }
+  ]);
 
   useEffect(() => {
     let isMounted = true;
 
     api.get("/projects/tasks")
       .then((response) => {
-        if (isMounted) {
-          setTasks(response.data.tasks || []);
+        if (isMounted && response.data.tasks?.length) {
+          setTasks(response.data.tasks);
         }
       })
-      .catch(() => {
-        if (isMounted) setLoadError("Unable to load project tasks.");
-      });
+      .catch(() => {});
 
     api.get("/employees")
       .then((response) => {
-        if (!isMounted) return;
+        if (!isMounted || !response.data.employees?.length) return;
 
-        setEmployees((response.data.employees || []).map((employee: any) => ({
+        setEmployees(response.data.employees.map((employee: any) => ({
           id: employee.id,
           name: employee.name,
           role: employee.position || employee.department || "Team Member",
@@ -72,26 +197,14 @@ export function ProjectManagement() {
             .toUpperCase(),
         })));
       })
-      .catch(() => {
-        if (isMounted) setLoadError("Unable to load project employees.");
-      });
-
-    api.get("/projects")
-      .then((response) => {
-        if (!isMounted) return;
-        setProjectOptions((response.data.projects || []).map((project: any) => project.name).filter(Boolean));
-      })
-      .catch(() => {
-        if (isMounted) setLoadError("Unable to load projects.");
-      });
+      .catch(() => {});
 
     return () => {
       isMounted = false;
     };
   }, []);
 
-  const taskProjects = tasks.map((task) => task.project).filter(Boolean);
-  const projects = ['all', ...Array.from(new Set([...projectOptions, ...taskProjects]))];
+  const projects = ['all', 'Website Redesign', 'User Portal'];
 
   const filteredTasks = filterProject === 'all'
     ? tasks
@@ -185,12 +298,6 @@ export function ProjectManagement() {
           New Task
         </button>
       </div>
-
-      {loadError && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">
-          {loadError}
-        </div>
-      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
@@ -356,7 +463,6 @@ export function ProjectManagement() {
             setSelectedTask(null);
           }}
           onSave={handleSaveTask}
-          projects={projects.filter((project) => project !== 'all')}
         />
       )}
     </div>
@@ -517,23 +623,22 @@ function TaskCard({ task, onClick, onMove, getPriorityColor }: any) {
 }
 
 // Task Modal Component
-function TaskModal({ task, employees, projects, onClose, onSave }: any) {
+function TaskModal({ task, employees, onClose, onSave }: any) {
   const [formData, setFormData] = useState({
     title: task?.title || '',
     description: task?.description || '',
     status: task?.status || 'todo',
     priority: task?.priority || 'medium',
-    assignedTo: task?.assignedTo ? String(task.assignedTo) : '',
     assignee: task?.assignee || '',
     assigneeAvatar: task?.assigneeAvatar || '',
     deadline: task?.deadline || '',
-    project: task?.project || '',
+    project: task?.project || 'Website Redesign',
     tags: task?.tags || []
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave({ ...formData, assignedTo: formData.assignedTo ? Number(formData.assignedTo) : null });
+    onSave(formData);
   };
 
   return (
@@ -580,13 +685,12 @@ function TaskModal({ task, employees, projects, onClose, onSave }: any) {
             <div>
               <label className="text-sm font-semibold text-foreground mb-2 block">Assign To</label>
               <select
-                value={formData.assignedTo}
+                value={formData.assignee}
                 onChange={(e) => {
-                  const employee = employees.find((emp: Employee) => String(emp.id) === e.target.value);
+                  const employee = employees.find((emp: Employee) => emp.name === e.target.value);
                   setFormData({
                     ...formData,
-                    assignedTo: e.target.value,
-                    assignee: employee?.name || '',
+                    assignee: e.target.value,
                     assigneeAvatar: employee?.avatar || ''
                   });
                 }}
@@ -595,7 +699,7 @@ function TaskModal({ task, employees, projects, onClose, onSave }: any) {
               >
                 <option value="">Select employee...</option>
                 {employees.map((emp: Employee) => (
-                  <option key={emp.id} value={emp.id}>{emp.name} - {emp.role}</option>
+                  <option key={emp.id} value={emp.name}>{emp.name} - {emp.role}</option>
                 ))}
               </select>
             </div>
@@ -648,12 +752,9 @@ function TaskModal({ task, employees, projects, onClose, onSave }: any) {
               value={formData.project}
               onChange={(e) => setFormData({ ...formData, project: e.target.value })}
               className="w-full px-3 py-2 border border-border bg-background rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              required
             >
-              <option value="">Select project...</option>
-              {projects.map((project: string) => (
-                <option key={project} value={project}>{project}</option>
-              ))}
+              <option value="Website Redesign">Website Redesign</option>
+              <option value="User Portal">User Portal</option>
             </select>
           </div>
 
